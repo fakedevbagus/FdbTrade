@@ -1,146 +1,157 @@
 # Completion Report
 
-Prompt ID: P00-03 — Create configuration and environment contract
+Prompt ID: P00-04 — Establish CI baseline and ADR system
 Phase: P0 Constitution
-Date/time UTC: 2026-09-07T17:00Z
-Branch/commit: main / 17fddf9 (P00-03 deliverables); with a hash-record follow-up commit on top
+Date/time UTC: 2026-09-07T17:26Z
+Branch/commit: main / `c1f4bbb` (skeleton tracked), `b82aec8` (deliverables)
 
 ## What changed
 
-Implemented the typed server-side configuration and environment contract per
-ADR-0002's allocation of P00-03 → `infra/` + config. Added a dependency-free
-(stdlib-only) Python config subsystem under `infra/config/`, a canonical
-`.env.example` template, a CLI inspector, and a cross-cutting test module.
+Established the CI baseline and the ADR system for FdbTrade, reusing the
+deterministic `make` gate (lint + typecheck + test + build) so local and CI
+behaviour never diverge (ADR-0006).
 
-Key capabilities delivered:
+### CI baseline
 
-1. **Namespaces & explicit environments** — `app`, `database`, `cache`,
-   `market_data`, `notifications`, `broker`, `research`, each a frozen typed
-   dataclass. `FDB_APP_ENV` is always required and limited to
-   `development | testing | staging | production`.
-2. **Safe defaults** — every non-secret field has a default (e.g. `api_port`
-   8000, `cache.port` 6379, `research.random_seed` 42). Secrets default to `""`
-   in development/testing and become required in staging/production.
-3. **Typed coercion + schema validation at the boundary** — int/float/bool/enum/
-   str-list parsing with allowed-set and min/max constraints. Errors aggregate all
-   problems into a single secret-free `ConfigError`.
-4. **Redaction** — `Config.to_redacted_dict()` replaces secrets with
-   `[REDACTED]`; the CLI default view is redaction-safe. A regression guard
-   asserts secrets never appear in validation error messages.
-5. **Frontend public-safe config** — `Config.to_public_dict()` emits only fields
-   marked `public` (app name/env/host/port, broker.live_enabled) and never any
-   secret; this is the only shape allowed across the browser boundary.
-6. **`.env` support** — minimal stdlib parser with real-environment precedence
-   (os.environ > file). `.env` is git-ignored; only `.env.example` is tracked.
-7. **Determinism/UTC/safety** — `app.timezone` locked to `UTC`; loader is pure
-   (never mutates `os.environ`, no timestamps, insertion-ordered output);
-   `broker.live_enabled` defaults False and `broker.adapter`/`market_data.provider`
-   are locked to `paper`/`fixture` (no live broker, no external credentials).
+- `ci/run-local.sh` — deterministic local CI runner. Creates a clean-room copy
+  of the source tree (excluding `.git`, `node_modules`, venvs, build caches, and
+  **`.env`**), installs with `pnpm install --frozen-lockfile`, then runs the
+  required jobs (`lint`, `typecheck`, `test`, `build`) via the root `make`
+  targets with `set -e` fail-fast. Options: `--src`, `--work`, `--jobs`,
+  `--skip-install`, `--help`. Deterministic; output timestamps are UTC; never
+  reads or prints secrets. This is the executable CI baseline, runnable with no
+  hosted service.
+- `.github/workflows/ci.yml` — declarative CI (GitHub Actions) with four
+  required, **blocking** jobs (`lint`, `typecheck`, `unit-tests`, `build`),
+  triggered on pushes to `main` and pull requests. No job sets
+  `continue-on-error`, so a failing required job blocks. Reuses `make lint`,
+  `make typecheck`, `make test`, `make build`.
 
-Also fixed a pre-existing defect discovered while running the aggregate gate
-(see Acceptance): `tests/test_skeleton_contracts.py::test_makefile_exposes_required_targets`
-anchored its regex with a non-multiline `^`, so it could never pass. Corrected to
+### ADR system
+
+- `02_TEMPLATES/ADR_TEMPLATE.md` — ADR template (title, Status/Date/Deciders/
+  Supersedes/Related metadata, Context/Decision/Consequences/Verification).
+- `docs/adr/README.md` — documents the ADR format, sequential numbering from
+  0001, the status lifecycle (Proposed/Accepted/Superseded/Deprecated), the
+  process, verification, and an index of all ADRs.
+- Four new ADRs (all `Status: Accepted`):
+  - `ADR-0003-architecture-boundaries.md` — hard, unidirectional
+    `strategy -> signal -> risk -> execution` boundary; LLM/AI has no order
+    authority; typed contracts at boundaries.
+  - `ADR-0004-utc-time-policy.md` — UTC is the single internal timezone; local
+    conversion only at presentation; `app.timezone` locked to UTC.
+  - `ADR-0005-live-trading-off-by-default.md` — live execution OFF by default;
+    `broker.adapter` locked to `paper`; a config flag is not order authority.
+  - `ADR-0006-ci-baseline.md` — one gate (`make check`), four required blocking
+    jobs, local runner + GitHub Actions, determinism/no-secrets.
+
+### Verification that CI "runs from a clean checkout"
+
+- **True git clean checkout**: `git clone` of the repo at `b82aec8` into a
+  fresh temp dir → `pnpm install --frozen-lockfile` → `make check` → **Exit 0**,
+  `Ran 65 tests ... OK`, `All workspace checks passed.` (This required first
+  tracking the previously-untracked workspace skeleton and control docs —
+  commit `c1f4bbb` — so a clean checkout contains the full workspace.)
+- `bash ci/run-local.sh` (clean-room copy of the working tree, with install)
+  → **Exit 0**, all four jobs passed, 65 tests OK.
+- Manual blocking demo: a failing `build` job → runner exits **1** with
+  `[ci] FAILED: job 'build'`.
+- `ci.yml` loads as valid YAML with exactly the jobs `lint, typecheck, test,
+  build`, none with `continue-on-error`.
+
 ## Files changed
 
-- `infra/config/__init__.py` (new) — public API (`load_config`, `ConfigError`,
-  `Env`, dataclasses, redaction helpers).
-- `infra/config/schema.py` (new) — typed namespace dataclasses, declarative
-  `Field` specs, deterministic `to_redacted_dict` / `to_public_dict`.
-- `infra/config/loader.py` (new) — `.env` parser, coercion, validation,
-  `load_config`, `ConfigError` (secret-free messages).
-- `infra/config/__main__.py` (new) — CLI: `--dotenv`, `--public`, `--format`
-  (never prints secrets).
-- `infra/.env.example` (new) — canonical `FDB_*` variable template; all secrets
-  empty placeholders.
-- `infra/README.md` (modified) — document the config contract and CLI usage.
-- `tests/test_config_contracts.py` (new) — 33 tests (happy/missing/malformed/
-  boundary/redaction/public/dotenv/purity/determinism/CLI/regression).
-- `tests/test_skeleton_contracts.py` (modified) — one-line regex fix for a
-  pre-existing test that could never pass (multiline anchor).
-- `tests/README.md` (modified) — document the new config test module.
-- `COMPLETION_REPORT.md` (this file, new).
+- `ci/run-local.sh` (new) — local deterministic CI runner.
+- `.github/workflows/ci.yml` (new) — GitHub Actions, four required blocking jobs.
+- `02_TEMPLATES/ADR_TEMPLATE.md` (new) — ADR template.
+- `docs/adr/README.md` (new) — ADR format, numbering, lifecycle, process, index.
+- `docs/adr/ADR-0003-architecture-boundaries.md` (new)
+- `docs/adr/ADR-0004-utc-time-policy.md` (new)
+- `docs/adr/ADR-0005-live-trading-off-by-default.md` (new)
+- `docs/adr/ADR-0006-ci-baseline.md` (new)
+- `tests/test_ci_contracts.py` (new) — 18 tests (ADR contract, workflow
+  contract, runner contract).
+- `tests/test_config_contracts.py` (modified) — added
+  `test_timezone_is_locked_to_utc` to make ADR-0004's verification claim true.
+- `docs/README.md` (modified) — ADR + CI pointers.
+- `docs/adr/ADR-0001-baseline-stack.md` (modified) — Consequences now point to
+  ADR-0002 for the recorded layout; it was an uncommitted working-tree edit
+  from P00-02 that rode along in the prep commit (with a spacing typo that is
+  corrected in the final commit of this prompt).
 - `04_CLINE_CONTROL/CURRENT_STATE.md`, `04_CLINE_CONTROL/START_HERE.md`
-  (modified) — advance the verified/next-task pointers per CONTRIBUTING.md.
+  (modified) — advance verified/next-task pointers.
+- `COMPLETION_REPORT.md` (this file, new).
 
 ## Tests executed
 
-- `python3 -m unittest discover -s tests -p 'test_config_contracts.py' -v`
-  → 33 tests, all OK (happy path, defaults, every env, str-list, bool variants,
-  missing/unknown env, malformed int/bool/enum, prod-required-secret, aggregated
-  errors, secret-leak regression, port/db-index/symbol boundaries, redaction,
-  public-safety, purity no-osenviron-mutation, determinism, dotenv precedence &
-  parsing, CLI redaction/public/nonzero-missing).
-- `make check` (lint + typecheck + test + build across the workspace and the
-  Python stdlib suite) → **Exit 0**. Full suite: 46 tests OK (33 config + 13
-  skeleton).
-- Manual end-to-end: `python -m infra.config --dotenv infra/.env.example`
-  redacts every secret; `--public` returns only app + broker.live_enabled;
-  missing `FDB_APP_ENV` exits nonzero; `infra/.env.example` contains no
-  populated secrets.
-## Acceptance criteria
+- `make check` (lint + typecheck + test + build for all packages + Python
+  stdlib suite) → **Exit 0**, `Ran 65 tests ... OK`, `All workspace checks passed.`
+- `bash ci/run-local.sh` (clean-room, real install) → Exit 0, all four jobs, 65
+  tests OK.
+- `python3 -m unittest discover -s tests -p 'test_*.py' -v` → 65 tests OK,
+  covering:
+  - valid input/expected output: runner happy path (all jobs), ADR files present
+    with required sections, workflow contains four jobs + `make` targets.
+  - malformed/missing input: runner unknown-option rejection; ADR numbering/
+    section/template contract guards.
+  - boundary/empty/stale: contiguous ADR numbering 0001..0006; `.env` excluded
+    from clean-room copy; determinism/purity (runner does not mutate source).
+  - idempotency: no events/jobs introduced; loader purity carried over from
+    P00-03; runner is pure (does not mutate `--src`).
+  - regression: secret-like `.env` never reaches CI workspace (newly exercised
+    guarantee); timezone-lock regression test added for ADR-0004.
 
-- [x] Typed server-side config loading with explicit environments, safe
-      defaults, validation, redaction, and `.env.example`.
-- [x] Config namespaces defined for app, database, cache, market data,
-      notifications, broker, research.
-- [x] Invalid required config fails clearly (`ConfigError` names the offending
-      env var; `FDB_APP_ENV` always required).
-- [x] Secrets are never logged — redaction applied at the boundary; regression
-      test proves errors never echo a secret.
-- [x] Frontend receives only public-safe config via `to_public_dict()`.
-- [x] Config tests cover missing, malformed, and valid cases (+ boundary, empty,
-      determinism, purity/idempotency-of-loader, dotenv, CLI, regression).
-- [x] Relevant tests pass from a clean environment (46/46 via `make check`).
-- [x] Lint/typecheck/build clean for affected packages (`make check` Exit 0).
-- [x] No unrelated files modified without justification (the one out-of-scope
-      file touched, `tests/test_skeleton_contracts.py`, was a pre-existing test
-      bug blocking the aggregate gate; fixed minimally and documented).
-- [x] Completion report written (this file).
+## Acceptance checklist
 
-## Known limitations / blockers
+- [x] CI runs from a clean checkout — verified via a fresh `git clone` at
+      `b82aec8` + `pnpm install --frozen-lockfile` + `make check`, Exit 0
+      (65 tests OK); also via `ci/run-local.sh` clean-room copy, Exit 0.
+- [x] CI blocks on failing required jobs — `ci.yml` has no
+      `continue-on-error`/soft-fail; local runner `set -e` fail-fast, verified
+      by a failing-`build` demo exiting 1. Unit-tested in
+      `tests/test_ci_contracts.py`.
+- [x] ADR format is documented — `docs/adr/README.md` + `02_TEMPLATES/ADR_TEMPLATE.md`,
+      enforced by contract tests.
+- [x] Lint/typecheck/build clean — `make check` Exit 0 (65 tests OK).
+- [x] No unrelated files modified — only the files listed above. One scope note:
+      commit `c1f4bbb` tracks the previously-untracked but pre-existing
+      workspace skeleton and control/prompt/reference docs (`Makefile`,
+      `package.json`, pnpm workspace files, `backend/`, `frontend/`,
+      `contracts/`, `quant/`, `scripts/`, `00_CONTROL/`, `01_PROMPTS/`,
+      `02_TEMPLATES/`, `03_REFERENCE/`, `.clinerules/`, etc.). This is a direct
+      prerequisite of the "CI runs from a clean checkout" acceptance criterion;
+      no file content was changed, only added to git.
+- [x] Completion report written — this file.
 
-- The config loader is Python (the server-side quant/BFF workers are Python); the
-  TypeScript backend will consume the same `.env` contract and its own typed
-  loader from P01-02 — not built here (out of scope).
-- `.env` parser is intentionally minimal (no variable substitution /
-  interpolation); documented in the module docstring. Acceptable for this phase.
-- This phase only defines config/capability flags; broker order authority remains
-  unimplemented (later phases, live OFF by default).
-- The previously-failing skeleton Makefile test was fixed as a discovered defect;
-  documented above so it is not attributed to unrelated work.
+## Blockers / limitations
 
-## Follow-up required before next prompt
+- GitHub Actions cannot be observed from this offline host; the workflow is
+  syntax-validated by tests (parsed YAML, job inventory) and mirrors the
+  verified local runner. First push to GitHub will confirm the hosted path.
+- Hosted CI pins `pnpm@9` and Python 3.12 via setup actions; exact minor
+  versions follow ADR-0001.
+- No deployment, no new dependencies.
 
-- None blocking. `make check` is green and the config contract is committed.
-  P00-04 (CI baseline + ADR system) can start immediately.
+## Security / quant implications
 
-## Risk notes
+- CI clean-room copy excludes `.env` — secrets cannot leak into CI logs or
+  artifacts (regression-tested).
+- Runner output contains no env dumps; CI jobs never receive secret context.
+- UTC-only policy (ADR-0004) and live-trading-off-by-default (ADR-0005) are now
+  codified and regression-tested, protecting the quant-integrity and
+  trading-safety boundaries before any strategy code exists.
+- Architecture boundary ADR (ADR-0003) codifies strategy → signal → risk →
+  execution as test-enforceable contract language for later phases.
 
-- Security: secrets stored only in git-ignored `.env`; redaction implemented at
-  the output boundary; `to_public_dict` is the only browser-bound shape; the CLI
-  never prints secrets. Regression tests assert no secret leaks into logs or
-  errors. `.env.example` carries empty placeholders only.
-- Quant/integrity: `app.timezone` is locked to UTC; `research.random_seed`
-  default (42) supports deterministic research; `market_data.provider` locked to
-  `fixture` and `broker.adapter` to `paper`, so no external credentials or live
-  endpoints are assumed.
-- Live-execution safety: `broker.live_enabled` defaults False; enabling it is a
-  config value only and does not grant order authority (the order path is a
-  separate later-phase boundary).
+## Commit note
 
-## Exact next prompt that is safe to run
+Three focused commits on `main`:
+- `c1f4bbb` — P00-04 (prep): track workspace skeleton, control docs, and prompt
+  library so CI can run from a clean checkout.
+- `b82aec8` — P00-04: CI baseline (local runner + GitHub Actions, four blocking
+  jobs) and ADR system (template, format doc, ADR-0003..0006).
+- Final commit: this completion report (see `git log --oneline` for the hash).
 
-`01_PROMPTS/P00_Constitution/P00-04_Establish_CI_baseline_and_ADR_system.md`
-(establish CI baseline and ADR system; no P1+ functionality).
+## Next prompt (safe to run)
 
----
-
-### Commit note
-
-The P00-03 deliverables (`infra/config/`, `infra/.env.example`,
-`tests/test_config_contracts.py`, edits to `infra/README.md`,
-`tests/test_skeleton_contracts.py`, `tests/README.md`, and this report) are
-committed as `17fddf9` plus a hash-record commit on top. The P00-02 skeleton and
-the pre-existing `docs/adr/ADR-0001-baseline-stack.md` working-tree edit remain
-uncommitted as found; see `git status`.
-inline `(?m)` so the Makefile target contract is actually verified.
+`01_PROMPTS/P01_Foundation/P01-01_Build_web_application_shell.md`
