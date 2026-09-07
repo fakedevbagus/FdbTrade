@@ -3,7 +3,7 @@
 Prompt ID: P00-03 — Create configuration and environment contract
 Phase: P0 Constitution
 Date/time UTC: 2026-09-07T17:00Z
-Branch/commit: main / (see "Commit note" below)
+Branch/commit: main / 17fddf9 (P00-03 deliverables); with a hash-record follow-up commit on top
 
 ## What changed
 
@@ -137,10 +137,10 @@ anchored its regex with a non-multiline `^`, so it could never pass. Corrected t
 
 ### Commit note
 
-The P00-03 deliverables (directories `infra/config/`, `infra/.env.example`,
+The P00-03 deliverables (`infra/config/`, `infra/.env.example`,
 `tests/test_config_contracts.py`, edits to `infra/README.md`,
 `tests/test_skeleton_contracts.py`, `tests/README.md`, and this report) are
-committed in a focused P00-03 commit. The P00-02 skeleton and the pre-existing
-`docs/adr/ADR-0001-baseline-stack.md` working-tree edit remain uncommitted as
-found; see `git status`.
+committed as `17fddf9` plus a hash-record commit on top. The P00-02 skeleton and
+the pre-existing `docs/adr/ADR-0001-baseline-stack.md` working-tree edit remain
+uncommitted as found; see `git status`.
 inline `(?m)` so the Makefile target contract is actually verified.
