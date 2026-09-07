@@ -3,7 +3,7 @@
 Prompt ID: P00-01 — Inspect runtime and establish project constitution
 Phase: P0 Constitution
 Date/time UTC: 2026-09-07T15:35Z
-Branch/commit: main / 6091c6710b8c3e38b33d223c3804fefef2372d09 (P00-01)
+Branch/commit: main / ba217ae (P00-01 deliverables commit; hash-fix commit on top)
 
 ## What changed
 
