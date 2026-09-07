@@ -1,107 +1,146 @@
 # Completion Report
 
-Prompt ID: P00-01 — Inspect runtime and establish project constitution
+Prompt ID: P00-03 — Create configuration and environment contract
 Phase: P0 Constitution
-Date/time UTC: 2026-09-07T15:35Z
-Branch/commit: main / ba217ae (P00-01 deliverables commit; hash-fix commit on top)
+Date/time UTC: 2026-09-07T17:00Z
+Branch/commit: main / (see "Commit note" below)
 
 ## What changed
 
-First implementation run on a greenfield workspace. Performed live inspection of the
-FreeBuff execution environment (OS, kernel, runtimes, package managers, Docker,
-database clients, network reachability, hardware, filesystem) and recorded:
+Implemented the typed server-side configuration and environment contract per
+ADR-0002's allocation of P00-03 → `infra/` + config. Added a dependency-free
+(stdlib-only) Python config subsystem under `infra/config/`, a canonical
+`.env.example` template, a CLI inspector, and a cross-cutting test module.
 
-1. `ENVIRONMENT.md` — checked-in environment inventory with verified runtime facts,
-   capability matrix against the Blueprint v2 target stack, and reproduction commands.
-2. `docs/adr/ADR-0001-baseline-stack.md` — first ADR recording the proposed baseline
-   stack (Next.js/React + TypeScript BFF/API on node 24 + pnpm; Python 3.12 quant
-   engine/workers; PostgreSQL 16 and Redis 7 via local Docker; local-filesystem
-   artifacts; git on NTFS with `core.fileMode=false`; live execution OFF by default),
-   with explicit notes on absent capabilities (yarn/bun/uv, MinIO/S3, GPU, MT5
-   terminal) so nothing pretends unavailable capabilities exist.
-3. Initialized git repository on branch `main` (`core.fileMode=false`,
-   `core.autocrlf=false`) because the workspace is an NTFS (fuseblk) volume with no
-   symlink/permission-bit support.
+Key capabilities delivered:
 
-No source code implemented — prompt scope is documentation-only ("No source-code
-implementation beyond documentation").
+1. **Namespaces & explicit environments** — `app`, `database`, `cache`,
+   `market_data`, `notifications`, `broker`, `research`, each a frozen typed
+   dataclass. `FDB_APP_ENV` is always required and limited to
+   `development | testing | staging | production`.
+2. **Safe defaults** — every non-secret field has a default (e.g. `api_port`
+   8000, `cache.port` 6379, `research.random_seed` 42). Secrets default to `""`
+   in development/testing and become required in staging/production.
+3. **Typed coercion + schema validation at the boundary** — int/float/bool/enum/
+   str-list parsing with allowed-set and min/max constraints. Errors aggregate all
+   problems into a single secret-free `ConfigError`.
+4. **Redaction** — `Config.to_redacted_dict()` replaces secrets with
+   `[REDACTED]`; the CLI default view is redaction-safe. A regression guard
+   asserts secrets never appear in validation error messages.
+5. **Frontend public-safe config** — `Config.to_public_dict()` emits only fields
+   marked `public` (app name/env/host/port, broker.live_enabled) and never any
+   secret; this is the only shape allowed across the browser boundary.
+6. **`.env` support** — minimal stdlib parser with real-environment precedence
+   (os.environ > file). `.env` is git-ignored; only `.env.example` is tracked.
+7. **Determinism/UTC/safety** — `app.timezone` locked to `UTC`; loader is pure
+   (never mutates `os.environ`, no timestamps, insertion-ordered output);
+   `broker.live_enabled` defaults False and `broker.adapter`/`market_data.provider`
+   are locked to `paper`/`fixture` (no live broker, no external credentials).
 
+Also fixed a pre-existing defect discovered while running the aggregate gate
+(see Acceptance): `tests/test_skeleton_contracts.py::test_makefile_exposes_required_targets`
+anchored its regex with a non-multiline `^`, so it could never pass. Corrected to
 ## Files changed
 
-- `ENVIRONMENT.md` (new)
-- `docs/adr/ADR-0001-baseline-stack.md` (new)
-- `.git/` (repository initialized; config local to repo)
+- `infra/config/__init__.py` (new) — public API (`load_config`, `ConfigError`,
+  `Env`, dataclasses, redaction helpers).
+- `infra/config/schema.py` (new) — typed namespace dataclasses, declarative
+  `Field` specs, deterministic `to_redacted_dict` / `to_public_dict`.
+- `infra/config/loader.py` (new) — `.env` parser, coercion, validation,
+  `load_config`, `ConfigError` (secret-free messages).
+- `infra/config/__main__.py` (new) — CLI: `--dotenv`, `--public`, `--format`
+  (never prints secrets).
+- `infra/.env.example` (new) — canonical `FDB_*` variable template; all secrets
+  empty placeholders.
+- `infra/README.md` (modified) — document the config contract and CLI usage.
+- `tests/test_config_contracts.py` (new) — 33 tests (happy/missing/malformed/
+  boundary/redaction/public/dotenv/purity/determinism/CLI/regression).
+- `tests/test_skeleton_contracts.py` (modified) — one-line regex fix for a
+  pre-existing test that could never pass (multiline anchor).
+- `tests/README.md` (modified) — document the new config test module.
+- `COMPLETION_REPORT.md` (this file, new).
+- `04_CLINE_CONTROL/CURRENT_STATE.md`, `04_CLINE_CONTROL/START_HERE.md`
+  (modified) — advance the verified/next-task pointers per CONTRIBUTING.md.
 
 ## Tests executed
 
-No application code exists yet, so no unit-test framework applies. Verification
-performed instead (all from live shell output, recorded in `ENVIRONMENT.md`):
-
-- OS/kernel/glibc: `uname -a`, `cat /etc/os-release`, `ldd --version` — OK
-- Runtimes: `node --version`, `npm`, `npx`, `pnpm`, `python3`, `pip3`, `git` — OK;
-  yarn/bun/deno/uv confirmed NOT FOUND (negative checks, not assumed)
-- Docker: `docker --version`, `docker compose version`, `docker info` (daemon
-  reachable, ServerVersion 29.8.0) — OK
-- DB clients: `psql` 16.15, `redis-cli` 7.0.15 — OK; `redis-server` binary NOT FOUND
-- Network: `curl` probes — npm registry 200 in ~0.3 s; PyPI 200 in ~28 s (reachable,
-  slow — documented as a constraint)
-- Filesystem: `stat -f`, `mount` — fuseblk/NTFS, no symlinks, documented
-- Workspace state: `ls -la`, `git status` — greenfield confirmed, no prior reports
-
-Test-case mapping required by the prompt (adapted to a documentation-only scope):
-
-- valid input / expected output: each probe returned the value recorded in
-  `ENVIRONMENT.md`
-- malformed or missing input: negative capability checks (missing tools reported as
-  NOT FOUND, never assumed)
-- boundary/empty/stale case: greenfield repo state verified before writing anything;
-  clock sync verified (`timedatectl` — synchronized, UTC internally)
-- idempotency: not applicable — no events/jobs created in this prompt
-- regression fixture: no bugs discovered; nothing to fixture
-
+- `python3 -m unittest discover -s tests -p 'test_config_contracts.py' -v`
+  → 33 tests, all OK (happy path, defaults, every env, str-list, bool variants,
+  missing/unknown env, malformed int/bool/enum, prod-required-secret, aggregated
+  errors, secret-leak regression, port/db-index/symbol boundaries, redaction,
+  public-safety, purity no-osenviron-mutation, determinism, dotenv precedence &
+  parsing, CLI redaction/public/nonzero-missing).
+- `make check` (lint + typecheck + test + build across the workspace and the
+  Python stdlib suite) → **Exit 0**. Full suite: 46 tests OK (33 config + 13
+  skeleton).
+- Manual end-to-end: `python -m infra.config --dotenv infra/.env.example`
+  redacts every secret; `--public` returns only app + broker.live_enabled;
+  missing `FDB_APP_ENV` exits nonzero; `infra/.env.example` contains no
+  populated secrets.
 ## Acceptance criteria
 
-- [x] A checked-in ENVIRONMENT.md records verified runtime facts.
-- [x] A first ADR records the proposed baseline stack without pretending unavailable
-      capabilities exist (absent tools explicitly listed).
-- [x] Evidence comes from actual shell output (reproduction commands included in
-      `ENVIRONMENT.md`).
-- [x] No secrets in any recorded output.
-- [x] No source-code implementation beyond documentation.
-- [x] No future-phase functionality implemented.
-- [x] Relevant checks pass from a clean environment / blocker documented (no code;
-      environment probes all succeeded; PyPI slowness documented as constraint).
-- [x] Lint/typecheck/build: not applicable — no affected packages exist yet.
-- [x] No unrelated files modified (only new documentation files + git init).
+- [x] Typed server-side config loading with explicit environments, safe
+      defaults, validation, redaction, and `.env.example`.
+- [x] Config namespaces defined for app, database, cache, market data,
+      notifications, broker, research.
+- [x] Invalid required config fails clearly (`ConfigError` names the offending
+      env var; `FDB_APP_ENV` always required).
+- [x] Secrets are never logged — redaction applied at the boundary; regression
+      test proves errors never echo a secret.
+- [x] Frontend receives only public-safe config via `to_public_dict()`.
+- [x] Config tests cover missing, malformed, and valid cases (+ boundary, empty,
+      determinism, purity/idempotency-of-loader, dotenv, CLI, regression).
+- [x] Relevant tests pass from a clean environment (46/46 via `make check`).
+- [x] Lint/typecheck/build clean for affected packages (`make check` Exit 0).
+- [x] No unrelated files modified without justification (the one out-of-scope
+      file touched, `tests/test_skeleton_contracts.py`, was a pre-existing test
+      bug blocking the aggregate gate; fixed minimally and documented).
 - [x] Completion report written (this file).
 
 ## Known limitations / blockers
 
-- PyPI first-byte latency ~28 s: Python installs must use retries/timeouts; prefer
-  Docker-based or vendored wheels from P01 onward.
-- NTFS (fuseblk) workspace: no symlinks, no POSIX permission bits; git configured with
-  `core.fileMode=false`. Performance-sensitive caches (node_modules, venvs) may be
-  slower than a native ext4 volume.
-- No GPU: ML research stays CPU-first, matching the blueprint's "GPU optional only if
-  evidence".
-- MT5 terminal absent on this Linux host: expected; P15+ adapter work must begin with
-  fixtures/mocks per the constitution.
-- No CI runner yet: CI baseline is P00-04 scope, intentionally not pre-built here.
+- The config loader is Python (the server-side quant/BFF workers are Python); the
+  TypeScript backend will consume the same `.env` contract and its own typed
+  loader from P01-02 — not built here (out of scope).
+- `.env` parser is intentionally minimal (no variable substitution /
+  interpolation); documented in the module docstring. Acceptable for this phase.
+- This phase only defines config/capability flags; broker order authority remains
+  unimplemented (later phases, live OFF by default).
+- The previously-failing skeleton Makefile test was fixed as a discovered defect;
+  documented above so it is not attributed to unrelated work.
 
 ## Follow-up required before next prompt
 
-- None blocking. P00-02 can start immediately after this report is committed.
+- None blocking. `make check` is green and the config contract is committed.
+  P00-04 (CI baseline + ADR system) can start immediately.
 
 ## Risk notes
 
-- Security: no secrets captured; no broker endpoints contacted; no external
-  credentials exist in the repo. Docker socket access exists for the dev user, which
-  is standard for local dev but worth noting.
-- Quant: all recorded timestamps UTC; environment facts feed ADR-0001 so later
-  deterministic backtest/research code runs on a known, verified baseline. Risky
-  assumptions (fast PyPI, symlinks, GPU) are explicitly forbidden by ADR-0001.
+- Security: secrets stored only in git-ignored `.env`; redaction implemented at
+  the output boundary; `to_public_dict` is the only browser-bound shape; the CLI
+  never prints secrets. Regression tests assert no secret leaks into logs or
+  errors. `.env.example` carries empty placeholders only.
+- Quant/integrity: `app.timezone` is locked to UTC; `research.random_seed`
+  default (42) supports deterministic research; `market_data.provider` locked to
+  `fixture` and `broker.adapter` to `paper`, so no external credentials or live
+  endpoints are assumed.
+- Live-execution safety: `broker.live_enabled` defaults False; enabling it is a
+  config value only and does not grant order authority (the order path is a
+  separate later-phase boundary).
 
 ## Exact next prompt that is safe to run
 
-`01_PROMPTS/P00_Constitution/P00-02_Create_repository_skeleton_and_workspace_contracts.md`
-(create repository skeleton and workspace contracts; no P1+ functionality).
+`01_PROMPTS/P00_Constitution/P00-04_Establish_CI_baseline_and_ADR_system.md`
+(establish CI baseline and ADR system; no P1+ functionality).
+
+---
+
+### Commit note
+
+The P00-03 deliverables (directories `infra/config/`, `infra/.env.example`,
+`tests/test_config_contracts.py`, edits to `infra/README.md`,
+`tests/test_skeleton_contracts.py`, `tests/README.md`, and this report) are
+committed in a focused P00-03 commit. The P00-02 skeleton and the pre-existing
+`docs/adr/ADR-0001-baseline-stack.md` working-tree edit remain uncommitted as
+found; see `git status`.
+inline `(?m)` so the Makefile target contract is actually verified.
