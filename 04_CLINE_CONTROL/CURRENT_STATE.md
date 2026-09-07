@@ -1,15 +1,16 @@
 # Current Project State
 
 ## Last verified task
-P00-03 — Create configuration and environment contract
+P00-04 — Establish CI baseline and ADR system
 
 ## Evidence
-See `COMPLETION_REPORT.md` for the P00-03 results (`make check` green; 46 tests
-OK). The typed server-side config contract lives in `infra/config/` with
-`infra/.env.example`.
+See `COMPLETION_REPORT.md` for the P00-04 results (`make check` green; 65 tests
+OK). CI: `ci/run-local.sh` (local deterministic runner) and
+`.github/workflows/ci.yml` (four required blocking jobs). ADR system:
+`docs/adr/README.md`, `02_TEMPLATES/ADR_TEMPLATE.md`, ADR-0003..0006.
 
 ## Verified next task
-P00-04 — Establish CI baseline and ADR system
+P01-01 — Build web application shell
 
 ## Environment facts
 - Linux Mint 22.3 / Ubuntu noble base

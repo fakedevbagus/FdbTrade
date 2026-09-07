@@ -1,0 +1,69 @@
+# docs/adr/ — Architecture Decision Records
+
+Architecture Decision Records (ADRs) record durable, binding decisions for
+FdbTrade. They are lightweight and deterministic: one decision per record,
+numbered, and reviewed before a phase gate.
+
+## Purpose
+
+- Preserve the reasoning behind architectural decisions.
+- Provide the binding contract for later prompts (a later prompt may not weaken
+  an earlier acceptance gate without a superseding ADR).
+- Keep "silent architecture changes" out: any change to a recorded decision
+  requires a new ADR that supersedes the old one.
+
+## Format
+
+Every ADR MUST follow `02_TEMPLATES/ADR_TEMPLATE.md` and contain at least these
+sections, in order:
+
+1. `# ADR-XXXX: <Title>` — title line.
+2. A metadata block of `- Key: value` bullets, including `Status`, `Date`
+   (`YYYY-MM-DD` in **UTC**), `Deciders`, `Supersedes`, `Related`.
+3. `## Context` — the problem and constraints.
+4. `## Decision` — numbered, concrete, testable decisions.
+5. `## Consequences` — trade-offs and follow-on work.
+6. `## Verification` — how the decision is verified.
+
+Templates live in `02_TEMPLATES/` (the canonical templates directory):
+`ADR_TEMPLATE.md`, plus `COMPLETION_REPORT_TEMPLATE.md` and `PROMPT_TEMPLATE.md`.
+
+## Numbering
+
+ADRs are numbered sequentially `ADR-0001`, `ADR-0002`, ... The next number is
+the current highest number + 1. Never reuse a number. `0000` is reserved and
+not used.
+
+## Status lifecycle
+
+- `Proposed` — proposed at the planning stage; not yet binding.
+- `Accepted` — approved and binding; recorded when the prompt that creates the
+  decision lands.
+- `Superseded` — replaced by a later ADR (which must reference it).
+- `Deprecated` — no longer applies; keep only as history.
+
+## Process
+
+1. Identify a durable architectural decision within a prompt's exact scope.
+2. Draft the ADR using the template, with `Status: Proposed`.
+3. On completion of the prompt that decides it, set `Status: Accepted`.
+4. Cross-reference related ADRs and update this index.
+
+## Verification
+
+- Each ADR has the required sections (enforced by
+  `tests/test_ci_contracts.py`).
+- ADR numbers are contiguous from `0001` with no gaps or duplicates (enforced
+  by tests).
+- `make check` passes after any ADR change.
+
+## Index
+
+| ADR | Title | Status |
+|---|---|---|
+| [ADR-0001](ADR-0001-baseline-stack.md) | Baseline stack | Accepted |
+| [ADR-0002](ADR-0002-repository-layout-and-workspace-contracts.md) | Repository layout and workspace contracts | Accepted |
+| [ADR-0003](ADR-0003-architecture-boundaries.md) | Architecture boundaries | Accepted |
+| [ADR-0004](ADR-0004-utc-time-policy.md) | UTC time policy | Accepted |
+| [ADR-0005](ADR-0005-live-trading-off-by-default.md) | Live trading OFF by default | Accepted |
+| [ADR-0006](ADR-0006-ci-baseline.md) | CI baseline | Accepted |

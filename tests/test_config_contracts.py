@@ -194,6 +194,15 @@ class BoundaryTests(unittest.TestCase):
         cfg = load_config(environ=base_env(FDB_CACHE_DB="15"))
         self.assertEqual(cfg.cache.db, 15)
 
+    def test_timezone_is_locked_to_utc(self):
+        # ADR-0004: app.timezone must be UTC; any other value is rejected.
+        cfg = load_config(environ=base_env())
+        self.assertEqual(cfg.app.timezone, "UTC")
+        with self.assertRaises(ConfigError):
+            load_config(environ=base_env(FDB_APP_TIMEZONE="Asia/Jakarta"))
+        with self.assertRaises(ConfigError):
+            load_config(environ=base_env(FDB_APP_TIMEZONE="America/New_York"))
+
     def test_empty_symbols_is_empty_tuple(self):
         cfg = load_config(environ=base_env(FDB_MD_SYMBOLS=""))
         self.assertEqual(cfg.market_data.symbols, ())

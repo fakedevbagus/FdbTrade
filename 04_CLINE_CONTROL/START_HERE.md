@@ -18,7 +18,7 @@ The FreeBuff run already completed P00-01. Its completion report confirms that `
 10. Stop. The next prompt is a separate task.
 
 ## Current next prompt
-`01_PROMPTS/P00_Constitution/P00-04_Establish_CI_baseline_and_ADR_system.md`
+`01_PROMPTS/P01_Foundation/P01-01_Build_web_application_shell.md`
 
 ## Do not feed the entire prompt pack as the implementation request
 Keep the pack in the workspace as reference. Give Cline one target prompt at a time.
