@@ -1,157 +1,174 @@
 # Completion Report
 
-Prompt ID: P00-04 — Establish CI baseline and ADR system
-Phase: P0 Constitution
-Date/time UTC: 2026-09-07T17:26Z
-Branch/commit: main / `c1f4bbb` (skeleton tracked), `b82aec8` (deliverables)
+Prompt ID: P01-01 — Build web application shell
+Phase: P1 Foundation
+Date/time UTC: 2026-09-08T01:25Z
+Branch/commit: main / implementation commit recorded below (report commit follows)
 
 ## What changed
 
-Established the CI baseline and the ADR system for FdbTrade, reusing the
-deterministic `make` gate (lint + typecheck + test + build) so local and CI
-behaviour never diverge (ADR-0006).
+Implemented the Next.js/React application shell for FdbTrade per Blueprint v2
+(ADR-0001 stack: Next.js + TypeScript on node v24 / pnpm). The frontend
+package is no longer a placeholder: it now builds, renders routes, and
+enforces shell-level safety contracts.
 
-### CI baseline
+### Application shell (frontend/)
 
-- `ci/run-local.sh` — deterministic local CI runner. Creates a clean-room copy
-  of the source tree (excluding `.git`, `node_modules`, venvs, build caches, and
-  **`.env`**), installs with `pnpm install --frozen-lockfile`, then runs the
-  required jobs (`lint`, `typecheck`, `test`, `build`) via the root `make`
-  targets with `set -e` fail-fast. Options: `--src`, `--work`, `--jobs`,
-  `--skip-install`, `--help`. Deterministic; output timestamps are UTC; never
-  reads or prints secrets. This is the executable CI baseline, runnable with no
-  hosted service.
-- `.github/workflows/ci.yml` — declarative CI (GitHub Actions) with four
-  required, **blocking** jobs (`lint`, `typecheck`, `unit-tests`, `build`),
-  triggered on pushes to `main` and pull requests. No job sets
-  `continue-on-error`, so a failing required job blocks. Reuses `make lint`,
-  `make typecheck`, `make test`, `make build`.
+- Routing (App Router, `src/app/`): root layout with brand header, primary
+  nav (from typed config), skip-link, footer; overview page `/`; 404 page;
+  route-level `loading.tsx` and client `error.tsx` (with retry/reset).
+- Protected app area placeholder: `src/app/(app)/` route group with an
+  explicit banner that the authentication guard lands in P01-04; contains
+  `/dashboard` rendering honest `EmptyState` placeholders for future
+  widgets (signals, market context, risk states). No auth logic, no private
+  data (per scope; guard is P01-04).
+- UI primitives (`src/components/ui/`): typed, server-safe, presentational
+  `Loading` (role=status), `EmptyState`, `ErrorState` (role=alert) + barrel.
+- Typed boundary contract (`src/lib/site-config.ts`): zod-parsed site
+  configuration that fails fast on malformed input and enforces the
+  presentation-level safety invariant `liveExecutionEnabled: z.literal(false)`
+  (Blueprint v2 "live execution OFF by default", ADR-0005). No env vars, no
+  secrets — the module is browser-bundled by design.
+- Styling (`src/app/globals.css`): plain CSS (zero runtime dependency),
+  `fdb-` design tokens, fixed typography scale, responsive 1/2/3-column
+  grid, light/dark via `prefers-color-scheme`, reduced-motion support.
 
-### ADR system
+### Tooling / workspace
 
-- `02_TEMPLATES/ADR_TEMPLATE.md` — ADR template (title, Status/Date/Deciders/
-  Supersedes/Related metadata, Context/Decision/Consequences/Verification).
-- `docs/adr/README.md` — documents the ADR format, sequential numbering from
-  0001, the status lifecycle (Proposed/Accepted/Superseded/Deprecated), the
-  process, verification, and an index of all ADRs.
-- Four new ADRs (all `Status: Accepted`):
-  - `ADR-0003-architecture-boundaries.md` — hard, unidirectional
-    `strategy -> signal -> risk -> execution` boundary; LLM/AI has no order
-    authority; typed contracts at boundaries.
-  - `ADR-0004-utc-time-policy.md` — UTC is the single internal timezone; local
-    conversion only at presentation; `app.timezone` locked to UTC.
-  - `ADR-0005-live-trading-off-by-default.md` — live execution OFF by default;
-    `broker.adapter` locked to `paper`; a config flag is not order authority.
-  - `ADR-0006-ci-baseline.md` — one gate (`make check`), four required blocking
-    jobs, local runner + GitHub Actions, determinism/no-secrets.
-
-### Verification that CI "runs from a clean checkout"
-
-- **True git clean checkout**: `git clone` of the repo at `b82aec8` into a
-  fresh temp dir → `pnpm install --frozen-lockfile` → `make check` → **Exit 0**,
-  `Ran 65 tests ... OK`, `All workspace checks passed.` (This required first
-  tracking the previously-untracked workspace skeleton and control docs —
-  commit `c1f4bbb` — so a clean checkout contains the full workspace.)
-- `bash ci/run-local.sh` (clean-room copy of the working tree, with install)
-  → **Exit 0**, all four jobs passed, 65 tests OK.
-- Manual blocking demo: a failing `build` job → runner exits **1** with
-  `[ci] FAILED: job 'build'`.
-- `ci.yml` loads as valid YAML with exactly the jobs `lint, typecheck, test,
-  build`, none with `continue-on-error`.
+- `frontend/package.json`: real scripts (dev/build/start/lint/typecheck/
+  test) replacing the P00 no-ops; pinned deps: next@16.3.4, react@19.2.8,
+  react-dom@19.2.8, zod@4.5.4; devDeps typescript@5.9.3, eslint@9.39.5,
+  eslint-config-next@16.3.4, vitest@4.1.11, jsdom@30.0.1,
+  @testing-library/react@16.3.3. (The blueprint locks the Next.js/React
+  stack — ADR-0001 — so these additions implement, not change, the stack.)
+- `tsconfig.json` (strict), `next.config.ts`, `eslint.config.mjs`
+  (flat config via eslint-config-next/core-web-vitals), `vitest.config.ts`
+  (jsdom, `@` alias, explicit oxc automatic-JSX runtime).
+- Root `.npmrc`: `node-linker=hoisted` documenting the NTFS (fuseblk)
+  no-symlink constraint from ADR-0001/ENVIRONMENT.md for tools that honor it.
+- `pnpm-workspace.yaml`: `onlyBuiltDependencies: [unrs-resolver]` — the only
+  transitive build script in the tree (via eslint-config-next). Without this
+  allowance `pnpm install` exits non-zero (`ERR_PNPM_IGNORED_BUILDS`) and
+  pnpm's pre-run deps check breaks every `pnpm run` script, including
+  `make lint/typecheck/build/start`.
+- `tests/test_skeleton_contracts.py` updated (justified: P01-01 supersedes
+  the frontend placeholder contract): frontend moved from
+  PLACEHOLDER_PACKAGES to WORKSPACE_MEMBERS; `make start` no longer expected
+  to exit zero — a new test boots the real server, waits for its "Ready"
+  line and terminates the whole process group (no orphaned servers).
 
 ## Files changed
 
-- `ci/run-local.sh` (new) — local deterministic CI runner.
-- `.github/workflows/ci.yml` (new) — GitHub Actions, four required blocking jobs.
-- `02_TEMPLATES/ADR_TEMPLATE.md` (new) — ADR template.
-- `docs/adr/README.md` (new) — ADR format, numbering, lifecycle, process, index.
-- `docs/adr/ADR-0003-architecture-boundaries.md` (new)
-- `docs/adr/ADR-0004-utc-time-policy.md` (new)
-- `docs/adr/ADR-0005-live-trading-off-by-default.md` (new)
-- `docs/adr/ADR-0006-ci-baseline.md` (new)
-- `tests/test_ci_contracts.py` (new) — 18 tests (ADR contract, workflow
-  contract, runner contract).
-- `tests/test_config_contracts.py` (modified) — added
-  `test_timezone_is_locked_to_utc` to make ADR-0004's verification claim true.
-- `docs/README.md` (modified) — ADR + CI pointers.
-- `docs/adr/ADR-0001-baseline-stack.md` (modified) — Consequences now point to
-  ADR-0002 for the recorded layout; it was an uncommitted working-tree edit
-  from P00-02 that rode along in the prep commit (with a spacing typo that is
-  corrected in the final commit of this prompt).
-- `04_CLINE_CONTROL/CURRENT_STATE.md`, `04_CLINE_CONTROL/START_HERE.md`
-  (modified) — advance verified/next-task pointers.
-- `COMPLETION_REPORT.md` (this file, new).
+- `frontend/package.json` (modified) — real manifest and scripts.
+- `frontend/README.md` (modified) — documents shell structure and commands.
+- `frontend/tsconfig.json` (new), `frontend/next.config.ts` (new),
+  `frontend/eslint.config.mjs` (new), `frontend/vitest.config.ts` (new),
+  `frontend/next-env.d.ts` (new, generated by next build, committed).
+- `frontend/src/app/layout.tsx`, `page.tsx`, `loading.tsx`, `error.tsx`,
+  `not-found.tsx`, `globals.css` (new).
+- `frontend/src/app/(app)/layout.tsx`, `(app)/loading.tsx`, `(app)/error.tsx`,
+  `(app)/dashboard/page.tsx` (new — protected-area placeholder).
+- `frontend/src/components/ui/Loading.tsx`, `EmptyState.tsx`,
+  `ErrorState.tsx`, `index.ts` (new).
+- `frontend/src/lib/site-config.ts` (new).
+- `frontend/src/components/ui/__tests__/ui.test.tsx`,
+  `frontend/src/app/__tests__/error-boundaries.test.tsx`,
+  `frontend/src/lib/__tests__/site-config.test.ts` (new — vitest tests).
+- `tests/test_web_shell_contracts.py` (new — Python stdlib contract tests).
+- `tests/test_skeleton_contracts.py` (modified — see justification above).
+- `pnpm-workspace.yaml` (modified), `.npmrc` (new), `pnpm-lock.yaml`
+  (modified by pnpm install).
 
 ## Tests executed
 
-- `make check` (lint + typecheck + test + build for all packages + Python
-  stdlib suite) → **Exit 0**, `Ran 65 tests ... OK`, `All workspace checks passed.`
-- `bash ci/run-local.sh` (clean-room, real install) → Exit 0, all four jobs, 65
-  tests OK.
-- `python3 -m unittest discover -s tests -p 'test_*.py' -v` → 65 tests OK,
-  covering:
-  - valid input/expected output: runner happy path (all jobs), ADR files present
-    with required sections, workflow contains four jobs + `make` targets.
-  - malformed/missing input: runner unknown-option rejection; ADR numbering/
-    section/template contract guards.
-  - boundary/empty/stale: contiguous ADR numbering 0001..0006; `.env` excluded
-    from clean-room copy; determinism/purity (runner does not mutate source).
-  - idempotency: no events/jobs introduced; loader purity carried over from
-    P00-03; runner is pure (does not mutate `--src`).
-  - regression: secret-like `.env` never reaches CI workspace (newly exercised
-    guarantee); timezone-lock regression test added for ADR-0004.
+- `pnpm --filter @fdbtrade/frontend test` (Vitest, jsdom): **23/23 passed**.
+  Covers happy path (labels/roles/custom props), malformed/missing input
+  (zod rejects non-internal hrefs, missing fields, empty nav, unknown
+  environment, and `liveExecutionEnabled: true`), boundary cases (omitted
+  description/hint render nothing), failure path (error boundaries render
+  alerts, call `reset`, show/hide digest), and determinism
+  (`renderToString` output identical for identical inputs).
+- `python3 -m unittest discover -s tests -p 'test_*.py'`: **90/90 OK**,
+  including the new `tests/test_web_shell_contracts.py` (manifest/scripts
+  regression guard against placeholder reversion, required shell files,
+  route/nav consistency, strict tsconfig, no trading/broker tokens in UI
+  source, no backend/quant imports, no secret literals, no `.env*` in
+  frontend, live-execution invariant) and the updated skeleton contract
+  tests (real `make lint/typecheck/build` exit 0; `make start` serves).
+- `make check` from the repo root: **Exit 0 — "All workspace checks
+  passed."** (lint → typecheck → test [vitest 23/23 + Python 90/90] → build).
+- Clean-environment run: `bash ci/run-local.sh` (clean-room copy excluding
+  `.env`/node_modules, `pnpm install --frozen-lockfile` — install completed
+  in 1m11s with the approved `unrs-resolver` postinstall) → **Exit 0,
+  `[ci] all required jobs passed: lint typecheck test build`** (Vitest 23/23,
+  Python `Ran 90 tests ... OK`, `next build` prerendering `/`, `/dashboard`,
+  `/_not-found`).
+- Boot smoke test: `next start` → `GET /` 200, `GET /dashboard` 200 (with
+  protected-area banner and empty states), `GET /nonexistent` → 404 page;
+  footer renders "Live execution: OFF · All timestamps are UTC".
 
-## Acceptance checklist
+## Acceptance criteria
 
-- [x] CI runs from a clean checkout — verified via a fresh `git clone` at
-      `b82aec8` + `pnpm install --frozen-lockfile` + `make check`, Exit 0
-      (65 tests OK); also via `ci/run-local.sh` clean-room copy, Exit 0.
-- [x] CI blocks on failing required jobs — `ci.yml` has no
-      `continue-on-error`/soft-fail; local runner `set -e` fail-fast, verified
-      by a failing-`build` demo exiting 1. Unit-tested in
-      `tests/test_ci_contracts.py`.
-- [x] ADR format is documented — `docs/adr/README.md` + `02_TEMPLATES/ADR_TEMPLATE.md`,
-      enforced by contract tests.
-- [x] Lint/typecheck/build clean — `make check` Exit 0 (65 tests OK).
-- [x] No unrelated files modified — only the files listed above. One scope note:
-      commit `c1f4bbb` tracks the previously-untracked but pre-existing
-      workspace skeleton and control/prompt/reference docs (`Makefile`,
-      `package.json`, pnpm workspace files, `backend/`, `frontend/`,
-      `contracts/`, `quant/`, `scripts/`, `00_CONTROL/`, `01_PROMPTS/`,
-      `02_TEMPLATES/`, `03_REFERENCE/`, `.clinerules/`, etc.). This is a direct
-      prerequisite of the "CI runs from a clean checkout" acceptance criterion;
-      no file content was changed, only added to git.
+- [x] App starts locally — `next dev`/`next start` boot verified; smoke test
+      above.
+- [x] Routes render — `/` and `/dashboard` return 200 with expected content;
+      unknown routes return the 404 page.
+- [x] Error/loading states work — route-level loading/error boundaries
+      implemented, unit-tested (vitest), and exercised by contract tests.
+- [x] No trading logic embedded in UI components — enforced by
+      `test_no_trading_or_broker_logic_in_ui_source` (forbidden-token scan)
+      and `test_no_imports_from_backend_or_quant_packages`; UI renders only
+      static placeholders and a presentation-only "live execution: OFF" label.
+- [x] Relevant tests pass from a clean environment — `ci/run-local.sh`
+      clean-room run (see Tests executed for the result).
+- [x] Lint/typecheck/build clean for affected packages — ESLint 0 problems,
+      `tsc --noEmit` clean, `next build` succeeds.
+- [x] No unrelated files modified without justification — changes limited to
+      `frontend/`, its lockfile entries, test contracts it supersedes
+      (documented), and the pnpm/npm config required to install/run the
+      approved stack on this NTFS workspace.
 - [x] Completion report written — this file.
 
-## Blockers / limitations
+## Known limitations / blockers
 
-- GitHub Actions cannot be observed from this offline host; the workflow is
-  syntax-validated by tests (parsed YAML, job inventory) and mirrors the
-  verified local runner. First push to GitHub will confirm the hosted path.
-- Hosted CI pins `pnpm@9` and Python 3.12 via setup actions; exact minor
-  versions follow ADR-0001.
-- No deployment, no new dependencies.
+- The protected area is a placeholder by design: no auth guard exists until
+  P01-04; nothing private is rendered there yet.
+- `next build` rewrites `tsconfig.json` (`jsx` → `react-jsx`, adds
+  `.next/dev/types` include); the contract test accepts both values so the
+  gate is stable across rewrites.
+- pnpm 11 resolves the frontend dependency tree with its default isolated
+  layout (`.pnpm` store) despite the committed `node-linker=hoisted`
+  `.npmrc`; install and all gates succeed either way on this host. Kept as
+  documentation of the NTFS constraint and for tools that honor it.
+- Vitest prints a cosmetic warning ("ESM syntax in a file loaded as
+  CommonJS" for `vitest.config.ts`); runs are unaffected. No
+  `"type": "module"` was added to avoid touching Next/ESLint semantics.
+- GitHub-hosted CI cannot be observed from this offline host; the local CI
+  runner (same `make` jobs) is the executable verification.
 
-## Security / quant implications
+## Follow-up required before next prompt
 
-- CI clean-room copy excludes `.env` — secrets cannot leak into CI logs or
-  artifacts (regression-tested).
-- Runner output contains no env dumps; CI jobs never receive secret context.
-- UTC-only policy (ADR-0004) and live-trading-off-by-default (ADR-0005) are now
-  codified and regression-tested, protecting the quant-integrity and
-  trading-safety boundaries before any strategy code exists.
-- Architecture boundary ADR (ADR-0003) codifies strategy → signal → risk →
-  execution as test-enforceable contract language for later phases.
+None blocking. P01-02 (API foundation) can safely implement the typed
+API/BFF layer; the shell's nav/route contract test will need new page
+routes registered only when new UI routes are added.
+
+## Risk notes
+
+Security: no secrets in frontend source or bundles (scanned by contract
+tests); no `.env*` files under `frontend/`; the site-config boundary is
+browser-bundled by design and contains no env reads. Quant/trading safety:
+UI contains no strategy, signal, risk, or broker code; the only execution-
+related surface is a presentation constant whose schema forbids `true`
+(`z.literal(false)`), regression-tested; live execution remains OFF by
+default (ADR-0005); architecture boundary (ADR-0003) untouched — UI talks to
+nothing yet, and no broker/execution code was added.
 
 ## Commit note
 
-Three focused commits on `main`:
-- `c1f4bbb` — P00-04 (prep): track workspace skeleton, control docs, and prompt
-  library so CI can run from a clean checkout.
-- `b82aec8` — P00-04: CI baseline (local runner + GitHub Actions, four blocking
-  jobs) and ADR system (template, format doc, ADR-0003..0006).
-- Final commit: this completion report (see `git log --oneline` for the hash).
+Two focused commits on `main`:
+1. Implementation (all files listed above) — hash recorded here: `cc80234`.
+2. This completion report.
 
 ## Next prompt (safe to run)
 
-`01_PROMPTS/P01_Foundation/P01-01_Build_web_application_shell.md`
+`01_PROMPTS/P01_Foundation/P01-02_Build_API_foundation.md`
