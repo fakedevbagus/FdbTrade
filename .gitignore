@@ -1,0 +1,39 @@
+# FdbTrade — root ignore rules (P00-02)
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+out/
+.next/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environment and secrets — never commit real .env files
+.env
+.env.*
+!.env.example
+
+# Logs, artifacts, scratch
+logs/
+*.log
+artifacts/
+.tmp/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

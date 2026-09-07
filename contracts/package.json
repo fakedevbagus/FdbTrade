@@ -1,0 +1,13 @@
+{
+  "name": "@fdbtrade/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "description": "FdbTrade shared typed contracts (placeholder; implemented from P02-01 onward).",
+  "scripts": {
+    "lint": "echo \"contracts lint: no-op (placeholder; P02+)\"",
+    "typecheck": "echo \"contracts typecheck: no-op (placeholder; P02+)\"",
+    "test": "echo \"contracts test: no-op (placeholder; P02+)\"",
+    "build": "echo \"contracts build: no-op (placeholder; P02+)\"",
+    "start": "echo \"contracts start: no-op (placeholder; P02+)\""
+  }
+}

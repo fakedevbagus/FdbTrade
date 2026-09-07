@@ -1,0 +1,13 @@
+{
+  "name": "@fdbtrade/backend",
+  "version": "0.0.0",
+  "private": true,
+  "description": "FdbTrade BFF/API services (placeholder; implemented from P01-02).",
+  "scripts": {
+    "lint": "echo \"backend lint: no-op (placeholder; P01+)\"",
+    "typecheck": "echo \"backend typecheck: no-op (placeholder; P01+)\"",
+    "test": "echo \"backend test: no-op (placeholder; P01+)\"",
+    "build": "echo \"backend build: no-op (placeholder; P01+)\"",
+    "start": "echo \"backend start: no-op (placeholder; P01+)\""
+  }
+}

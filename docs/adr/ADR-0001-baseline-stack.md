@@ -41,8 +41,8 @@ trading; paid infra only when a later prompt explicitly requires it.
 
 ## Consequences
 
-- Monorepo will host JS (pnpm workspace) and Python (venv) trees side by side; exact
-  layout is decided in P00-02, not here.
+- Monorepo will host JS (pnpm workspace)and Python (venv) trees side by side; exact
+  layout is recorded in ADR-0002 (P00-02), not here.
 - `postgres:16` and `redis:7` Docker images run as disposable local services; data
   volumes live on the NTFS workspace with documented performance caveat.
 - Python dependency fetches must tolerate slow PyPI (timeouts, retries, wheel cache).

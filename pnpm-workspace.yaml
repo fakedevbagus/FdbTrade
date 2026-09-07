@@ -1,0 +1,6 @@
+# FdbTrade pnpm workspace (P00-02). Workspace members are placeholder
+# packages until P01+ implements them.
+packages:
+  - frontend
+  - backend
+  - contracts

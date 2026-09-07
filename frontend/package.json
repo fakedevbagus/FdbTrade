@@ -1,0 +1,13 @@
+{
+  "name": "@fdbtrade/frontend",
+  "version": "0.0.0",
+  "private": true,
+  "description": "FdbTrade web frontend (placeholder; implemented from P01-01).",
+  "scripts": {
+    "lint": "echo \"frontend lint: no-op (placeholder; P01+)\"",
+    "typecheck": "echo \"frontend typecheck: no-op (placeholder; P01+)\"",
+    "test": "echo \"frontend test: no-op (placeholder; P01+)\"",
+    "build": "echo \"frontend build: no-op (placeholder; P01+)\"",
+    "start": "echo \"frontend start: no-op (placeholder; P01+)\""
+  }
+}
