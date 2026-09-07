@@ -4,3 +4,12 @@ packages:
   - frontend
   - backend
   - contracts
+
+# P01-01: allow the single transitive build script in the tree.
+# unrs-resolver (via eslint-config-next) ships prebuilt napi binaries and its
+# postinstall is a no-op fallback; without this allowance `pnpm install`
+# exits non-zero and every pnpm-run script fails the deps-status check.
+onlyBuiltDependencies:
+  - unrs-resolver
+allowBuilds:
+  unrs-resolver: true

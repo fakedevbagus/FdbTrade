@@ -7,11 +7,15 @@ timestamps referenced are UTC per the workspace contract.
 
 from __future__ import annotations
 
+import contextlib
 import json
+import os
 import pathlib
 import re
+import signal
 import subprocess
 import tempfile
+import time
 import unittest
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -49,7 +53,11 @@ MAKEFILE_TARGETS = (
     "check",
 )
 
-PLACEHOLDER_PACKAGES = ("frontend", "backend", "contracts")
+# P01-01: frontend is now an implemented package (Next.js application shell).
+# The placeholder contract below applies only to the remaining placeholders.
+WORKSPACE_MEMBERS = ("frontend", "backend", "contracts")
+
+PLACEHOLDER_PACKAGES = ("backend", "contracts")
 
 PLACEHOLDER_SCRIPTS = ("lint", "typecheck", "test", "build", "start")
 
@@ -115,13 +123,9 @@ class WorkspaceContractTests(unittest.TestCase):
             with self.subTest(script=script):
                 self.assertIn(script, scripts)
 
-    def test_pnpm_workspace_declares_placeholder_members(self):
+    def test_pnpm_workspace_declares_workspace_members(self):
         text = (REPO_ROOT / "pnpm-workspace.yaml").read_text(encoding="utf-8")
-        for member in PLACEHOLDER_PACKAGES:
-
-
-
-
+        for member in WORKSPACE_MEMBERS:
             with self.subTest(member=member):
                 self.assertIn(f"- {member}", text, f"workspace must declare member: {member}")
 
@@ -175,10 +179,58 @@ class EntryPointExecutionTests(unittest.TestCase):
     def test_leaf_lifecycle_targets_exit_zero(self):
         bootstrap = self._run_make("install")
         self.assertEqual(bootstrap.returncode, 0, msg=bootstrap.stdout + bootstrap.stderr)
-        for target in ("lint", "typecheck", "build", "start"):
+        # P01-01: `start` is now a real blocking dev-server target and is
+        # covered separately by test_make_start_serves_when_production_build_exists.
+        for target in ("lint", "typecheck", "build"):
             with self.subTest(target=target):
                 result = self._run_make(target)
                 self.assertEqual(result.returncode,  0, msg=f"make {target} failed:\n{result.stdout}{result.stderr}")
+
+    def test_make_start_serves_when_production_build_exists(self):
+        """`make start` launches the real frontend server (P01-01).
+
+        The target blocks by design once a production build exists, so the
+        test waits for the server's "Ready" line and then terminates the whole
+        process group (make -> pnpm -> next) to avoid orphaned servers. On a
+        clean checkout without `.next/BUILD_ID` the serving behaviour cannot
+        be asserted, so the check is skipped there.
+        """
+        build_id = REPO_ROOT / "frontend" / ".next" / "BUILD_ID"
+        if not build_id.exists():
+            self.skipTest(
+                "no frontend production build; make start serving behaviour not asserted"
+            )
+        proc = subprocess.Popen(
+            ["make", "start"],
+            cwd=REPO_ROOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            start_new_session=True,
+        )
+        output: list[str] = []
+        ready = False
+        try:
+            deadline = time.monotonic() + 90
+            while time.monotonic() < deadline:
+                line = proc.stdout.readline()  # type: ignore[union-attr]
+                if not line:
+                    break
+                output.append(line)
+                if "Ready" in line:
+                    ready = True
+                    break
+        finally:
+            try:
+                os.killpg(proc.pid, signal.SIGTERM)
+                proc.wait(timeout=30)
+            except (ProcessLookupError, subprocess.TimeoutExpired):
+                with contextlib.suppress(ProcessLookupError):
+                    os.killpg(proc.pid, signal.SIGKILL)
+        self.assertTrue(
+            ready,
+            msg="make start did not report ready:\n" + "".join(output),
+        )
 
     def test_make_install_is_idempotent(self):
         lock = REPO_ROOT / "pnpm-lock.yaml"
