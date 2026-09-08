@@ -64,7 +64,7 @@ describe("FixtureProvider.getHistoricalCandles (P02-02)", () => {
   it("is deterministic: identical requests (even fresh instances) return identical data", async () => {
     const request = {
       instrument: "GBPUSD",
-      timeframe: "15m",
+      timeframe: "15m" as const,
       startUtc: MONDAY_START,
       endUtc: "2026-09-07T06:00:00.000Z",
     };
@@ -126,7 +126,7 @@ describe("FixtureProvider.getHistoricalCandles (P02-02)", () => {
   });
 
   it("rejects malformed requests (validation at the boundary)", async () => {
-    const cases = [
+    const cases: unknown[] = [
       { instrument: "EURUSD", timeframe: "1h", startUtc: MONDAY_END, endUtc: MONDAY_START },
       { instrument: "EURUSD", timeframe: "7m", startUtc: MONDAY_START, endUtc: MONDAY_END },
       { instrument: "NOPE", timeframe: "1h", startUtc: MONDAY_START, endUtc: MONDAY_END },
@@ -134,7 +134,9 @@ describe("FixtureProvider.getHistoricalCandles (P02-02)", () => {
       { instrument: "EURUSD", timeframe: "1h" },
     ];
     for (const bad of cases) {
-      await expect(provider.getHistoricalCandles(bad as never)).rejects.toThrow();
+      await expect(
+        provider.getHistoricalCandles(bad as never),
+      ).rejects.toThrow();
     }
   });
 

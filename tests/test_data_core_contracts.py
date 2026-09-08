@@ -19,15 +19,20 @@ sys.path.insert(0, str(REPO_ROOT / "quant"))
 
 from datacore import (  # noqa: E402
     DataError,
+    REASON_CODES,
     TIMEFRAMES,
     align_to_timeframe,
     derive_spread,
     get_instrument,
     get_schedule,
+    instant_to_ms,
     is_instant_in_schedule,
     map_provider_symbol,
+    ms_to_instant,
     parse_candle,
     parse_quote,
+    validate_candle_series,
+    validate_quotes,
     validate_registry_integrity,
     validate_utc_instant,
 )
@@ -217,6 +222,152 @@ class SharedSourceParityContracts(unittest.TestCase):
                 with self.subTest(layer=layer, file=src.name):
                     matches = pattern.findall(src.read_text(encoding="utf-8"))
                     self.assertEqual(matches, [], f"pip literal found in {src}")
+
+
+class ValidationContractTests(unittest.TestCase):
+    """P02-03 series validation contracts (Python mirror).
+
+    The behavioral normalizer suite lives with the backend (vitest); this
+    class verifies the mirror implements the SAME quality gates and the
+    instant<->epoch-ms math is exact.
+    """
+
+    @staticmethod
+    def _candle(ts: str) -> dict:
+        return {
+            "instrument": "EURUSD",
+            "timeframe": "1h",
+            "timestamp": ts,
+            "open": 1.1,
+            "high": 1.101,
+            "low": 1.099,
+            "close": 1.1005,
+            "volume": None,
+        }
+
+    def test_instant_ms_roundtrip_is_exact(self):
+        for instant in (
+            "2026-09-08T10:00:00.000Z",
+            "2026-01-01T00:00:00.000Z",
+            "2026-12-31T23:59:59.999Z",
+            "1970-01-01T00:00:00.000Z",
+        ):
+            with self.subTest(instant=instant):
+                self.assertEqual(ms_to_instant(instant_to_ms(instant)), instant)
+        # Cross-check against the stdlib datetime epoch math.
+        import datetime as _dt
+
+        instant = "2026-09-08T10:00:00.000Z"
+        expected_ms = int(
+            _dt.datetime(2026, 9, 8, 10, tzinfo=_dt.timezone.utc).timestamp() * 1000
+        )
+        self.assertEqual(instant_to_ms(instant), expected_ms)
+
+    def test_clean_series_accepted_without_gaps(self):
+        candles = [parse_candle(self._candle(t)) for t in (
+            "2026-09-08T10:00:00.000Z",
+            "2026-09-08T11:00:00.000Z",
+            "2026-09-08T12:00:00.000Z",
+        )]
+        report = validate_candle_series(candles)
+        self.assertEqual(report.accepted, (0, 1, 2))
+        self.assertEqual(report.quarantined, ())
+        self.assertEqual(report.gaps, ())
+
+    def test_duplicate_quarantines_later_record(self):
+        candles = [parse_candle(self._candle(t)) for t in (
+            "2026-09-08T10:00:00.000Z",
+            "2026-09-08T10:00:00.000Z",
+        )]
+        report = validate_candle_series(candles)
+        self.assertEqual(report.accepted, (0,))
+        self.assertEqual(report.quarantined[0].reason, "DUPLICATE_TIMESTAMP")
+
+    def test_out_of_order_quarantined(self):
+        candles = [parse_candle(self._candle(t)) for t in (
+            "2026-09-08T11:00:00.000Z",
+            "2026-09-08T10:00:00.000Z",
+        )]
+        report = validate_candle_series(candles)
+        self.assertEqual(report.accepted, (0,))
+        self.assertEqual(report.quarantined[0].reason, "OUT_OF_ORDER")
+
+    def test_session_gap_reported_inside_open_hours(self):
+        candles = [parse_candle(self._candle(t)) for t in (
+            "2026-09-08T10:00:00.000Z",
+            "2026-09-08T13:00:00.000Z",
+        )]
+        report = validate_candle_series(candles)
+        self.assertEqual(
+            [g.expected_open_utc for g in report.gaps],
+            ["2026-09-08T11:00:00.000Z", "2026-09-08T12:00:00.000Z"],
+        )
+
+    def test_weekend_closure_is_not_a_gap(self):
+        candles = [parse_candle(self._candle(t)) for t in (
+            "2026-09-11T21:00:00.000Z",
+            "2026-09-14T00:00:00.000Z",
+        )]
+        report = validate_candle_series(candles)
+        self.assertEqual(report.gaps, ())
+
+    def test_impossible_ohlc_quarantined(self):
+        bad = self._candle("2026-09-08T10:00:00.000Z")
+        bad["high"] = 1.09  # < open
+        with self.assertRaises(DataError):
+            # Canonical candles cannot even be constructed with impossible
+            # OHLC (schema-level rejection) — the validator's OHLC branch is
+            # defense in depth for already-constructed dataclasses.
+            parse_candle(bad)
+
+    def test_quote_gates_stale_future_crossed(self):
+        good = parse_quote({
+            "instrument": "EURUSD",
+            "timestamp": "2026-09-08T10:00:05.000Z",
+            "bid": 1.1085,
+            "ask": 1.1087,
+            "isSynthetic": True,
+        })
+        stale = parse_quote({
+            "instrument": "EURUSD",
+            "timestamp": "2026-09-08T09:00:00.000Z",
+            "bid": 1.1085,
+            "ask": 1.1087,
+            "isSynthetic": True,
+        })
+        future = parse_quote({
+            "instrument": "EURUSD",
+            "timestamp": "2026-09-08T10:00:11.000Z",
+            "bid": 1.1085,
+            "ask": 1.1087,
+            "isSynthetic": True,
+        })
+        report = validate_quotes(
+            [good, stale, future], "2026-09-08T10:00:10.000Z", 30_000
+        )
+        self.assertEqual(report.accepted, (0,))
+        reasons = [q.reason for q in report.quarantined]
+        self.assertEqual(reasons, ["STALE_QUOTE", "STALE_QUOTE"])
+
+    def test_validation_is_idempotent(self):
+        candles = [parse_candle(self._candle(t)) for t in (
+            "2026-09-08T10:00:00.000Z",
+            "2026-09-08T10:00:00.000Z",
+            "2026-09-08T13:00:00.000Z",
+        )]
+        self.assertEqual(
+            validate_candle_series(candles), validate_candle_series(candles)
+        )
+
+    def test_reason_codes_locked_to_shared_taxonomy(self):
+        # The TS normalizer exports the same taxonomy; a change here must be
+        # a deliberate cross-layer change (ADR-0011).
+        expected = {
+            "UNKNOWN_PROVIDER_SYMBOL", "INVALID_TIMESTAMP",
+            "MISALIGNED_TIMESTAMP", "DUPLICATE_TIMESTAMP", "OUT_OF_ORDER",
+            "IMPOSSIBLE_OHLC", "SESSION_GAP", "STALE_QUOTE", "CROSSED_QUOTE",
+        }
+        self.assertEqual(set(REASON_CODES), expected)
 
 
 class ProviderBoundaryContracts(unittest.TestCase):

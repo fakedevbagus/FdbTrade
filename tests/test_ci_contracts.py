@@ -49,6 +49,7 @@ KNOWN_ADRS = {
     8: "private-single-user-authentication",
     9: "canonical-market-data-model",
     10: "market-data-provider-abstraction",
+    11: "data-quality-gates",
 }
 
 
