@@ -1,0 +1,15 @@
+{
+  "version": "1.0.0",
+  "updatedAtUtc": "2026-09-08T00:00:00.000Z",
+  "providerId": "fixture",
+  "anchors": {
+    "EURUSD": { "basePrice": 1.10, "pipVolatility": 12, "typicalSpreadPips": 1.2 },
+    "GBPUSD": { "basePrice": 1.27, "pipVolatility": 15, "typicalSpreadPips": 1.6 },
+    "USDJPY": { "basePrice": 155.0, "pipVolatility": 14, "typicalSpreadPips": 1.4 },
+    "AUDUSD": { "basePrice": 0.66, "pipVolatility": 10, "typicalSpreadPips": 1.5 },
+    "USDCAD": { "basePrice": 1.36, "pipVolatility": 10, "typicalSpreadPips": 1.8 },
+    "USDCHF": { "basePrice": 0.88, "pipVolatility": 11, "typicalSpreadPips": 1.9 },
+    "NZDUSD": { "basePrice": 0.60, "pipVolatility": 12, "typicalSpreadPips": 2.1 },
+    "XAUUSD": { "basePrice": 2500.0, "pipVolatility": 25, "typicalSpreadPips": 2.5 }
+  }
+}

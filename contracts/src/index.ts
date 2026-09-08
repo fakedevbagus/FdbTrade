@@ -10,3 +10,4 @@ export * from "./marketdata/session";
 export * from "./marketdata/quote";
 export * from "./marketdata/candle";
 export * from "./marketdata/registry";
+export * from "./marketdata/provider";

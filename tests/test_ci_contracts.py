@@ -48,6 +48,7 @@ KNOWN_ADRS = {
     7: "sql-migrations-and-database-foundation",
     8: "private-single-user-authentication",
     9: "canonical-market-data-model",
+    10: "market-data-provider-abstraction",
 }
 
 

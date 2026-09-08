@@ -16,8 +16,11 @@ Canonical market-data model shared by backend, research (Python mirror in
 - `src/marketdata/candle.ts` — OHLCV candle with schema-level OHLC sanity.
 - `src/marketdata/registry.ts` — validated frozen lookups over the shared
   data files.
+- `src/marketdata/provider.ts` — `MarketDataProvider` interface, request/
+  capability/health schemas, structured `ProviderError` codes (P02-02).
 - `src/data/*.json` — the SINGLE source of truth for instrument, session and
   mapping values; consumed by both this package and `quant/datacore`.
+  `fixtureProvider.json` holds the deterministic fixture anchors (P02-02).
 
 ## Conventions
 

@@ -219,6 +219,54 @@ class SharedSourceParityContracts(unittest.TestCase):
                     self.assertEqual(matches, [], f"pip literal found in {src}")
 
 
+class ProviderBoundaryContracts(unittest.TestCase):
+    """P02-02 provider contracts (cross-cutting, static).
+
+    The behavioral provider contract tests live with the backend
+    (vitest, mocked HTTP-free). This class pins the durable boundaries:
+    the interface lives in contracts, the fixture provider is offline and
+    deterministic, and no live/broker dependency exists yet.
+    """
+
+    PROVIDER_INTERFACE = REPO_ROOT / "contracts" / "src" / "marketdata" / "provider.ts"
+    FIXTURE_PROVIDER = REPO_ROOT / "backend" / "src" / "data" / "providers" / "fixture.ts"
+
+    def test_provider_interface_exists_in_contracts(self):
+        text = self.PROVIDER_INTERFACE.read_text(encoding="utf-8")
+        self.assertIn("MarketDataProvider", text)
+        self.assertIn("capabilities", text)
+        self.assertIn("getHistoricalCandles", text)
+        self.assertIn("getQuotes", text)
+        self.assertIn("health", text)
+        self.assertIn("UNSUPPORTED_INSTRUMENT", text)
+        self.assertIn("UNSUPPORTED_TIMEFRAME", text)
+
+    def test_fixture_provider_is_offline_and_deterministic(self):
+        text = self.FIXTURE_PROVIDER.read_text(encoding="utf-8")
+        # No network access of any form.
+        for forbidden in ("fetch(", "http://", "https://", "XMLHttpRequest", "axios"):
+            self.assertNotIn(
+                forbidden, text, f"fixture provider must not use {forbidden}"
+            )
+        # No wall-clock or randomness: determinism is required.
+        self.assertNotIn("Date.now(", text)
+        self.assertNotIn("Math.random(", text)
+        # Session-aware synthesis uses the registry (metadata-driven).
+        self.assertIn("getSchedule", text)
+        self.assertIn("isInstantInSchedule", text)
+
+    def test_no_tradingview_dependency_exists_yet(self):
+        """Non-goal guard: no TradingView scraping anywhere in the tree."""
+        for area in ("backend/src", "contracts/src", "quant", "frontend/src"):
+            base = REPO_ROOT / area
+            for src in base.rglob("*"):
+                if src.is_file() and src.suffix in (".ts", ".tsx", ".py", ".mjs"):
+                    text = src.read_text(encoding="utf-8", errors="ignore")
+                    self.assertNotIn(
+                        "tradingview", text.lower(), f"TV reference in {src}"
+                    )
+
+
 if __name__ == "__main__":
     unittest.main()
 
