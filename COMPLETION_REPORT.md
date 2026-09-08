@@ -1,185 +1,178 @@
 # Completion Report
 
-Prompt ID: P01-02 — Build API foundation
+Prompt ID: P01-03 — Initialize PostgreSQL and migrations
 Phase: P1 Foundation
-Date/time UTC: 2026-09-08T01:05Z
-Branch/commit: main / implementation commit `59216f4` (report commit follows)
+Date/time UTC: 2026-09-08T01:35Z
+Branch/commit: main / implementation commit `2b78230` (report commit follows)
 
 ## What changed
 
-Implemented the typed API/BFF foundation in `backend/` (previously a P00
-placeholder). Stack per ADR-0001 ("Web UI + BFF/API: Next.js + TypeScript"):
-the backend is an API-only Next.js app (App Router route handlers, no pages),
-TypeScript strict, zod for boundary validation (the same library the frontend
-shell already uses). Default port 3100.
+Implemented the database foundation: connection layer, migration tooling,
+base schema conventions, UTC/idempotency policy, and local bootstrap. Binding
+conventions recorded as **ADR-0007** (SQL-first migrations and database
+foundation).
 
-### HTTP kernel (`backend/src/http/`)
+### Connection layer (`backend/src/db/client.ts`)
 
-- `errors.ts` — `ApiError` taxonomy with 7 stable machine codes
-  (VALIDATION_ERROR, INVALID_JSON, UNSUPPORTED_MEDIA_TYPE, PAYLOAD_TOO_LARGE,
-  NOT_FOUND, METHOD_NOT_ALLOWED, INTERNAL_ERROR), documented statuses, and an
-  optional `allow` response header for 405s.
-- `responses.ts` — single structured envelope for every response:
-  `{ ok, data | error: { code, message, details? }, requestId, timestamp }`;
-  `content-type: application/json; charset=utf-8`, `cache-control: no-store`,
-  `x-request-id` header; timestamps UTC ISO-8601 (ADR-0004).
-- `validate.ts` — request-body validation pipeline in strict order:
-  content-type (415) → declared/actual size vs `FDB_API_MAX_BODY_BYTES` (413)
-  → JSON parse (400 INVALID_JSON) → zod schema (400 VALIDATION_ERROR with
-  per-field `path/message/code` details).
-- `handler.ts` — `withApi` wrapper: resolves request/correlation identity,
-  maps `ApiError` to its structured status, and collapses unknown failures to
-  a generic structured 500 — the original error message is never forwarded
-  (no secret/internal leak; regression-tested).
-- `request-context.ts` — request ID (client-supplied if well-formed, else
-  UUIDv4) and correlation ID (client-supplied if well-formed, else request
-  ID). IDs validated against `^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`; malformed
-  values are replaced, never trusted.
+- Server-only (guarded), lazy singleton `pg` Pool typed via `@/env` (new
+  `FDB_DB_*` fields: host, port, name, user, password, pool size, ssl mode —
+  same names as the P00-03 Python config contract).
+- `checkDatabaseHealth`: dedicated one-off Client probe (isolated,
+  configurable for tests), never throws, sanitizes failures to stable codes
+  (ECONNREFUSED, 28P01, HEALTH_TIMEOUT) — connection strings/passwords never
+  appear in results or logs.
+- Typed `query` helper for later prompts; `DatabaseUnavailableError` for
+  explicit fail-closed behavior.
 
-### Cross-cutting middleware (`backend/src/middleware.ts`)
+### Migration runner (`backend/src/db/migrate.mjs`, `backend/db/migrations/`)
 
-- Runs on `/api/:path*`; writes `x-request-id` and `x-correlation-id` onto
-  both the request (handlers see them) and the response (clients can
-  correlate). Every API request is traceable end to end.
+- Commands `migrate | rollback | status` (npm scripts `db:migrate`,
+  `db:rollback`, `db:status`). SQL-first, no ORM; migrations are
+  `NNNN_name.sql` with optional `NNNN_name.down.sql`.
+- Runner-owned ledger `public.schema_migrations` (id, sha256 checksum,
+  applied_at_utc timestamptz); migrations never touch it.
+- Deterministic: lexical id order; re-run `migrate` is a no-op (idempotent);
+  checksum mismatch on an applied migration is a hard error (immutable
+  applied migrations — fixes come as NEW migrations).
+- Atomic: each migration and its ledger row commit in one transaction.
+- Explicit failures: non-zero exit, secret-free messages (driver messages
+  reduced to codes). The CLI is the one documented exception to
+  "only src/env.ts reads process.env" (standalone Node script, never bundled).
 
-### Server-only boundary (`backend/src/server-only.ts`, `backend/src/env.ts`)
+### Foundation migration `0001_foundation.sql`
 
-- `env.ts` is the ONLY module allowed to read `process.env` (enforced by a
-  Python contract test) and is guarded server-only (throws if imported into a
-  browser bundle). Schema (zod): `FDB_APP_ENV` (same 4-value enum as the
-  P00-03 Python config contract), `FDB_API_SERVICE_NAME`,
-  `FDB_API_VERSION`, `FDB_API_MAX_BODY_BYTES` — all with safe defaults, no
-  secrets, no `NEXT_PUBLIC_*`.
+- `fdb` schema + `fdb.system_settings` (key/value/jsonb, timestamptz). No
+  business tables (per non-goal). Conventions in comments: snake_case, uuid
+  v4 PKs via `gen_random_uuid()` (PG16 core), timestamptz UTC defaults
+  (ADR-0004), idempotency via database constraints. `0001_foundation.down.sql`
+  reverses it.
 
-### Endpoints
+### Local bootstrap (`infra/compose.yaml`, `scripts/db-bootstrap.sh`)
 
-- `GET /api/health` — liveness/identity: status, service, version,
-  environment, uptime, UTC server time, `checks.process`. Dependency checks
-  are added by their owning prompts (P01-03+) as `checks` entries — never
-  faked here. Non-GET methods return a structured 405 with `allow: GET`.
-- `POST /api/echo` — validation-contract fixture (documented as such, no
-  business logic): validates `{ message: string(1..1000), count: int(0..100,
-  default 1) }` and echoes the validated fields. Used by unit tests and the
-  live smoke test to prove structured 4xx behavior.
-- `/api/[...slug]` — structured `NOT_FOUND` catch-all so every unmatched
-  `/api/*` request is machine-readable and traceable for all methods.
+- Isolated `fdbtrade` Compose project: `postgres:16`, localhost-only
+  published port `FDB_DB_PORT` (default 15432 — host port 5432 is occupied by
+  an unrelated local service and must not be touched), named volume, health
+  check. No default credentials: missing `FDB_DB_*` fails loudly.
+- `make db-up|db-down|db-migrate|db-status`. `db-up` creates `.env` from
+  `infra/.env.example` with a random password if missing (never echoed),
+  waits for health, migrates from zero. `reset --yes` is the only destructive
+  path (volume deletion).
+- `infra/.env.example` DB port updated to 15432 with the rationale documented.
 
-### Tooling
+### Health endpoint (P01-02 file, P01-03 behavior)
 
-- `backend/package.json`: real scripts (dev/build/start/lint/typecheck/test),
-  pinned deps identical to the frontend (next 16.3.4, react 19.2.8,
-  react-dom 19.2.8, zod 4.5.4); devDeps typescript 5.9.3, eslint 9.39.5,
-  eslint-config-next 16.3.4, vitest 4.1.11, @types/*.
-- `tsconfig.json` (strict, `@/* → src/*`), `next.config.ts`
-  (`poweredByHeader: false`), `eslint.config.mjs` (same flat config as
-  frontend), `vitest.config.ts` (node environment — no DOM needed).
-- `next build` output: routes `/api/health`, `/api/echo`, `/api/[...slug]`
-  + Proxy (Middleware); no pages.
+- `GET /api/health` now includes `checks.database` (`ok`/`unavailable`) and
+  overall `status: ok | degraded`; HTTP stays 200; details stay sanitized.
+  Unit tests updated with a mocked DB; live smoke asserts the consistency
+  invariant (works in clean rooms without Docker).
 
-### Justified test-contract updates
+### ADR-0007 + index
 
-- `tests/test_skeleton_contracts.py`: `backend` removed from
-  PLACEHOLDER_PACKAGES (same justified move P01-01 made for `frontend`; the
-  placeholder contract now applies to `contracts` only).
-- New `tests/test_api_foundation_contracts.py` (28 tests, stdlib unittest).
+- `docs/adr/ADR-0007-sql-migrations-and-database-foundation.md` (Accepted);
+  index row added; `tests/test_ci_contracts.py` KNOWN_ADRS updated.
 
 ## Files changed
 
-- `backend/package.json` (modified), `backend/README.md` (rewritten).
-- `backend/tsconfig.json`, `backend/next.config.ts`, `backend/eslint.config.mjs`,
-  `backend/vitest.config.ts`, `backend/next-env.d.ts` (new).
-- `backend/src/`: `middleware.ts`, `server-only.ts`, `clock.ts`, `env.ts`,
-  `http/{errors,responses,validate,handler,request-context}.ts`,
-  `app/api/health/route.ts`, `app/api/echo/route.ts`,
-  `app/api/[...slug]/route.ts` (new).
-- `backend/src/**/__tests__/`: `errors.test.ts`, `responses.test.ts`,
-  `validate.test.ts`, `handler.test.ts`, `request-context.test.ts`,
-  `app/api/__tests__/{routes,echo}.test.ts` (new; 58 vitest tests).
-- `tests/test_api_foundation_contracts.py` (new; 28 tests incl. live boot
-  smoke).
-- `tests/test_skeleton_contracts.py` (modified; placeholder list — justified
-  above).
-- `pnpm-lock.yaml` (modified; new pinned workspace deps only).
+- `backend/package.json` (+pg 8.23.0, +@types/pg 8.15.6, +db scripts),
+  `backend/README.md` (database section).
+- `backend/src/env.ts` (FDB_DB_* schema), `backend/src/db/client.ts` (new),
+  `backend/src/db/migrate.mjs` (new).
+- `backend/src/app/api/health/route.ts` (DB check),
+  `backend/src/app/api/__tests__/routes.test.ts` (mocked DB tests).
+- `backend/src/db/__tests__/client.test.ts`,
+  `backend/src/db/__tests__/migrate.test.ts` (new; env parsing, sanitized
+  errors, unreachable-DB health, runner planning logic + pinned sha256
+  known-answer).
+- `backend/db/migrations/0001_foundation.sql`, `0001_foundation.down.sql`
+  (new).
+- `infra/compose.yaml` (new), `infra/.env.example` (DB port),
+  `scripts/db-bootstrap.sh` (new), `Makefile` (db targets + help).
+- `docs/adr/ADR-0007-*.md` (new), `docs/adr/README.md` (index row).
+- `tests/test_db_foundation_contracts.py` (new; 17 tests),
+  `tests/test_api_foundation_contracts.py` (pg pin in EXPECTED_DEPS; health
+  smoke consistency invariant), `tests/test_ci_contracts.py` (ADR-0007).
+- `pnpm-lock.yaml`.
 
 ## Tests executed
 
-- Backend vitest: `58 passed (58)`.
-- Backend `tsc --noEmit`: clean. Backend `eslint .`: 0 problems.
-- Backend `next build`: succeeds (routes above).
-- Live boot smoke (manual curl + automated): health 200 with
-  `x-request-id`/`x-correlation-id` and UTC timestamp; request-ID round-trip;
-  malformed request ID replaced; POST /api/health → structured 405 +
-  `allow: GET`; unknown /api path → structured 404; echo valid → 200 echo;
-  invalid JSON → 400 INVALID_JSON; schema violation → 400 VALIDATION_ERROR
-  with `details[0].path === "message"`; text/plain → 415.
-- Python contract suite: `python3 -m unittest discover -s tests -p
-  'test_*.py'` → `Ran 118 tests ... OK` (includes the 9 automated live boot
-  smoke tests, which build the backend if needed and boot it on a free port).
-- Root gate: `make check` (lint + typecheck + test + build across frontend,
-  backend, contracts + Python suite) → "All workspace checks passed."
+- Backend vitest: `75 passed (75)` (incl. new db client + migrate runner tests).
+- Backend `tsc --noEmit` clean, `eslint .` clean, `next build` succeeds.
+- **Live database verification** (Docker `postgres:16` container
+  `fdbtrade-postgres`, fresh volume): `make db-up` migrated from zero
+  (`applied 0001_foundation`); second `migrate` → `applied=0 skipped=1`
+  (idempotent); `db:status` lists applied/pending correctly; `db:rollback`
+  → `rolled back 0001_foundation`, status pending; re-`migrate` → applied
+  again. Verified in-database: schema `fdb` exists, `system_settings` empty,
+  ledger row present, `now() AT TIME ZONE 'UTC' = now()` true.
+- Live health: `/api/health` → `status: ok, checks.database: ok` with the DB
+  up; `degraded` + `checks.database: unavailable` with the DB unreachable;
+  wrong password never crashes or leaks.
+- Wrong-credentials explicit failure: non-zero exit, "cannot connect to
+  database" message, secret value absent from output (regression-tested).
+- Python suite (clean FDB-free environment): `Ran 135 tests ... OK` —
+  includes 17 new db-foundation contract tests and live lifecycle
+  (migrate/idempotent/rollback/re-apply via the real CLI).
+- Root gate: `make check` → "All workspace checks passed." (135 Python tests,
+  all workspace lint/typecheck/test/build).
 
 ## Acceptance criteria
 
-- [x] API health endpoint works — verified live (200, identity payload, UTC
-      timestamp) by curl and by the automated boot smoke tests.
-- [x] Malformed requests return structured 4xx — invalid JSON, schema
-      violations, wrong content type, wrong method, unknown API path all
-      return the structured envelope with stable codes (unit + live tests).
-- [x] Each request has a traceable ID — middleware assigns/propagates
-      `x-request-id` and `x-correlation-id` on every `/api/*` request and
-      response; IDs are validated and echoed in every JSON body.
-- [x] Relevant tests pass from a clean environment — `make check` covers all
-      packages; the boot smoke builds from scratch when `BUILD_ID` is absent
-      (CI clean-room compatible).
-- [x] Lint/typecheck/build clean for affected packages — backend gates pass;
-      frontend/contracts untouched and still pass via `make check`.
-- [x] No unrelated files modified without justification — only `backend/`,
-      its lockfile entries, the placeholder-list update, and the new contract
-      test file.
+- [x] Fresh database can migrate from zero — `make db-up` on a fresh volume
+      applied 0001 from zero (live-verified; automated in
+      `test_full_lifecycle_migrate_idempotent_rollback_reapply`).
+- [x] Rollback strategy is documented — ADR-0007 (down-migrations, forward
+      -only posture, `reset --yes` for destructive resets, backups for
+      production) + backend README + bootstrap help text.
+- [x] Connection failures are explicit — sanitized codes, non-zero exits,
+      `DatabaseUnavailableError`, degraded (never crashing) health;
+      regression-tested for secret non-leakage.
+- [x] Relevant tests pass from a clean environment — `make check` and the
+      FDB-free Python run pass; live DB tests self-skip with a clear reason
+      when Docker/`.env`/container are absent.
+- [x] Lint/typecheck/build clean for affected packages — backend gates pass.
+- [x] No unrelated files modified without justification — changes limited to
+      the database foundation scope + the two contract updates it justifies.
 - [x] Completion report written — this file.
 
 ## Known limitations / blockers
 
-- `make start` (root) runs `pnpm -r run start` sequentially; the first
-  server blocks until killed, so it exercises one server at a time. A
-  composite dev entry point can be added later without contract changes;
-  each package's own start script works: `pnpm --filter @fdbtrade/backend
-  start` (port 3100), `pnpm --filter @fdbtrade/frontend start` (port 3000).
-- Next.js 16 prints a deprecation warning: `middleware` file convention →
-  `proxy`. Kept `middleware.ts` for now (works, warning only); renaming is a
-  mechanical follow-up.
-- Health checks are process-level only; database/cache/provider checks land
-  with their owning prompts (P01-03+).
-- One intermittent NTFS/fuseblk observation: a `next build` invoked from the
-  smoke test once did not produce `BUILD_ID` (suspected fuseblk caching); the
-  smoke now retries the build once and prints the build log before skipping.
-  A manual rebuild succeeded immediately after.
+- Local host port 5432 is occupied by an unrelated service (left untouched);
+  the fdbtrade postgres publishes on 15432. Documented in env template,
+  env.ts comment, and compose.
+- Rollback is single-step (most recent migration) by design; no batch
+  down-migration. Complex future migrations may omit `.down.sql` (rollback
+  then errors explicitly) per ADR-0007.
+- Health check uses a fresh Client per request; pooling for the probe was
+  deliberately avoided to keep probes isolated and deterministic. The app
+  Pool singleton exists for real query traffic (later prompts).
+- `pg` types (`@types/pg`) are dev-only; runtime `pg` is the single new
+  dependency (pinned 8.23.0), permitted by ADR-0001's PostgreSQL decision and
+  recorded in ADR-0007.
 
 ## Follow-up required before next prompt
 
-None blocking. P01-03 (PostgreSQL + migrations) can safely add the database
-connection layer and register a real `checks.database` entry in
-`/api/health`; the response envelope and error taxonomy are designed for it.
+None blocking. P01-04 (auth foundation) can create user/session/profile
+tables as new migrations under the established conventions (fdb schema,
+timestamptz UTC, uuid PKs) and reuse `@/db/client` + the structured API
+kernel.
 
 ## Risk notes
 
-Security: no secrets in backend source, logs, or responses (contract-scanned);
-`process.env` readable only in the guarded server-only `env.ts`; no
-`NEXT_PUBLIC_*` variables; `cache-control: no-store` on all API responses;
-unknown failures return a generic message (leak regression-tested); body-size
-cap enforced (default 64 KiB, configurable, max 10 MiB).
-Quant/trading safety: the API contains no strategy, signal, risk, or broker
-code (forbidden-token scan is a contract test); no execution surface exists;
-live execution remains OFF by default (ADR-0005); architecture boundary
-(ADR-0003) untouched — the frontend does not call the API yet, and no
-broker/execution endpoints were added.
+Security: no credentials in source, compose, or logs (bootstrap generates
+random dev passwords into the git-ignored `.env` only, "value not shown");
+compose refuses to boot with missing `FDB_DB_*`; DB port bound to loopback
+only; sanitized error codes only; `.env` excluded from CI clean-room copy.
+Quant/trading safety: foundation-only schema, no business/trading data
+structures; no strategy, signal, risk, or broker code added; live execution
+remains OFF by default (ADR-0005); UTC timestamp policy enforced at the schema
+level (ADR-0004).
 
 ## Commit note
 
 Two focused commits on `main`:
-1. Implementation (all files listed above) — hash recorded here: `59216f4`.
+1. Implementation — hash recorded here: `2b78230`.
 2. This completion report.
 
 ## Next prompt (safe to run)
 
-`01_PROMPTS/P01_Foundation/P01-03_Initialize_PostgreSQL_and_migrations.md`
+`01_PROMPTS/P01_Foundation/P01-04_Implement_authentication_foundation.md`
