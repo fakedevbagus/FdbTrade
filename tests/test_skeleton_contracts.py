@@ -53,11 +53,12 @@ MAKEFILE_TARGETS = (
     "check",
 )
 
-# P01-01: frontend is now an implemented package (Next.js application shell).
-# The placeholder contract below applies only to the remaining placeholders.
+# P01-01/P01-02: frontend and backend are now implemented packages (Next.js
+# application shell / typed API foundation). The placeholder contract below
+# applies only to the remaining placeholders.
 WORKSPACE_MEMBERS = ("frontend", "backend", "contracts")
 
-PLACEHOLDER_PACKAGES = ("backend", "contracts")
+PLACEHOLDER_PACKAGES = ("contracts",)
 
 PLACEHOLDER_SCRIPTS = ("lint", "typecheck", "test", "build", "start")
 

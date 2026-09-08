@@ -1,13 +1,32 @@
 {
   "name": "@fdbtrade/backend",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
-  "description": "FdbTrade BFF/API services (placeholder; implemented from P01-02).",
+  "description": "FdbTrade BFF/API — Next.js typed API foundation (P01-02): validation, structured errors, request IDs, health endpoint.",
   "scripts": {
-    "lint": "echo \"backend lint: no-op (placeholder; P01+)\"",
-    "typecheck": "echo \"backend typecheck: no-op (placeholder; P01+)\"",
-    "test": "echo \"backend test: no-op (placeholder; P01+)\"",
-    "build": "echo \"backend build: no-op (placeholder; P01+)\"",
-    "start": "echo \"backend start: no-op (placeholder; P01+)\""
+    "dev": "next dev -p 3100",
+    "build": "next build",
+    "start": "next start -p 3100",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "next": "16.3.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.3.4",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  },
+  "engines": {
+    "node": ">=24.0.0"
   }
 }
