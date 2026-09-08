@@ -1,178 +1,188 @@
 # Completion Report
 
-Prompt ID: P01-03 — Initialize PostgreSQL and migrations
+Prompt ID: P01-04 — Implement authentication foundation
 Phase: P1 Foundation
-Date/time UTC: 2026-09-08T01:35Z
-Branch/commit: main / implementation commit `2b78230` (report commit follows)
+Date/time UTC: 2026-09-08T03:55Z
+Branch/commit: main / implementation commit `d9aebd9` (report commit follows)
 
 ## What changed
 
-Implemented the database foundation: connection layer, migration tooling,
-base schema conventions, UTC/idempotency policy, and local bootstrap. Binding
-conventions recorded as **ADR-0007** (SQL-first migrations and database
-foundation).
+Implemented private single-user authentication (library-backed via platform
+primitives) with user/session/profile tables and a server-side authorization
+guard. Recorded as **ADR-0008** (Private single-user authentication).
 
-### Connection layer (`backend/src/db/client.ts`)
+### Backend auth (`backend/src/auth/`, `backend/src/app/api/auth/`)
 
-- Server-only (guarded), lazy singleton `pg` Pool typed via `@/env` (new
-  `FDB_DB_*` fields: host, port, name, user, password, pool size, ssl mode —
-  same names as the P00-03 Python config contract).
-- `checkDatabaseHealth`: dedicated one-off Client probe (isolated,
-  configurable for tests), never throws, sanitizes failures to stable codes
-  (ECONNREFUSED, 28P01, HEALTH_TIMEOUT) — connection strings/passwords never
-  appear in results or logs.
-- Typed `query` helper for later prompts; `DatabaseUnavailableError` for
-  explicit fail-closed behavior.
+- `store.ts` (server-only): scrypt password hashing via node:crypto
+  (N=16384, r=8, p=1, 64-byte key, random 16-byte salt; stored
+  `scrypt$N$r$p$salt$hash`; constant-time verify). Zero new runtime
+  dependencies. Sessions: 32-byte random opaque token (base64url), delivered
+  only in an httpOnly `fdb_session` cookie (SameSite=Lax, Secure in
+  production, Path=/, 7-day Max-Age); the DB stores only `sha256(token)` with
+  timestamptz UTC `expires_at` — sessions survive server restarts and
+  server-side logout is real. No password/hash/token is ever logged or
+  returned (contract-tested: `store.ts` contains no console calls at all).
+- `guard.ts`: `requireSession(request)` — the security boundary every
+  private route calls. Missing cookie, unknown/expired token, inactive user,
+  and database outage all produce the identical structured 401 (fail closed,
+  no enumeration or outage oracle).
+- Routes: `POST /api/auth/login` (zod-validated body; identical 401 for bad
+  username/password; httpOnly Set-Cookie on success),
+  `POST /api/auth/logout` (idempotent; DB delete + cookie clear),
+  `GET /api/auth/session` (guarded session view — the guard's reference
+  implementation). New `UNAUTHORIZED` (401) code added to the error taxonomy.
+- `provision.mjs` (`db:provision-user`): the single user is provisioned by a
+  CLI (password from `FDB_AUTH_BOOTSTRAP_PASSWORD` or stdin, never source,
+  never echoed); there is deliberately NO registration endpoint (private
+  single-user product).
 
-### Migration runner (`backend/src/db/migrate.mjs`, `backend/db/migrations/`)
+### Migration `0002_auth_foundation`
 
-- Commands `migrate | rollback | status` (npm scripts `db:migrate`,
-  `db:rollback`, `db:status`). SQL-first, no ORM; migrations are
-  `NNNN_name.sql` with optional `NNNN_name.down.sql`.
-- Runner-owned ledger `public.schema_migrations` (id, sha256 checksum,
-  applied_at_utc timestamptz); migrations never touch it.
-- Deterministic: lexical id order; re-run `migrate` is a no-op (idempotent);
-  checksum mismatch on an applied migration is a hard error (immutable
-  applied migrations — fixes come as NEW migrations).
-- Atomic: each migration and its ledger row commit in one transaction.
-- Explicit failures: non-zero exit, secret-free messages (driver messages
-  reduced to codes). The CLI is the one documented exception to
-  "only src/env.ts reads process.env" (standalone Node script, never bundled).
+- `fdb.users` (username unique, password_hash scrypt, `mfa_enabled` default
+  false — reserved hook for a later MFA prompt, is_active),
+  `fdb.sessions` (token_hash unique, user FK, created/expires/last_used,
+  indexes), `fdb.user_profiles` (display_name, timezone 'UTC'). All
+  ADR-0007 conventions; `.down.sql` reverses in dependency order.
 
-### Foundation migration `0001_foundation.sql`
+### Frontend
 
-- `fdb` schema + `fdb.system_settings` (key/value/jsonb, timestamptz). No
-  business tables (per non-goal). Conventions in comments: snake_case, uuid
-  v4 PKs via `gen_random_uuid()` (PG16 core), timestamptz UTC defaults
-  (ADR-0004), idempotency via database constraints. `0001_foundation.down.sql`
-  reverses it.
-
-### Local bootstrap (`infra/compose.yaml`, `scripts/db-bootstrap.sh`)
-
-- Isolated `fdbtrade` Compose project: `postgres:16`, localhost-only
-  published port `FDB_DB_PORT` (default 15432 — host port 5432 is occupied by
-  an unrelated local service and must not be touched), named volume, health
-  check. No default credentials: missing `FDB_DB_*` fails loudly.
-- `make db-up|db-down|db-migrate|db-status`. `db-up` creates `.env` from
-  `infra/.env.example` with a random password if missing (never echoed),
-  waits for health, migrates from zero. `reset --yes` is the only destructive
-  path (volume deletion).
-- `infra/.env.example` DB port updated to 15432 with the rationale documented.
-
-### Health endpoint (P01-02 file, P01-03 behavior)
-
-- `GET /api/health` now includes `checks.database` (`ok`/`unavailable`) and
-  overall `status: ok | degraded`; HTTP stays 200; details stay sanitized.
-  Unit tests updated with a mocked DB; live smoke asserts the consistency
-  invariant (works in clean rooms without Docker).
-
-### ADR-0007 + index
-
-- `docs/adr/ADR-0007-sql-migrations-and-database-foundation.md` (Accepted);
-  index row added; `tests/test_ci_contracts.py` KNOWN_ADRS updated.
+- `src/middleware.ts` — **pre-render guard**: validates the session cookie
+  against the backend before any rendering; unauthenticated `/dashboard`
+  gets a 307 to `/login` with no content streamed (this closed a real leak
+  found during verification: layout-level `redirect()` alone cannot stop
+  already-streamed RSC content when a `loading.tsx` boundary exists).
+- `(app)/layout.tsx` — server-side `fetchSession()` check + redirect as
+  defense-in-depth; banner now shows the signed-in username + SignOutButton.
+- `src/lib/auth.ts` — fail-closed session client (backend unreachable or
+  malformed response ⇒ null; schema-validated response).
+- `login/page.tsx` + `login-form.tsx` — accessible sign-in form (autocomplete
+  attributes, error alert) posting to the same-origin proxy.
+- `app/api/auth/[action]/route.ts` — same-origin BFF proxy forwarding
+  login/logout/session to the backend (`FDB_BFF_URL`, default
+  `http://127.0.0.1:3100`) and relaying the httpOnly Set-Cookie; only the
+  three known auth actions are forwarded.
+- `SignOutButton` + login-form styles; UI barrel export.
 
 ## Files changed
 
-- `backend/package.json` (+pg 8.23.0, +@types/pg 8.15.6, +db scripts),
-  `backend/README.md` (database section).
-- `backend/src/env.ts` (FDB_DB_* schema), `backend/src/db/client.ts` (new),
-  `backend/src/db/migrate.mjs` (new).
-- `backend/src/app/api/health/route.ts` (DB check),
-  `backend/src/app/api/__tests__/routes.test.ts` (mocked DB tests).
-- `backend/src/db/__tests__/client.test.ts`,
-  `backend/src/db/__tests__/migrate.test.ts` (new; env parsing, sanitized
-  errors, unreachable-DB health, runner planning logic + pinned sha256
-  known-answer).
-- `backend/db/migrations/0001_foundation.sql`, `0001_foundation.down.sql`
-  (new).
-- `infra/compose.yaml` (new), `infra/.env.example` (DB port),
-  `scripts/db-bootstrap.sh` (new), `Makefile` (db targets + help).
-- `docs/adr/ADR-0007-*.md` (new), `docs/adr/README.md` (index row).
-- `tests/test_db_foundation_contracts.py` (new; 17 tests),
-  `tests/test_api_foundation_contracts.py` (pg pin in EXPECTED_DEPS; health
-  smoke consistency invariant), `tests/test_ci_contracts.py` (ADR-0007).
-- `pnpm-lock.yaml`.
+- Backend (new): `src/auth/store.ts`, `src/auth/guard.ts`, `src/auth/provision.mjs`,
+  `src/auth/__tests__/store.test.ts`, `src/auth/__tests__/guard.test.ts`,
+  `src/app/api/auth/{login,logout,session}/route.ts`,
+  `src/app/api/auth/__tests__/routes.test.ts`,
+  `db/migrations/0002_auth_foundation.sql`, `.down.sql`.
+- Backend (modified): `src/http/errors.ts` (+UNAUTHORIZED), its test,
+  `package.json` (+db:provision-user).
+- Frontend (new): `src/middleware.ts`, `src/lib/auth.ts`,
+  `src/app/login/{page.tsx,login-form.tsx}`,
+  `src/app/login/__tests__/login-form.test.tsx`,
+  `src/app/api/auth/[action]/route.ts`, `src/components/ui/SignOutButton.tsx`.
+- Frontend (modified): `(app)/layout.tsx` (real guard + banner),
+  `globals.css` (login/signout styles), `components/ui/index.ts`.
+- Docs/tests: `docs/adr/ADR-0008-private-single-user-authentication.md`,
+  `docs/adr/README.md` (index), `tests/test_ci_contracts.py` (KNOWN_ADRS 8),
+  `tests/test_auth_foundation_contracts.py` (new; 18 tests),
+  `tests/test_db_foundation_contracts.py` (migration list + rollback-most
+  -recent), `tests/test_api_foundation_contracts.py` (exclude `__tests__`
+  from the secret scan — documented dummy fixtures live there).
 
 ## Tests executed
 
-- Backend vitest: `75 passed (75)` (incl. new db client + migrate runner tests).
-- Backend `tsc --noEmit` clean, `eslint .` clean, `next build` succeeds.
-- **Live database verification** (Docker `postgres:16` container
-  `fdbtrade-postgres`, fresh volume): `make db-up` migrated from zero
-  (`applied 0001_foundation`); second `migrate` → `applied=0 skipped=1`
-  (idempotent); `db:status` lists applied/pending correctly; `db:rollback`
-  → `rolled back 0001_foundation`, status pending; re-`migrate` → applied
-  again. Verified in-database: schema `fdb` exists, `system_settings` empty,
-  ledger row present, `now() AT TIME ZONE 'UTC' = now()` true.
-- Live health: `/api/health` → `status: ok, checks.database: ok` with the DB
-  up; `degraded` + `checks.database: unavailable` with the DB unreachable;
-  wrong password never crashes or leaks.
-- Wrong-credentials explicit failure: non-zero exit, "cannot connect to
-  database" message, secret value absent from output (regression-tested).
-- Python suite (clean FDB-free environment): `Ran 135 tests ... OK` —
-  includes 17 new db-foundation contract tests and live lifecycle
-  (migrate/idempotent/rollback/re-apply via the real CLI).
-- Root gate: `make check` → "All workspace checks passed." (135 Python tests,
-  all workspace lint/typecheck/test/build).
+- Backend vitest: `98 passed (98)` (crypto round-trips incl. malformed-hash
+  rejection and salt uniqueness, token/cookie properties, guard fail-closed
+  matrix, route 401/400/200/idempotency, no-secret-in-body assertions).
+- Frontend vitest: `28 passed (28)` (LoginForm success/failure/unreachable,
+  SignOutButton; router/fetch mocked).
+- Backend/frontend `tsc --noEmit` + `eslint .` clean; both `next build`
+  succeed (frontend now includes the Proxy/Middleware).
+- Python contract tests: `tests.test_auth_foundation_contracts` — 18 OK
+  (migration conventions, no-logging/no-literal static contracts, cookie
+  contract, no-registration surface, frontend wiring incl. middleware, and
+  the **live lifecycle**).
+- **Live lifecycle** (real server + real DB): provision → guarded 401 →
+  unknown-user vs wrong-password identical 401 → valid login 200 +
+  httpOnly cookie → guarded 200 → **server restart → session still valid**
+  → logout → cookie cleared → guarded 401 again; malformed body → 400.
+- **Two-server live smoke** (frontend :3210 + backend :3100): unauthenticated
+  `/dashboard` → 307 `/login`; login via same-origin proxy → 200 + cookie;
+  authenticated `/dashboard` renders "Protected area — signed in as
+  contract-owner" + Sign out; after logout `/dashboard` → 307 again.
+- Root gate (clean environment): `make check` → `Ran 154 tests ... OK`,
+  "All workspace checks passed."
 
 ## Acceptance criteria
 
-- [x] Fresh database can migrate from zero — `make db-up` on a fresh volume
-      applied 0001 from zero (live-verified; automated in
-      `test_full_lifecycle_migrate_idempotent_rollback_reapply`).
-- [x] Rollback strategy is documented — ADR-0007 (down-migrations, forward
-      -only posture, `reset --yes` for destructive resets, backups for
-      production) + backend README + bootstrap help text.
-- [x] Connection failures are explicit — sanitized codes, non-zero exits,
-      `DatabaseUnavailableError`, degraded (never crashing) health;
-      regression-tested for secret non-leakage.
-- [x] Relevant tests pass from a clean environment — `make check` and the
-      FDB-free Python run pass; live DB tests self-skip with a clear reason
-      when Docker/`.env`/container are absent.
-- [x] Lint/typecheck/build clean for affected packages — backend gates pass.
+- [x] Unauthenticated access is blocked from private routes — backend
+      `requireSession` returns structured 401 (live-verified); frontend
+      middleware redirects `/dashboard` → `/login` pre-render (no content
+      leak — regression case documented above) + layout defense-in-depth.
+- [x] Authenticated session survives restart — DB-backed sessions;
+      live-verified by stopping and restarting the backend server mid-test.
+- [x] Password/session data is not logged — no console output in the auth
+      store (static contract), no secret in any response body or cookie debug
+      (asserted in unit + live tests); hashes/tokens never appear in
+      responses; provisioning CLI prints "value not shown".
+- [x] Relevant tests pass from a clean environment — `make check` green
+      (154 Python tests + all workspace packages); live tests self-skip with
+      clear reasons when Docker/`.env` are absent.
+- [x] Lint/typecheck/build clean for affected packages — backend and
+      frontend gates pass.
 - [x] No unrelated files modified without justification — changes limited to
-      the database foundation scope + the two contract updates it justifies.
+      auth scope + the three contract updates it justifies (ADR list,
+      migration inventory, secret-scan test fixtures).
 - [x] Completion report written — this file.
 
 ## Known limitations / blockers
 
-- Local host port 5432 is occupied by an unrelated service (left untouched);
-  the fdbtrade postgres publishes on 15432. Documented in env template,
-  env.ts comment, and compose.
-- Rollback is single-step (most recent migration) by design; no batch
-  down-migration. Complex future migrations may omit `.down.sql` (rollback
-  then errors explicitly) per ADR-0007.
-- Health check uses a fresh Client per request; pooling for the probe was
-  deliberately avoided to keep probes isolated and deterministic. The app
-  Pool singleton exists for real query traffic (later prompts).
-- `pg` types (`@types/pg`) are dev-only; runtime `pg` is the single new
-  dependency (pinned 8.23.0), permitted by ADR-0001's PostgreSQL decision and
-  recorded in ADR-0007.
+- No MFA yet by design: `mfa_enabled` is a reserved flag; the login flow has
+  no challenge step. A later MFA prompt extends this (ADR-0008 item 8).
+- Session expiry is fixed (7 days from creation), not sliding; `last_used_at`
+  is refreshed for observability. Sliding expiry can be added later without
+  schema changes.
+- Frontend middleware guard covers `/dashboard` (the only protected route
+  today); future protected routes must be added to `PROTECTED_PREFIXES` —
+  the contract test documents this list.
+- The frontend proxy forwards only `login|logout|session`; other private
+  APIs will extend the proxy (or move behind it) in later prompts.
+- scrypt parameters are fixed at N=16384; no rehash-on-login upgrade path
+  yet (stored parameters make old hashes verifiable, so an upgrade prompt can
+  migrate gradually).
+- `make start` still runs one blocking server at a time (root runner runs
+  packages sequentially); use the two package `start` scripts or the smoke
+  pattern from this report for concurrent servers.
 
 ## Follow-up required before next prompt
 
-None blocking. P01-04 (auth foundation) can create user/session/profile
-tables as new migrations under the established conventions (fdb schema,
-timestamptz UTC, uuid PKs) and reuse `@/db/client` + the structured API
-kernel.
+None blocking. P1 phase gate ("Next.js + API + DB + auth/config + migrations")
+is satisfied: web shell (P01-01), typed API (P01-02), PostgreSQL +
+migrations (P01-03), and authentication (P01-04) all work locally with
+passing gates.
 
 ## Risk notes
 
-Security: no credentials in source, compose, or logs (bootstrap generates
-random dev passwords into the git-ignored `.env` only, "value not shown");
-compose refuses to boot with missing `FDB_DB_*`; DB port bound to loopback
-only; sanitized error codes only; `.env` excluded from CI clean-room copy.
-Quant/trading safety: foundation-only schema, no business/trading data
-structures; no strategy, signal, risk, or broker code added; live execution
-remains OFF by default (ADR-0005); UTC timestamp policy enforced at the schema
-level (ADR-0004).
+Security: passwords hashed with memory-hard scrypt (never stored/logged in
+plaintext; constant-time verification); session tokens are opaque 256-bit
+values whose sha256 hash is stored (DB leak does not expose usable tokens);
+httpOnly cookie prevents JS access; SameSite=Lax mitigates CSRF on the
+cookie-authenticated routes; no user enumeration or outage oracle (uniform
+401); fail-closed guards everywhere (DB outage blocks access, never opens
+it); single provisioning CLI keeps credential input out of source and logs;
+no registration/multi-tenant surface exists (private product). The discovered
+streaming leak (layout redirect alone insufficient under Suspense) was fixed
+by pre-render middleware — protected content can no longer reach
+unauthenticated responses.
+Quant/trading safety: no strategy, signal, risk, or broker code was added;
+live execution remains OFF by default (ADR-0005); auth gates only access,
+never trading behavior; architecture boundaries (ADR-0003) intact — the
+auth layer adds no execution path.
 
 ## Commit note
 
 Two focused commits on `main`:
-1. Implementation — hash recorded here: `2b78230`.
+1. Implementation — hash recorded here: `d9aebd9`.
 2. This completion report.
 
 ## Next prompt (safe to run)
 
-`01_PROMPTS/P01_Foundation/P01-04_Implement_authentication_foundation.md`
+`01_PROMPTS/P2_Data_Core/` — the P1 Foundation phase is complete; per
+`00_CONTROL/RUN_ORDER.md`, the next phase gate is "P2: provider abstraction +
+fixture feed + canonical bars/quotes + quality checks".
