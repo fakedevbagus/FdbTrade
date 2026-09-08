@@ -50,6 +50,7 @@ KNOWN_ADRS = {
     9: "canonical-market-data-model",
     10: "market-data-provider-abstraction",
     11: "data-quality-gates",
+    12: "ingestion-idempotency-and-provider-health",
 }
 
 

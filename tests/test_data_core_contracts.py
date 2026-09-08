@@ -418,6 +418,42 @@ class ProviderBoundaryContracts(unittest.TestCase):
                     )
 
 
+class IngestionBoundaryContracts(unittest.TestCase):
+    """P02-04 ingestion contracts (cross-cutting, static).
+
+    Behavioral cache/job/worker tests live with the backend (vitest, 22
+    cases: idempotency, retry/backoff, rate-limit hook, health state).
+    This class pins the prompt's non-goal: no production scheduler
+    dependency — the worker runs only when explicitly invoked.
+    """
+
+    WORKER = REPO_ROOT / "backend" / "src" / "data" / "ingestion" / "worker.ts"
+
+    def test_worker_has_no_scheduler_dependency(self):
+        text = self.WORKER.read_text(encoding="utf-8")
+        for forbidden in (
+            "setInterval(",
+            "setTimeout(",  # realSleep is only the injectable default
+            "cron",
+            "node-cron",
+            "bullmq",
+            "agenda",
+        ):
+            if forbidden == "setTimeout(":
+                continue  # default sleep implementation only (documented)
+            self.assertNotIn(
+                forbidden.lower(),
+                text.lower(),
+                f"scheduler dependency {forbidden} must not appear in the worker",
+            )
+
+    def test_worker_pipelines_through_validator(self):
+        text = self.WORKER.read_text(encoding="utf-8")
+        self.assertIn("validateCandleSeries", text)
+        self.assertIn("ProviderError", text)
+        self.assertIn("backoffDelayMs", text)
+
+
 if __name__ == "__main__":
     unittest.main()
 
