@@ -1,135 +1,161 @@
 # Completion Report
 
-Prompt ID: P02_Data_Core (P02-01 through P02-05, executed in required order)
-Phase: P2 Data Core
-Date/time UTC: 2026-09-08T19:30Z
-Branch/commit: main / five focused commits, HEAD `46fd6ba` (P02-05)
+Prompt ID: P03_Feature_Core (P03-01 through P03-04, executed in required order)
+Phase: P3 Feature Core
+Date/time UTC: 2026-09-09T00:30Z
+Branch/commit: main / four focused commits, HEAD at P03-04 commit
 
 ## What changed
 
-The P2 Data Core phase is complete: provider abstraction, canonical
-bars/quotes, and quality checks (the phase gate) are implemented, tested and
-green under `make check`.
+The P3 Feature Core phase is complete: versioned feature definitions and
+lineage (P03-01), deterministic core indicators (P03-02), market-structure
+features with explicit no-look-ahead proofs (P03-03), and the immutable
+snapshot/lineage store with cross-layer hash parity (P03-04) — the phase
+gate "Feature schemas; snapshots; fixtures" is satisfied and `make check`
+is green.
 
-### P02-01 — Canonical market-data model (ADR-0009)
-- `@fdbtrade/contracts` became a real zod-based package: UTC ms instants
-  (offset/naive forms rejected), frozen blueprint timeframes with open-time
-  semantics, instrument/precision/contract-spec schemas, versioned symbol
-  mappings, UTC weekday session schedules (24:00 sentinel, midnight rolls,
-  breaks), quote + metadata-driven spread, OHLCV candle with schema-level
-  OHLC sanity.
-- Shared JSON data files (instruments/sessions/symbolMappings) = single
-  source of truth for pip/precision/session VALUES (no literals in code;
-  contract-tested).
-- Stdlib Python mirror `quant/datacore` (model/parse/registry).
-- Backend wires the workspace dep with `transpilePackages`.
+### P03-01 — Feature schema and lineage (ADR-0014)
+- `contracts/src/feature/definition.ts`: `FeatureDefinition` (featureId
+  snake_case, semver version, inputs from canonical series fields,
+  `fn` + `params`, `lookbackBars` PINNED to the deterministic warmup table
+  `functionLookback(fn, params)` — sma/ema period-1, rsi/atr period,
+  adx 2*period-1, macd (slow-1)+(signal-1) — a lying lookback rejects at
+  parse time), `FeatureGroup`, `FeatureLineage` (event time UTC + P02-05
+  dataset id/manifest digest binding), typed `InputWindow` (fail-closed
+  field guards, instrument-precision metadata travels with the window).
+- Null policies: `null_on_warmup` (deterministic warmup emits null) and
+  `null_on_insufficient_data` (fail closed — no invented bars, no
+  zero-fill).
+- `contracts/src/feature/snapshot.ts` (P03-04 shape defined here):
+  `FeatureSnapshot` (strict schema, hash-addressed, snapshotVersion 1),
+  canonical serialization (`serializeSnapshotCanonical` — fixed field
+  order, sorted keys, null `-`, JS number strings), deterministic store
+  keys (`snapshotKeyString`).
+- Stdlib Python mirror `quant/featurecore` (definition.py, snapshot.py)
+  reusing `datacore` validators.
 
-### P02-02 — Provider interface + fixture adapter (ADR-0010)
-- `MarketDataProvider` interface in contracts: historical candles, quotes,
-  capabilities, health; structured `ProviderError` codes
-  (UNSUPPORTED_INSTRUMENT/TIMEFRAME, INVALID_REQUEST, PROVIDER_FAILURE).
-- Deterministic `FixtureProvider` in backend: splitmix64 seeded synthesis,
-  no network/clock/randomness, anchors from `fixtureProvider.json`, bars
-  exist only inside session schedules (weekends/maintenance = real gaps).
+### P03-02 — Core indicators (backend `src/features/indicators.ts`)
+- Deterministic, bar-index-aligned series: `sma`, `ema` (SMA-seeded),
+  `rsi` (Wilder; flat-series convention = 50; clamped [0,100]), `atr`
+  (Wilder), `adx` (Wilder, first value at 2*period-1), `macd`
+  (line/signal/histogram), `returns`, `logReturns` (non-positive prices
+  fail closed), `realizedVolatility` (rolling sample stdev of 1-bar log
+  returns, annualization via caller-provided periodsPerYear).
+- 35 vitest cases: hand-computed fixtures, monotone/constant/edge cases,
+  warmup alignment, determinism, and no-look-ahead truncation proofs.
+- Python mirror `quant/featurecore/indicators.py` — TS<->Python numeric
+  parity PINNED by committed fixture `tests/fixtures/indicator_parity.json`
+  (written deterministically by a backend test; Python asserts exact
+  equality).
 
-### P02-03 — Normalizer + validator (ADR-0011)
-- `backend/src/data/quality/`: raw provider payloads -> canonical (symbol
-  mapping, offset/epoch timestamps -> UTC, precision rounding); series
-  validation (duplicates, out-of-order, session-aware gaps, impossible OHLC,
-  stale/future/crossed quotes). Fixed quarantine reason-code taxonomy shared
-  TS+Python. STRICT no-repair policy — nothing is invented or "fixed".
-- Python mirror `quant/datacore/validate.py` (exact epoch-ms math).
+### P03-03 — Market-structure features (backend `src/features/structure.ts`)
+- `candleStructure` (body/range, wick ratios null on zero range, direction,
+  inside/outside vs prior bar), `distanceToLevel` (metadata pips),
+  `rollingPriorHigh/Low` + `distanceToPriorRange` (level EXCLUDES the
+  current bar — no self-look-ahead), `trendSlope`/`trendSlopePips`
+  (rolling OLS), `multiHorizonReturns`, `realizedVolatilityWindows`,
+  `atrFraction`, `sessionFeatures` (UTC weekday/hour/day fraction,
+  schedule membership from session metadata, bounded backward
+  minutes-since-open, session-reopen flags).
+- Explicit no-look-ahead proof tests: tail truncation AND future-append
+  invariance across structure/slope/ATR/returns.
 
-### P02-04 — Cache + ingestion worker (ADR-0012)
-- `backend/src/data/ingestion/`: deterministic cache keys, bounded TTL/LRU
-  cache (injectable clock); idempotent job store (sha256 dedup, status
-  machine, terminal-failure stickiness); `IngestionWorker` —
-  fetch->validate->cache, bounded exponential backoff (transient only;
-  contract errors fail fast), rate-limit hook, pure provider health state
-  machine (healthy/degraded, threshold + recovery). No scheduler dependency.
-
-### P02-05 — Dataset manifest (ADR-0013)
-- Manifest schema in contracts: deterministic datasetId, [start,end)
-  exclusive period, recordCount, sha256 over a canonical serialization,
-  UTC-locked, license notes (verified REQUIRES evidenceUrl; synthetic for
-  fixtures; unverified default).
-- Backend builder+verifier (replay = refetch + checksum match); Python
-  mirror with byte-exact `js_number_str` so TS and Python digests are
-  identical (parity contract-tested).
+### P03-04 — Snapshot/lineage store (ADR-0015, backend `src/features/store.ts`)
+- `FeatureSnapshotStore`: append-only, keyed by (instrument, timeframe,
+  event time UTC, feature-group id+version, dataset id). Drafts validated
+  fail-closed through the full snapshot schema before hashing.
+- `snapshotHashFor` = sha256 over the canonical serialization (content
+  only — hash excludes snapshotHash and createdAtUtc, so the same input
+  snapshot + versions ALWAYS hashes identically; clock-independent).
+- Idempotent re-persist returns the EXISTING record without mutation;
+  conflicting content under the same key is REJECTED (historical lineage
+  never overwritten — prompt non-goal); malformed drafts rejected with
+  structured reasons; injectable clock.
+- Cross-layer parity contract test (`tests/test_snapshot_store_contracts.py`):
+  TS and Python produce the IDENTICAL snapshot hash (node-inlined TS
+  serialization, sha256; float/bool/int/null values).
 
 ## Files changed
 
-- contracts: `src/marketdata/{time,instrument,session,quote,candle,registry,
-  provider,dataset}.ts`, `src/data/{instruments,sessions,symbolMappings,
-  fixtureProvider}.json`, `src/__tests__/*`, package config files, README.
-- backend: `src/data/providers/fixture.ts` (+tests), `src/data/quality/
-  {normalizer,validator}.ts` (+tests), `src/data/ingestion/{cache,jobs,
-  worker}.ts` (+tests), `src/data/manifest.ts` (+tests), `package.json`,
-  `next.config.ts`.
-- quant: `datacore/{__init__,model,parse,registry,validate,manifest}.py`.
-- tests: `test_data_core_contracts.py` (new, 35 cases); justified updates to
-  `test_skeleton_contracts.py` (placeholder->real package),
-  `test_ci_contracts.py` (ADR list), `test_api_foundation_contracts.py`
-  (workspace dep pin).
-- docs: ADR-0009..ADR-0013 + ADR index; `contracts/README.md`,
-  `quant/README.md` updated from placeholders.
+- contracts: `src/feature/{definition,snapshot}.ts` (new), `src/index.ts`
+  (exports), `src/__tests__/{feature-definitions,feature-groups-lineage}.test.ts`
+  (new, 20 cases), `README.md` (feature section).
+- backend: `src/features/{indicators,structure,store}.ts` (new),
+  `src/features/__tests__/` (6 new test files, 84 cases).
+- quant: `featurecore/{__init__,definition,indicators,snapshot}.py` (new),
+  `README.md` (featurecore section).
+- tests: `test_feature_core_contracts.py`,
+  `test_feature_groups_lineage_contracts.py`,
+  `test_feature_snapshot_contracts.py`,
+  `test_feature_indicators_contracts.py`,
+  `test_snapshot_store_contracts.py` (new),
+  `fixtures/indicator_parity.json` (new), `test_ci_contracts.py`
+  (ADR list extended to 0015 — justified: the ADR-list contract follows
+  the repo's per-ADR pattern from P02).
+- docs: ADR-0014, ADR-0015 + `docs/adr/README.md` index.
 
 ## Tests executed
 
 - `make check` — GREEN (lint + typecheck + test + build, all packages).
-- Backend vitest: 152 tests (14 provider, 28 quality, 22 ingestion,
-  12 manifest + all P1 suites).
-- Contracts vitest: 28 tests.
-- Python stdlib contracts: 190 tests across 8 files (35 data-core +
-  skeleton/CI/API/auth/DB/web-shell regressions).
-- Cross-layer: TS<->Python sha256 digest parity; no-literals guards;
-  offline/deterministic provider guard; no-scheduler guard.
+- Backend vitest: 246 tests (72 feature-layer: 35 indicators, 25 structure,
+  12 store; plus all P1/P2 suites).
+- Contracts vitest: 48 tests (20 new feature schema cases).
+- Python stdlib contracts: 237 tests (44 new feature-core cases across 5
+  files; all prior suites still green).
+- Cross-layer: TS<->Python indicator numeric parity (committed fixture);
+  TS<->Python snapshot-hash parity (node-inlined serialization).
 
 ## Acceptance criteria
 
-- [x] P02-01: canonical types shared across backend, research and tests;
-      precision/pip metadata from data, not literals (contract-tested).
-- [x] P02-02: provider contract tests pass against fixture provider;
-      unsupported capabilities explicit (structured error codes).
-- [x] P02-03: bad cases rejected/quarantined with reason codes; valid
-      fixtures normalize deterministically (idempotency tested).
-- [x] P02-04: repeated ingestion of same event idempotent (zero re-fetch);
-      stale provider moves health to degraded; retry/backoff covered.
-- [x] P02-05: dataset uniquely identified and replayable from its manifest
-      (checksum-verified replay test).
+- [x] P03-01: every feature declares version, inputs, lookback and output
+      type; feature schema tests pass (contracts 20 + Python 20 cases).
+- [x] P03-02: known fixtures match expected outputs within documented
+      tolerance (toBeCloseTo 9 digits / places=10; hand-computed fixtures);
+      TS<->Python numeric parity pinned by fixture.
+- [x] P03-03: features computed without future bars; tests explicitly
+      prove no look-ahead (truncation + future-append invariance).
+- [x] P03-04: same input snapshot + version produces identical snapshot
+      hash (deterministic, order-insensitive, clock-independent);
+      immutable store (idempotent put, conflict rejection).
 - [x] Relevant tests pass from a clean environment — `make check` green.
 - [x] Lint/typecheck/build clean for affected packages.
-- [x] No unrelated files modified without justification (contract-test
-      updates justified and documented above).
+- [x] No unrelated files modified without justification (ADR-list contract
+      test update justified above; `.git/config` core.fileMode repaired to
+      `false` per repo rules after a corrupted value blocked commits —
+      environment repair, not a repo file change).
 - [x] Completion report written — this file.
 
 ## Known limitations / blockers
 
-- Cache/job store are in-process only; swapping to Redis/Postgres later
-  needs no worker-contract change (ADR-0012).
-- Fixture sessions are simplified fixed UTC schedules (no DST adjustments);
-  documented in `sessions.json` sourceNote.
-- Fixture candles carry null volume (FX convention); the schema already
-  supports provider volume.
-- `quant/` has no venv/deps — everything is stdlib (per ADR-0001).
+- Snapshot store is in-process only (restart loses state); swapping to a
+  durable backing store must preserve the persist/idempotency/conflict
+  contract (ADR-0015, cf. ADR-0012 precedent).
+- `mid` input series is reserved but rejected in candle windows until a
+  quote-derived series exists (fail-closed, documented).
+- Realized volatility annualization is caller-supplied (periodsPerYear);
+  no annualization policy is baked into the feature layer.
+- Fixture parity file is regenerated by the backend test; both layers must
+  stay in lockstep (pinned by tests on both sides).
 
 ## Follow-up required before next prompt
 
-None blocking. P2 phase gate ("provider abstraction + fixture feed +
-canonical bars/quotes + quality checks") is satisfied.
+None blocking. P3 phase gate ("Feature schemas; snapshots; fixtures") is
+satisfied.
 
 ## Risk notes
 
-Quant: all timestamps UTC; candle-open semantics explicit; gap detection is
-session-aware so closures never masquerade as defects; no repair/invention
-of data anywhere in the pipeline; datasets are replayable and tamper-evident
-(sha256 manifests, TS/Python parity). Security: no secrets in fixtures,
-logs or bundles (contract-tested); provider error details sanitized; naive
-timestamps rejected (no silent zone assumption). Trading safety: no
-strategy, signal, risk or broker code added; live execution remains OFF
-(ADR-0005); providers are data-only components (ADR-0003 boundaries intact).
+Quant: all timestamps UTC; candle-open semantics preserved; warmup nulls
+are content (hashable), never fabricated values; no look-ahead is proven
+by tests, not asserted; indicator conventions (Wilder smoothing, EMA SMA
+seeding, RSI flat=50) are documented and pinned by tests on both layers;
+snapshot lineage binds every value to feature versions + dataset id +
+manifest digest, making every computation reproducible and tamper-evident.
+Security: no secrets in fixtures, logs or bundles; store rejection reasons
+are structured and sanitized. Trading safety: no strategy, signal, risk or
+broker code added; live execution remains OFF (ADR-0005); the feature
+layer is a pure data component (ADR-0003 boundaries intact).
 
 ## Next prompt (safe to run)
 
-`01_PROMPTS/P03_Feature_Core/` — versioned features and snapshots with
-fixtures, per `00_CONTROL/RUN_ORDER.md` (P2 gate passed).
+`01_PROMPTS/P04_Regime_Engine/` — deterministic regime classifier with
+tests, per `00_CONTROL/RUN_ORDER.md` (P3 gate passed).
