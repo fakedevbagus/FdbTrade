@@ -1,0 +1,32 @@
+{
+  "version": "1.0.0",
+  "updatedAtUtc": "2026-09-08T00:00:00.000Z",
+  "schedules": [
+    {
+      "id": "fx-24x5",
+      "description": "FX spot market — continuous 24h weekdays (UTC), closed weekends",
+      "timezone": "UTC",
+      "windows": [
+        { "day": "mon", "startUtc": "00:00", "endUtc": "24:00", "breaks": [] },
+        { "day": "tue", "startUtc": "00:00", "endUtc": "24:00", "breaks": [] },
+        { "day": "wed", "startUtc": "00:00", "endUtc": "24:00", "breaks": [] },
+        { "day": "thu", "startUtc": "00:00", "endUtc": "24:00", "breaks": [] },
+        { "day": "fri", "startUtc": "00:00", "endUtc": "22:00", "breaks": [] }
+      ],
+      "sourceNote": "FX convention: ~24/5 continuous with a Friday 22:00 UTC close; simplified to a fixed weekly schedule for the deterministic data core (no DST adjustments — windows are already UTC)."
+    },
+    {
+      "id": "metals-23x5",
+      "description": "Spot gold (XAUUSD) — ~23h weekdays with a daily maintenance break",
+      "timezone": "UTC",
+      "windows": [
+        { "day": "mon", "startUtc": "01:00", "endUtc": "24:00", "breaks": [] },
+        { "day": "tue", "startUtc": "01:00", "endUtc": "24:00", "breaks": [] },
+        { "day": "wed", "startUtc": "01:00", "endUtc": "24:00", "breaks": [] },
+        { "day": "thu", "startUtc": "01:00", "endUtc": "24:00", "breaks": [] },
+        { "day": "fri", "startUtc": "01:00", "endUtc": "21:00", "breaks": [] }
+      ],
+      "sourceNote": "Metals convention: ~23x5 with a 22:00–01:00 UTC daily maintenance window; simplified fixed UTC schedule for the deterministic data core."
+    }
+  ]
+}

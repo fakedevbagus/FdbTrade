@@ -1,13 +1,28 @@
 {
   "name": "@fdbtrade/contracts",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
-  "description": "FdbTrade shared typed contracts (placeholder; implemented from P02-01 onward).",
+  "description": "FdbTrade shared typed contracts — canonical market-data model (P02-01): instrument, quote, candle, spread and session schemas; versioned symbol mapping.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
   "scripts": {
-    "lint": "echo \"contracts lint: no-op (placeholder; P02+)\"",
-    "typecheck": "echo \"contracts typecheck: no-op (placeholder; P02+)\"",
-    "test": "echo \"contracts test: no-op (placeholder; P02+)\"",
-    "build": "echo \"contracts build: no-op (placeholder; P02+)\"",
-    "start": "echo \"contracts start: no-op (placeholder; P02+)\""
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "tsc --noEmit",
+    "start": "echo \"contracts start: no runtime (library package)\""
+  },
+  "dependencies": {
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.3.4",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  },
+  "engines": {
+    "node": ">=24.0.0"
   }
 }

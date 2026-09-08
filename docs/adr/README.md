@@ -69,3 +69,4 @@ not used.
 | [ADR-0006](ADR-0006-ci-baseline.md) | CI baseline | Accepted |
 | [ADR-0007](ADR-0007-sql-migrations-and-database-foundation.md) | SQL-first migrations and database foundation | Accepted |
 | [ADR-0008](ADR-0008-private-single-user-authentication.md) | Private single-user authentication | Accepted |
+| [ADR-0009](ADR-0009-canonical-market-data-model.md) | Canonical market-data model | Accepted |

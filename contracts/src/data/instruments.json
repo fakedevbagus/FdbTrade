@@ -1,0 +1,142 @@
+{
+  "version": "1.0.0",
+  "updatedAtUtc": "2026-09-08T00:00:00.000Z",
+  "instruments": [
+    {
+      "id": "EURUSD",
+      "assetClass": "fx",
+      "symbol": "EURUSD",
+      "baseAsset": "EUR",
+      "quoteAsset": "USD",
+      "precision": {
+        "digits": 5,
+        "pip": 0.0001,
+        "point": 0.00001
+      },
+      "contractSpec": {
+        "contractSize": 100000,
+        "fractionalLots": true
+      },
+      "sessionsRef": "fx-24x5"
+    },
+    {
+      "id": "GBPUSD",
+      "assetClass": "fx",
+      "symbol": "GBPUSD",
+      "baseAsset": "GBP",
+      "quoteAsset": "USD",
+      "precision": {
+        "digits": 5,
+        "pip": 0.0001,
+        "point": 0.00001
+      },
+      "contractSpec": {
+        "contractSize": 100000,
+        "fractionalLots": true
+      },
+      "sessionsRef": "fx-24x5"
+    },
+    {
+      "id": "USDJPY",
+      "assetClass": "fx",
+      "symbol": "USDJPY",
+      "baseAsset": "USD",
+      "quoteAsset": "JPY",
+      "precision": {
+        "digits": 3,
+        "pip": 0.01,
+        "point": 0.001
+      },
+      "contractSpec": {
+        "contractSize": 100000,
+        "fractionalLots": true
+      },
+      "sessionsRef": "fx-24x5"
+    },
+    {
+      "id": "AUDUSD",
+      "assetClass": "fx",
+      "symbol": "AUDUSD",
+      "baseAsset": "AUD",
+      "quoteAsset": "USD",
+      "precision": {
+        "digits": 5,
+        "pip": 0.0001,
+        "point": 0.00001
+      },
+      "contractSpec": {
+        "contractSize": 100000,
+        "fractionalLots": true
+      },
+      "sessionsRef": "fx-24x5"
+    },
+    {
+      "id": "USDCAD",
+      "assetClass": "fx",
+      "symbol": "USDCAD",
+      "baseAsset": "USD",
+      "quoteAsset": "CAD",
+      "precision": {
+        "digits": 5,
+        "pip": 0.0001,
+        "point": 0.00001
+      },
+      "contractSpec": {
+        "contractSize": 100000,
+        "fractionalLots": true
+      },
+      "sessionsRef": "fx-24x5"
+    },
+    {
+      "id": "USDCHF",
+      "assetClass": "fx",
+      "symbol": "USDCHF",
+      "baseAsset": "USD",
+      "quoteAsset": "CHF",
+      "precision": {
+        "digits": 5,
+        "pip": 0.0001,
+        "point": 0.00001
+      },
+      "contractSpec": {
+        "contractSize": 100000,
+        "fractionalLots": true
+      },
+      "sessionsRef": "fx-24x5"
+    },
+    {
+      "id": "NZDUSD",
+      "assetClass": "fx",
+      "symbol": "NZDUSD",
+      "baseAsset": "NZD",
+      "quoteAsset": "USD",
+      "precision": {
+        "digits": 5,
+        "pip": 0.0001,
+        "point": 0.00001
+      },
+      "contractSpec": {
+        "contractSize": 100000,
+        "fractionalLots": true
+      },
+      "sessionsRef": "fx-24x5"
+    },
+    {
+      "id": "XAUUSD",
+      "assetClass": "metal",
+      "symbol": "XAUUSD",
+      "baseAsset": "XAU",
+      "quoteAsset": "USD",
+      "precision": {
+        "digits": 2,
+        "pip": 0.1,
+        "point": 0.01
+      },
+      "contractSpec": {
+        "contractSize": 100,
+        "fractionalLots": true
+      },
+      "sessionsRef": "metals-23x5"
+    }
+  ]
+}

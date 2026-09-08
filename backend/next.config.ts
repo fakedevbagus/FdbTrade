@@ -8,6 +8,9 @@ import type { NextConfig } from "next";
  */
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // P02-01: @fdbtrade/contracts is a workspace source package (TS entry, no
+  // dist build) — transpile it so the Next compiler consumes the TS files.
+  transpilePackages: ["@fdbtrade/contracts"],
 };
 
 export default nextConfig;

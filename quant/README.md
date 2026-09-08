@@ -1,6 +1,21 @@
-# quant/ — Python quant engine + research (placeholder
+# quant/ — Python quant engine + research
 
-Python 3.12; venv/pip (or Docker per ADR-0001; PyPI is slow). Real code
-arrives from P02_Data_Core onward (P02-04 ingestion worker, P08 backtest,, P09 research,, etc..
+Python 3.12, stdlib-only (no third-party deps; ADR-0001). Real code from
+P02_Data_Core onward.
 
-Placeholder only — no source,, no dependencies installed yet..
+## datacore/ (P02-01)
+
+Stdlib mirror of `@fdbtrade/contracts` (ADR-0009):
+
+- `model.py` — dataclass shapes, UTC instant/HH:MM/price validators,
+  timeframe constants, open-time alignment helpers (no datetime deps).
+- `parse.py` — strict fail-closed dict->model parsers (unknown keys reject),
+  quote/candle validation, metadata-driven spread derivation.
+- `registry.py` — loads the shared JSON (`contracts/src/data/*.json`),
+  validated frozen lookups, session membership.
+
+The JSON under `contracts/src/data` is the single source of truth for
+instruments, sessions and provider symbol mappings; this package contains
+no pip/precision literals.
+
+Backtest engine lands in P08; research lab in P09.

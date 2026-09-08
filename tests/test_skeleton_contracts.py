@@ -54,11 +54,13 @@ MAKEFILE_TARGETS = (
 )
 
 # P01-01/P01-02: frontend and backend are now implemented packages (Next.js
-# application shell / typed API foundation). The placeholder contract below
-# applies only to the remaining placeholders.
+# application shell / typed API foundation). P02-01: contracts is now a real
+# shared-contracts package (canonical market-data model). The placeholder
+# contract below applies to no current package; it is kept as a guard for any
+# future placeholder area.
 WORKSPACE_MEMBERS = ("frontend", "backend", "contracts")
 
-PLACEHOLDER_PACKAGES = ("contracts",)
+PLACEHOLDER_PACKAGES: tuple[str, ...] = ()
 
 PLACEHOLDER_SCRIPTS = ("lint", "typecheck", "test", "build", "start")
 
