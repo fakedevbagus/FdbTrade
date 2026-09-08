@@ -12,7 +12,8 @@
     "test": "vitest run",
     "db:migrate": "node src/db/migrate.mjs migrate",
     "db:rollback": "node src/db/migrate.mjs rollback",
-    "db:status": "node src/db/migrate.mjs status"
+    "db:status": "node src/db/migrate.mjs status",
+    "db:provision-user": "node src/auth/provision.mjs"
   },
   "dependencies": {
     "next": "16.3.4",

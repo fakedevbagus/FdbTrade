@@ -46,6 +46,7 @@ KNOWN_ADRS = {
     5: "live-trading-off-by-default",
     6: "ci-baseline",
     7: "sql-migrations-and-database-foundation",
+    8: "private-single-user-authentication",
 }
 
 

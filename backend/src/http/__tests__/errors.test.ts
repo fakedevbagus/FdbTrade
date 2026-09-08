@@ -29,6 +29,7 @@ describe("ApiError", () => {
       INVALID_JSON: 400,
       UNSUPPORTED_MEDIA_TYPE: 415,
       PAYLOAD_TOO_LARGE: 413,
+      UNAUTHORIZED: 401,
       NOT_FOUND: 404,
       METHOD_NOT_ALLOWED: 405,
       INTERNAL_ERROR: 500,

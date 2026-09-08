@@ -224,6 +224,71 @@ a:focus-visible {
   margin: 0 0 var(--fdb-space-4);
 }
 
+/* Sign-in form (P01-04) ----------------------------------------------------- */
+
+.fdb-login-form {
+  display: grid;
+  gap: var(--fdb-space-2);
+  max-width: 22rem;
+  margin-top: var(--fdb-space-4);
+}
+
+.fdb-login-form__label {
+  font-size: var(--fdb-step--1);
+  color: var(--fdb-fg-muted);
+}
+
+.fdb-login-form__input {
+  font: inherit;
+  padding: var(--fdb-space-2);
+  border: 1px solid var(--fdb-border);
+  border-radius: 0.5rem;
+  background: var(--fdb-surface);
+  color: var(--fdb-fg);
+}
+
+.fdb-login-form__input:focus {
+  outline: 2px solid var(--fdb-accent);
+  outline-offset: 1px;
+}
+
+.fdb-login-form__error {
+  color: #b91c1c;
+  font-size: var(--fdb-step--1);
+  margin: 0;
+}
+
+.fdb-login-form__submit {
+  font: inherit;
+  background: var(--fdb-accent);
+  color: #ffffff;
+  border: none;
+  border-radius: 0.5rem;
+  padding: var(--fdb-space-2) var(--fdb-space-3);
+  cursor: pointer;
+  margin-top: var(--fdb-space-2);
+}
+
+.fdb-login-form__submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.fdb-signout {
+  font: inherit;
+  font-size: var(--fdb-step--1);
+  background: transparent;
+  color: var(--fdb-fg-muted);
+  border: 1px solid var(--fdb-border);
+  border-radius: 0.5rem;
+  padding: var(--fdb-space-1) var(--fdb-space-3);
+  cursor: pointer;
+}
+
+.fdb-signout:hover {
+  color: var(--fdb-fg);
+}
+
 /* Status pill ---------------------------------------------------------------- */
 
 .fdb-status {

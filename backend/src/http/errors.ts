@@ -11,6 +11,7 @@ export const API_ERROR_CODES = [
   "INVALID_JSON",
   "UNSUPPORTED_MEDIA_TYPE",
   "PAYLOAD_TOO_LARGE",
+  "UNAUTHORIZED",
   "NOT_FOUND",
   "METHOD_NOT_ALLOWED",
   "INTERNAL_ERROR",
@@ -23,6 +24,7 @@ export const STATUS_BY_CODE: Readonly<Record<ApiErrorCode, number>> = {
   INVALID_JSON: 400,
   UNSUPPORTED_MEDIA_TYPE: 415,
   PAYLOAD_TOO_LARGE: 413,
+  UNAUTHORIZED: 401,
   NOT_FOUND: 404,
   METHOD_NOT_ALLOWED: 405,
   INTERNAL_ERROR: 500,
@@ -83,6 +85,12 @@ export class ApiError extends Error {
 
   static notFound(message = "Resource not found."): ApiError {
     return new ApiError("NOT_FOUND", message);
+  }
+
+  static unauthorized(
+    message = "Authentication is required to access this resource.",
+  ): ApiError {
+    return new ApiError("UNAUTHORIZED", message);
   }
 
   static methodNotAllowed(

@@ -68,3 +68,4 @@ not used.
 | [ADR-0005](ADR-0005-live-trading-off-by-default.md) | Live trading OFF by default | Accepted |
 | [ADR-0006](ADR-0006-ci-baseline.md) | CI baseline | Accepted |
 | [ADR-0007](ADR-0007-sql-migrations-and-database-foundation.md) | SQL-first migrations and database foundation | Accepted |
+| [ADR-0008](ADR-0008-private-single-user-authentication.md) | Private single-user authentication | Accepted |

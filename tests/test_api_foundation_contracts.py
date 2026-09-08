@@ -54,9 +54,17 @@ def load_json(path: pathlib.Path):
 
 
 def iter_backend_source():
-    """All backend TypeScript source files (never node_modules/.next)."""
+    """All backend TypeScript source files (never node_modules/.next).
+
+    Test fixtures under ``__tests__`` are excluded: they intentionally use
+    dummy credential-like strings (``pw123456``, ``raw-token-abc``) that are
+    documented as fake in the P01-04 contract tests.
+    """
     for pattern in ("src/**/*.ts", "*.ts"):
-        yield from BACKEND.glob(pattern)
+        for path in BACKEND.glob(pattern):
+            if "__tests__" in path.parts:
+                continue
+            yield path
 
 
 def request_json(

@@ -1,25 +1,35 @@
 import type { JSX, ReactNode } from "react";
+import { redirect } from "next/navigation";
+
+import { SignOutButton } from "@/components/ui";
+import { fetchSession } from "@/lib/auth";
 
 /**
- * Protected app area (placeholder) — P01-01.
+ * Protected app area layout (P01-04).
  *
- * This route group hosts the authenticated workspace. The authentication
- * guard for this segment is implemented in P01-04 (authentication
- * foundation). Until that lands, this segment renders placeholder content
- * only and contains no private data.
+ * Server-side authorization guard: every request under this route group is
+ * checked against the backend session API before any child renders. An
+ * invalid, missing, or backend-unreachable session redirects to /login
+ * (fail closed). The UI check is convenience only — the backend guard on
+ * every private API route remains the security boundary.
  */
-export default function AppAreaLayout({
+export default async function AppAreaLayout({
   children,
 }: {
   children: ReactNode;
-}): JSX.Element {
+}): Promise<JSX.Element> {
+  const session = await fetchSession();
+  if (!session) {
+    redirect("/login");
+  }
   return (
     <div className="fdb-container">
       <p className="fdb-app-area__banner" role="note">
-        Protected area — placeholder. The authentication guard lands in P01-04;
-        this segment contains no private data yet.
+        Protected area — signed in as {session.user.username}. All timestamps
+        are UTC. <SignOutButton />
       </p>
       {children}
     </div>
   );
 }
+

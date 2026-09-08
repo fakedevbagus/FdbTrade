@@ -101,17 +101,18 @@ class MigrationFileContract(unittest.TestCase):
         self.assertNotIn("DELETE FROM public.schema_migrations", text)
         self.assertNotIn("TRUNCATE public.schema_migrations", text)
 
-    def test_no_business_tables_beyond_foundation(self):
-        """Foundation must stay foundation-only (no unstable business schema)."""
+    def test_no_business_tables_beyond_foundation_and_auth(self):
+        """Foundation-only + auth-foundation migrations (P01-03/P01-04);
+        later business migrations land with their owning phase prompts."""
         ups = [
-            p
+            p.name
             for p in MIGRATIONS.glob("*.sql")
             if not p.name.endswith(".down.sql")
         ]
         self.assertEqual(
-            [p.name for p in ups],
-            ["0001_foundation.sql"],
-            "P01-03 must not add business migrations",
+            ups,
+            ["0001_foundation.sql", "0002_auth_foundation.sql"],
+            "P01-04 must not add migrations beyond the auth foundation",
         )
 
 
@@ -242,18 +243,22 @@ class LiveDatabaseLifecycleTest(unittest.TestCase):
         self.assertEqual(migrate_twice.returncode, 0)
         self.assertIn("applied=0", migrate_twice.stdout)
 
-        # Rollback removes the migration from the ledger and schema.
+        # Rollback removes the MOST RECENT migration from the ledger/schema.
         rollback = self._runner("rollback")
         self.assertEqual(rollback.returncode, 0, msg=rollback.stdout)
-        self.assertIn("rolled back 0001_foundation", rollback.stdout)
+        match = re.search(r"rolled back (\S+)", rollback.stdout)
+        self.assertIsNotNone(match, msg=rollback.stdout)
+        rolled_back_id = match.group(1)
+        self.assertEqual(rolled_back_id, "0002_auth_foundation")
 
-        # Re-apply restores the applied state.
+        # Re-apply restores the fully applied state.
         reapply = self._runner("migrate")
         self.assertEqual(reapply.returncode, 0, msg=reapply.stdout)
-        self.assertIn("applied 0001_foundation", reapply.stdout)
+        self.assertIn(f"applied {rolled_back_id}", reapply.stdout)
 
         status = self._runner("status")
-        self.assertIn("applied  0001_foundation", status.stdout)
+        for migration_id in ("0001_foundation", "0002_auth_foundation"):
+            self.assertIn(f"applied  {migration_id}", status.stdout)
 
     def test_wrong_password_fails_explicitly_without_leaking_secret(self):
         wrong = {
