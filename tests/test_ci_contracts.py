@@ -51,6 +51,7 @@ KNOWN_ADRS = {
     10: "market-data-provider-abstraction",
     11: "data-quality-gates",
     12: "ingestion-idempotency-and-provider-health",
+    13: "dataset-manifests",
 }
 
 

@@ -57,6 +57,19 @@ from .validate import (  # noqa: F401
     validate_candle_series,
     validate_quotes,
 )
+from .manifest import (  # noqa: F401
+    LICENSE_STATUSES,
+    DatasetManifest,
+    LicenseNote,
+    dataset_id_for,
+    dataset_sha256,
+    js_number_str,
+    parse_dataset_manifest,
+    parse_license_note,
+    serialize_candle_canonical,
+    serialize_candles_canonical,
+    verify_dataset_manifest,
+)
 from .registry import (  # noqa: F401
     INSTRUMENTS,
     SCHEDULES,

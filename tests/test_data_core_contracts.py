@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import pathlib
 import re
+import subprocess
 import sys
 import unittest
 
@@ -22,17 +23,24 @@ from datacore import (  # noqa: E402
     REASON_CODES,
     TIMEFRAMES,
     align_to_timeframe,
+    dataset_id_for,
+    dataset_sha256,
     derive_spread,
     get_instrument,
     get_schedule,
     instant_to_ms,
     is_instant_in_schedule,
+    js_number_str,
     map_provider_symbol,
     ms_to_instant,
     parse_candle,
+    parse_dataset_manifest,
+    parse_license_note,
     parse_quote,
+    serialize_candle_canonical,
     validate_candle_series,
     validate_quotes,
+    verify_dataset_manifest,
     validate_registry_integrity,
     validate_utc_instant,
 )
@@ -416,6 +424,160 @@ class ProviderBoundaryContracts(unittest.TestCase):
                     self.assertNotIn(
                         "tradingview", text.lower(), f"TV reference in {src}"
                     )
+
+
+class ManifestContractTests(unittest.TestCase):
+    """P02-05 dataset manifest contracts (Python mirror).
+
+    Behavioral manifest tests live with the backend (vitest, 12 cases);
+    this class pins the Python mirror and — critically — cross-layer
+    checksum PARITY: the same candles must hash identically in TS and
+    Python (byte-exact canonical serialization + JS number formatting).
+    """
+
+    @staticmethod
+    def _candle_dict(ts: str, o=1.1, h=1.101, lo=1.099, c=1.1005) -> dict:
+        return {
+            "instrument": "EURUSD",
+            "timeframe": "1h",
+            "timestamp": ts,
+            "open": o,
+            "high": h,
+            "low": lo,
+            "close": c,
+            "volume": None,
+        }
+
+    def test_js_number_formatting_matches_stringify(self):
+        self.assertEqual(js_number_str(1.0), "1")
+        self.assertEqual(js_number_str(1.5), "1.5")
+        self.assertEqual(js_number_str(0.000001), "0.000001")
+        self.assertEqual(js_number_str(155.125), "155.125")
+        self.assertEqual(js_number_str(0), "0")
+        self.assertEqual(js_number_str(100000), "100000")
+        self.assertEqual(js_number_str(1e21), "1e+21")
+        self.assertEqual(js_number_str(1e-7), "1e-7")
+
+    def test_canonical_serialization_shape(self):
+        candle = parse_candle(self._candle_dict("2026-09-08T10:00:00.000Z"))
+        self.assertEqual(
+            serialize_candle_canonical(candle),
+            "EURUSD|1h|2026-09-08T10:00:00.000Z|1.1|1.101|1.099|1.1005|-",
+        )
+
+    def test_checksum_parity_with_ts_layer(self):
+        """JS number formatting must match ``js_number_str`` byte-for-byte.
+
+        The contracts package ships TS source (no CJS entry), so this test
+        inlines the canonical serialization in the node script — the parity
+        property under test is JS ``String(number)`` vs ``js_number_str``
+        over identical candle fields, hashed the same way.
+        """
+        candles = [
+            parse_candle(self._candle_dict("2026-09-08T10:00:00.000Z")),
+            parse_candle(self._candle_dict("2026-09-08T11:00:00.000Z")),
+        ]
+        py_digest = dataset_sha256(candles)
+        node = subprocess.run(
+            [
+                "node", "-e",
+                "const { createHash } = require('node:crypto');"
+                "const ser = c => [c.instrument, c.timeframe, c.timestamp,"
+                "String(c.open), String(c.high), String(c.low), String(c.close),"
+                "c.volume === null ? '-' : String(c.volume)].join('|');"
+                "const candles = ["
+                "{instrument:'EURUSD',timeframe:'1h',timestamp:'2026-09-08T10:00:00.000Z',"
+                "open:1.1,high:1.101,low:1.099,close:1.1005,volume:null},"
+                "{instrument:'EURUSD',timeframe:'1h',timestamp:'2026-09-08T11:00:00.000Z',"
+                "open:1.1,high:1.101,low:1.099,close:1.1005,volume:null}];"
+                "console.log(createHash('sha256')"
+                ".update(candles.map(ser).join('\\n'),'utf8').digest('hex'));",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+        self.assertEqual(node.returncode, 0, msg=node.stdout + node.stderr)
+        self.assertEqual(node.stdout.strip(), py_digest)
+
+    def test_manifest_parse_and_verify_roundtrip(self):
+        candles = [
+            parse_candle(self._candle_dict("2026-09-08T10:00:00.000Z")),
+            parse_candle(self._candle_dict("2026-09-08T11:00:00.000Z")),
+        ]
+        manifest = parse_dataset_manifest({
+            "datasetId": dataset_id_for(
+                "fixture", "EURUSD", "1h",
+                "2026-09-08T10:00:00.000Z", "2026-09-08T12:00:00.000Z",
+            ),
+            "providerId": "fixture",
+            "instrument": "EURUSD",
+            "timeframe": "1h",
+            "periodStartUtc": "2026-09-08T10:00:00.000Z",
+            "periodEndUtc": "2026-09-08T12:00:00.000Z",
+            "recordCount": 2,
+            "checksum": {"algorithm": "sha256", "digest": dataset_sha256(candles)},
+            "timezone": "UTC",
+            "candleTimestampSemantics": "open-time-utc",
+            "license": {
+                "status": "synthetic",
+                "source": "FdbTrade fixture provider",
+                "evidenceUrl": None,
+                "note": "",
+            },
+            "manifestVersion": 1,
+            "createdAtUtc": "2026-09-08T12:00:00.000Z",
+        })
+        ok, reason = verify_dataset_manifest(manifest, candles)
+        self.assertTrue(ok, reason)
+        tampered = [candles[0], parse_candle(
+            self._candle_dict("2026-09-08T11:00:00.000Z", o=1.09, h=1.095, lo=1.085, c=1.09)
+        )]
+        ok, reason = verify_dataset_manifest(manifest, tampered)
+        self.assertFalse(ok)
+        self.assertIn("checksum", reason)
+
+    def test_verified_license_requires_evidence(self):
+        with self.assertRaises(DataError):
+            parse_license_note({
+                "status": "verified",
+                "source": "some feed",
+                "evidenceUrl": None,
+                "note": "",
+            })
+
+    def test_manifest_schema_rejects_malformed(self):
+        good = {
+            "datasetId": "d", "providerId": "fixture", "instrument": "EURUSD",
+            "timeframe": "1h",
+            "periodStartUtc": "2026-09-08T10:00:00.000Z",
+            "periodEndUtc": "2026-09-08T12:00:00.000Z",
+            "recordCount": 2,
+            "checksum": {"algorithm": "sha256", "digest": "0" * 64},
+            "timezone": "UTC", "candleTimestampSemantics": "open-time-utc",
+            "license": {
+                "status": "synthetic", "source": "x",
+                "evidenceUrl": None, "note": "",
+            },
+            "manifestVersion": 1,
+            "createdAtUtc": "2026-09-08T12:00:00.000Z",
+        }
+        parse_dataset_manifest(good)  # baseline ok
+        cases = {
+            "unknown key": {**good, "extra": 1},
+            "wrong timezone": {**good, "timezone": "Europe/Berlin"},
+            "bad version": {**good, "manifestVersion": 2},
+            "bad order": {**good, "periodEndUtc": "2026-09-08T09:00:00.000Z"},
+            "bad digest": {**good, "checksum": {"algorithm": "sha256", "digest": "zz"}},
+            "bad algorithm": {
+                **good, "checksum": {"algorithm": "md5", "digest": "0" * 64}
+            },
+        }
+        for label, bad in cases.items():
+            with self.subTest(case=label):
+                with self.assertRaises(DataError):
+                    parse_dataset_manifest(bad)
 
 
 class IngestionBoundaryContracts(unittest.TestCase):

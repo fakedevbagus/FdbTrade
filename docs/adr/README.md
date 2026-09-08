@@ -73,3 +73,4 @@ not used.
 | [ADR-0010](ADR-0010-market-data-provider-abstraction.md) | Market-data provider abstraction and deterministic fixtures | Accepted |
 | [ADR-0011](ADR-0011-data-quality-gates.md) | Data quality gates — normalize and quarantine, never repair | Accepted |
 | [ADR-0012](ADR-0012-ingestion-idempotency-and-provider-health.md) | Ingestion idempotency, bounded retries and provider health | Accepted |
+| [ADR-0013](ADR-0013-dataset-manifests.md) | Historical dataset manifests and replayable datasets | Accepted |

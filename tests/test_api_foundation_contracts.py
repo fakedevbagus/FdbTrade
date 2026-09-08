@@ -30,8 +30,11 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 BACKEND = REPO_ROOT / "backend"
 SRC = BACKEND / "src"
 
-# Pins must match the frontend (ADR-0001 stack). pg added in P01-03 (ADR-0007).
+# Pins must match the frontend (ADR-0001 stack). pg added in P01-03 (ADR-0007);
+# @fdbtrade/contracts workspace dep added in P02-01 (ADR-0009) — workspace
+# packages are pinned by the workspace itself, not by a registry version.
 EXPECTED_DEPS = {
+    "@fdbtrade/contracts": "workspace:*",
     "next": "16.3.4",
     "pg": "8.23.0",
     "react": "19.2.8",
