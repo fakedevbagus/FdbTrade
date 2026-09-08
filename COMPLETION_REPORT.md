@@ -1,174 +1,185 @@
 # Completion Report
 
-Prompt ID: P01-01 — Build web application shell
+Prompt ID: P01-02 — Build API foundation
 Phase: P1 Foundation
-Date/time UTC: 2026-09-08T01:25Z
-Branch/commit: main / implementation commit recorded below (report commit follows)
+Date/time UTC: 2026-09-08T01:05Z
+Branch/commit: main / implementation commit `59216f4` (report commit follows)
 
 ## What changed
 
-Implemented the Next.js/React application shell for FdbTrade per Blueprint v2
-(ADR-0001 stack: Next.js + TypeScript on node v24 / pnpm). The frontend
-package is no longer a placeholder: it now builds, renders routes, and
-enforces shell-level safety contracts.
+Implemented the typed API/BFF foundation in `backend/` (previously a P00
+placeholder). Stack per ADR-0001 ("Web UI + BFF/API: Next.js + TypeScript"):
+the backend is an API-only Next.js app (App Router route handlers, no pages),
+TypeScript strict, zod for boundary validation (the same library the frontend
+shell already uses). Default port 3100.
 
-### Application shell (frontend/)
+### HTTP kernel (`backend/src/http/`)
 
-- Routing (App Router, `src/app/`): root layout with brand header, primary
-  nav (from typed config), skip-link, footer; overview page `/`; 404 page;
-  route-level `loading.tsx` and client `error.tsx` (with retry/reset).
-- Protected app area placeholder: `src/app/(app)/` route group with an
-  explicit banner that the authentication guard lands in P01-04; contains
-  `/dashboard` rendering honest `EmptyState` placeholders for future
-  widgets (signals, market context, risk states). No auth logic, no private
-  data (per scope; guard is P01-04).
-- UI primitives (`src/components/ui/`): typed, server-safe, presentational
-  `Loading` (role=status), `EmptyState`, `ErrorState` (role=alert) + barrel.
-- Typed boundary contract (`src/lib/site-config.ts`): zod-parsed site
-  configuration that fails fast on malformed input and enforces the
-  presentation-level safety invariant `liveExecutionEnabled: z.literal(false)`
-  (Blueprint v2 "live execution OFF by default", ADR-0005). No env vars, no
-  secrets — the module is browser-bundled by design.
-- Styling (`src/app/globals.css`): plain CSS (zero runtime dependency),
-  `fdb-` design tokens, fixed typography scale, responsive 1/2/3-column
-  grid, light/dark via `prefers-color-scheme`, reduced-motion support.
+- `errors.ts` — `ApiError` taxonomy with 7 stable machine codes
+  (VALIDATION_ERROR, INVALID_JSON, UNSUPPORTED_MEDIA_TYPE, PAYLOAD_TOO_LARGE,
+  NOT_FOUND, METHOD_NOT_ALLOWED, INTERNAL_ERROR), documented statuses, and an
+  optional `allow` response header for 405s.
+- `responses.ts` — single structured envelope for every response:
+  `{ ok, data | error: { code, message, details? }, requestId, timestamp }`;
+  `content-type: application/json; charset=utf-8`, `cache-control: no-store`,
+  `x-request-id` header; timestamps UTC ISO-8601 (ADR-0004).
+- `validate.ts` — request-body validation pipeline in strict order:
+  content-type (415) → declared/actual size vs `FDB_API_MAX_BODY_BYTES` (413)
+  → JSON parse (400 INVALID_JSON) → zod schema (400 VALIDATION_ERROR with
+  per-field `path/message/code` details).
+- `handler.ts` — `withApi` wrapper: resolves request/correlation identity,
+  maps `ApiError` to its structured status, and collapses unknown failures to
+  a generic structured 500 — the original error message is never forwarded
+  (no secret/internal leak; regression-tested).
+- `request-context.ts` — request ID (client-supplied if well-formed, else
+  UUIDv4) and correlation ID (client-supplied if well-formed, else request
+  ID). IDs validated against `^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`; malformed
+  values are replaced, never trusted.
 
-### Tooling / workspace
+### Cross-cutting middleware (`backend/src/middleware.ts`)
 
-- `frontend/package.json`: real scripts (dev/build/start/lint/typecheck/
-  test) replacing the P00 no-ops; pinned deps: next@16.3.4, react@19.2.8,
-  react-dom@19.2.8, zod@4.5.4; devDeps typescript@5.9.3, eslint@9.39.5,
-  eslint-config-next@16.3.4, vitest@4.1.11, jsdom@30.0.1,
-  @testing-library/react@16.3.3. (The blueprint locks the Next.js/React
-  stack — ADR-0001 — so these additions implement, not change, the stack.)
-- `tsconfig.json` (strict), `next.config.ts`, `eslint.config.mjs`
-  (flat config via eslint-config-next/core-web-vitals), `vitest.config.ts`
-  (jsdom, `@` alias, explicit oxc automatic-JSX runtime).
-- Root `.npmrc`: `node-linker=hoisted` documenting the NTFS (fuseblk)
-  no-symlink constraint from ADR-0001/ENVIRONMENT.md for tools that honor it.
-- `pnpm-workspace.yaml`: `onlyBuiltDependencies: [unrs-resolver]` — the only
-  transitive build script in the tree (via eslint-config-next). Without this
-  allowance `pnpm install` exits non-zero (`ERR_PNPM_IGNORED_BUILDS`) and
-  pnpm's pre-run deps check breaks every `pnpm run` script, including
-  `make lint/typecheck/build/start`.
-- `tests/test_skeleton_contracts.py` updated (justified: P01-01 supersedes
-  the frontend placeholder contract): frontend moved from
-  PLACEHOLDER_PACKAGES to WORKSPACE_MEMBERS; `make start` no longer expected
-  to exit zero — a new test boots the real server, waits for its "Ready"
-  line and terminates the whole process group (no orphaned servers).
+- Runs on `/api/:path*`; writes `x-request-id` and `x-correlation-id` onto
+  both the request (handlers see them) and the response (clients can
+  correlate). Every API request is traceable end to end.
+
+### Server-only boundary (`backend/src/server-only.ts`, `backend/src/env.ts`)
+
+- `env.ts` is the ONLY module allowed to read `process.env` (enforced by a
+  Python contract test) and is guarded server-only (throws if imported into a
+  browser bundle). Schema (zod): `FDB_APP_ENV` (same 4-value enum as the
+  P00-03 Python config contract), `FDB_API_SERVICE_NAME`,
+  `FDB_API_VERSION`, `FDB_API_MAX_BODY_BYTES` — all with safe defaults, no
+  secrets, no `NEXT_PUBLIC_*`.
+
+### Endpoints
+
+- `GET /api/health` — liveness/identity: status, service, version,
+  environment, uptime, UTC server time, `checks.process`. Dependency checks
+  are added by their owning prompts (P01-03+) as `checks` entries — never
+  faked here. Non-GET methods return a structured 405 with `allow: GET`.
+- `POST /api/echo` — validation-contract fixture (documented as such, no
+  business logic): validates `{ message: string(1..1000), count: int(0..100,
+  default 1) }` and echoes the validated fields. Used by unit tests and the
+  live smoke test to prove structured 4xx behavior.
+- `/api/[...slug]` — structured `NOT_FOUND` catch-all so every unmatched
+  `/api/*` request is machine-readable and traceable for all methods.
+
+### Tooling
+
+- `backend/package.json`: real scripts (dev/build/start/lint/typecheck/test),
+  pinned deps identical to the frontend (next 16.3.4, react 19.2.8,
+  react-dom 19.2.8, zod 4.5.4); devDeps typescript 5.9.3, eslint 9.39.5,
+  eslint-config-next 16.3.4, vitest 4.1.11, @types/*.
+- `tsconfig.json` (strict, `@/* → src/*`), `next.config.ts`
+  (`poweredByHeader: false`), `eslint.config.mjs` (same flat config as
+  frontend), `vitest.config.ts` (node environment — no DOM needed).
+- `next build` output: routes `/api/health`, `/api/echo`, `/api/[...slug]`
+  + Proxy (Middleware); no pages.
+
+### Justified test-contract updates
+
+- `tests/test_skeleton_contracts.py`: `backend` removed from
+  PLACEHOLDER_PACKAGES (same justified move P01-01 made for `frontend`; the
+  placeholder contract now applies to `contracts` only).
+- New `tests/test_api_foundation_contracts.py` (28 tests, stdlib unittest).
 
 ## Files changed
 
-- `frontend/package.json` (modified) — real manifest and scripts.
-- `frontend/README.md` (modified) — documents shell structure and commands.
-- `frontend/tsconfig.json` (new), `frontend/next.config.ts` (new),
-  `frontend/eslint.config.mjs` (new), `frontend/vitest.config.ts` (new),
-  `frontend/next-env.d.ts` (new, generated by next build, committed).
-- `frontend/src/app/layout.tsx`, `page.tsx`, `loading.tsx`, `error.tsx`,
-  `not-found.tsx`, `globals.css` (new).
-- `frontend/src/app/(app)/layout.tsx`, `(app)/loading.tsx`, `(app)/error.tsx`,
-  `(app)/dashboard/page.tsx` (new — protected-area placeholder).
-- `frontend/src/components/ui/Loading.tsx`, `EmptyState.tsx`,
-  `ErrorState.tsx`, `index.ts` (new).
-- `frontend/src/lib/site-config.ts` (new).
-- `frontend/src/components/ui/__tests__/ui.test.tsx`,
-  `frontend/src/app/__tests__/error-boundaries.test.tsx`,
-  `frontend/src/lib/__tests__/site-config.test.ts` (new — vitest tests).
-- `tests/test_web_shell_contracts.py` (new — Python stdlib contract tests).
-- `tests/test_skeleton_contracts.py` (modified — see justification above).
-- `pnpm-workspace.yaml` (modified), `.npmrc` (new), `pnpm-lock.yaml`
-  (modified by pnpm install).
+- `backend/package.json` (modified), `backend/README.md` (rewritten).
+- `backend/tsconfig.json`, `backend/next.config.ts`, `backend/eslint.config.mjs`,
+  `backend/vitest.config.ts`, `backend/next-env.d.ts` (new).
+- `backend/src/`: `middleware.ts`, `server-only.ts`, `clock.ts`, `env.ts`,
+  `http/{errors,responses,validate,handler,request-context}.ts`,
+  `app/api/health/route.ts`, `app/api/echo/route.ts`,
+  `app/api/[...slug]/route.ts` (new).
+- `backend/src/**/__tests__/`: `errors.test.ts`, `responses.test.ts`,
+  `validate.test.ts`, `handler.test.ts`, `request-context.test.ts`,
+  `app/api/__tests__/{routes,echo}.test.ts` (new; 58 vitest tests).
+- `tests/test_api_foundation_contracts.py` (new; 28 tests incl. live boot
+  smoke).
+- `tests/test_skeleton_contracts.py` (modified; placeholder list — justified
+  above).
+- `pnpm-lock.yaml` (modified; new pinned workspace deps only).
 
 ## Tests executed
 
-- `pnpm --filter @fdbtrade/frontend test` (Vitest, jsdom): **23/23 passed**.
-  Covers happy path (labels/roles/custom props), malformed/missing input
-  (zod rejects non-internal hrefs, missing fields, empty nav, unknown
-  environment, and `liveExecutionEnabled: true`), boundary cases (omitted
-  description/hint render nothing), failure path (error boundaries render
-  alerts, call `reset`, show/hide digest), and determinism
-  (`renderToString` output identical for identical inputs).
-- `python3 -m unittest discover -s tests -p 'test_*.py'`: **90/90 OK**,
-  including the new `tests/test_web_shell_contracts.py` (manifest/scripts
-  regression guard against placeholder reversion, required shell files,
-  route/nav consistency, strict tsconfig, no trading/broker tokens in UI
-  source, no backend/quant imports, no secret literals, no `.env*` in
-  frontend, live-execution invariant) and the updated skeleton contract
-  tests (real `make lint/typecheck/build` exit 0; `make start` serves).
-- `make check` from the repo root: **Exit 0 — "All workspace checks
-  passed."** (lint → typecheck → test [vitest 23/23 + Python 90/90] → build).
-- Clean-environment run: `bash ci/run-local.sh` (clean-room copy excluding
-  `.env`/node_modules, `pnpm install --frozen-lockfile` — install completed
-  in 1m11s with the approved `unrs-resolver` postinstall) → **Exit 0,
-  `[ci] all required jobs passed: lint typecheck test build`** (Vitest 23/23,
-  Python `Ran 90 tests ... OK`, `next build` prerendering `/`, `/dashboard`,
-  `/_not-found`).
-- Boot smoke test: `next start` → `GET /` 200, `GET /dashboard` 200 (with
-  protected-area banner and empty states), `GET /nonexistent` → 404 page;
-  footer renders "Live execution: OFF · All timestamps are UTC".
+- Backend vitest: `58 passed (58)`.
+- Backend `tsc --noEmit`: clean. Backend `eslint .`: 0 problems.
+- Backend `next build`: succeeds (routes above).
+- Live boot smoke (manual curl + automated): health 200 with
+  `x-request-id`/`x-correlation-id` and UTC timestamp; request-ID round-trip;
+  malformed request ID replaced; POST /api/health → structured 405 +
+  `allow: GET`; unknown /api path → structured 404; echo valid → 200 echo;
+  invalid JSON → 400 INVALID_JSON; schema violation → 400 VALIDATION_ERROR
+  with `details[0].path === "message"`; text/plain → 415.
+- Python contract suite: `python3 -m unittest discover -s tests -p
+  'test_*.py'` → `Ran 118 tests ... OK` (includes the 9 automated live boot
+  smoke tests, which build the backend if needed and boot it on a free port).
+- Root gate: `make check` (lint + typecheck + test + build across frontend,
+  backend, contracts + Python suite) → "All workspace checks passed."
 
 ## Acceptance criteria
 
-- [x] App starts locally — `next dev`/`next start` boot verified; smoke test
-      above.
-- [x] Routes render — `/` and `/dashboard` return 200 with expected content;
-      unknown routes return the 404 page.
-- [x] Error/loading states work — route-level loading/error boundaries
-      implemented, unit-tested (vitest), and exercised by contract tests.
-- [x] No trading logic embedded in UI components — enforced by
-      `test_no_trading_or_broker_logic_in_ui_source` (forbidden-token scan)
-      and `test_no_imports_from_backend_or_quant_packages`; UI renders only
-      static placeholders and a presentation-only "live execution: OFF" label.
-- [x] Relevant tests pass from a clean environment — `ci/run-local.sh`
-      clean-room run (see Tests executed for the result).
-- [x] Lint/typecheck/build clean for affected packages — ESLint 0 problems,
-      `tsc --noEmit` clean, `next build` succeeds.
-- [x] No unrelated files modified without justification — changes limited to
-      `frontend/`, its lockfile entries, test contracts it supersedes
-      (documented), and the pnpm/npm config required to install/run the
-      approved stack on this NTFS workspace.
+- [x] API health endpoint works — verified live (200, identity payload, UTC
+      timestamp) by curl and by the automated boot smoke tests.
+- [x] Malformed requests return structured 4xx — invalid JSON, schema
+      violations, wrong content type, wrong method, unknown API path all
+      return the structured envelope with stable codes (unit + live tests).
+- [x] Each request has a traceable ID — middleware assigns/propagates
+      `x-request-id` and `x-correlation-id` on every `/api/*` request and
+      response; IDs are validated and echoed in every JSON body.
+- [x] Relevant tests pass from a clean environment — `make check` covers all
+      packages; the boot smoke builds from scratch when `BUILD_ID` is absent
+      (CI clean-room compatible).
+- [x] Lint/typecheck/build clean for affected packages — backend gates pass;
+      frontend/contracts untouched and still pass via `make check`.
+- [x] No unrelated files modified without justification — only `backend/`,
+      its lockfile entries, the placeholder-list update, and the new contract
+      test file.
 - [x] Completion report written — this file.
 
 ## Known limitations / blockers
 
-- The protected area is a placeholder by design: no auth guard exists until
-  P01-04; nothing private is rendered there yet.
-- `next build` rewrites `tsconfig.json` (`jsx` → `react-jsx`, adds
-  `.next/dev/types` include); the contract test accepts both values so the
-  gate is stable across rewrites.
-- pnpm 11 resolves the frontend dependency tree with its default isolated
-  layout (`.pnpm` store) despite the committed `node-linker=hoisted`
-  `.npmrc`; install and all gates succeed either way on this host. Kept as
-  documentation of the NTFS constraint and for tools that honor it.
-- Vitest prints a cosmetic warning ("ESM syntax in a file loaded as
-  CommonJS" for `vitest.config.ts`); runs are unaffected. No
-  `"type": "module"` was added to avoid touching Next/ESLint semantics.
-- GitHub-hosted CI cannot be observed from this offline host; the local CI
-  runner (same `make` jobs) is the executable verification.
+- `make start` (root) runs `pnpm -r run start` sequentially; the first
+  server blocks until killed, so it exercises one server at a time. A
+  composite dev entry point can be added later without contract changes;
+  each package's own start script works: `pnpm --filter @fdbtrade/backend
+  start` (port 3100), `pnpm --filter @fdbtrade/frontend start` (port 3000).
+- Next.js 16 prints a deprecation warning: `middleware` file convention →
+  `proxy`. Kept `middleware.ts` for now (works, warning only); renaming is a
+  mechanical follow-up.
+- Health checks are process-level only; database/cache/provider checks land
+  with their owning prompts (P01-03+).
+- One intermittent NTFS/fuseblk observation: a `next build` invoked from the
+  smoke test once did not produce `BUILD_ID` (suspected fuseblk caching); the
+  smoke now retries the build once and prints the build log before skipping.
+  A manual rebuild succeeded immediately after.
 
 ## Follow-up required before next prompt
 
-None blocking. P01-02 (API foundation) can safely implement the typed
-API/BFF layer; the shell's nav/route contract test will need new page
-routes registered only when new UI routes are added.
+None blocking. P01-03 (PostgreSQL + migrations) can safely add the database
+connection layer and register a real `checks.database` entry in
+`/api/health`; the response envelope and error taxonomy are designed for it.
 
 ## Risk notes
 
-Security: no secrets in frontend source or bundles (scanned by contract
-tests); no `.env*` files under `frontend/`; the site-config boundary is
-browser-bundled by design and contains no env reads. Quant/trading safety:
-UI contains no strategy, signal, risk, or broker code; the only execution-
-related surface is a presentation constant whose schema forbids `true`
-(`z.literal(false)`), regression-tested; live execution remains OFF by
-default (ADR-0005); architecture boundary (ADR-0003) untouched — UI talks to
-nothing yet, and no broker/execution code was added.
+Security: no secrets in backend source, logs, or responses (contract-scanned);
+`process.env` readable only in the guarded server-only `env.ts`; no
+`NEXT_PUBLIC_*` variables; `cache-control: no-store` on all API responses;
+unknown failures return a generic message (leak regression-tested); body-size
+cap enforced (default 64 KiB, configurable, max 10 MiB).
+Quant/trading safety: the API contains no strategy, signal, risk, or broker
+code (forbidden-token scan is a contract test); no execution surface exists;
+live execution remains OFF by default (ADR-0005); architecture boundary
+(ADR-0003) untouched — the frontend does not call the API yet, and no
+broker/execution endpoints were added.
 
 ## Commit note
 
 Two focused commits on `main`:
-1. Implementation (all files listed above) — hash recorded here: `cc80234`.
+1. Implementation (all files listed above) — hash recorded here: `59216f4`.
 2. This completion report.
 
 ## Next prompt (safe to run)
 
-`01_PROMPTS/P01_Foundation/P01-02_Build_API_foundation.md`
+`01_PROMPTS/P01_Foundation/P01-03_Initialize_PostgreSQL_and_migrations.md`
