@@ -4,8 +4,8 @@ Python stdlib mirror of the regime engine contracts in
 ``contracts/src/regime``: canonical regime states, reason codes and
 fail-closed assessment parsing. Deterministic for deterministic inputs;
 all timestamps UTC (ADR-0004); no third-party dependencies (ADR-0001).
-The classifier mirror (P04-02) lives here; context and diagnostics
-mirrors land with P04-03/P04-04.
+The classifier (P04-02) and multi-timeframe context (P04-03) mirrors
+live here; the diagnostics mirror lands with P04-04.
 """
 
 from .contract import (  # noqa: F401
@@ -23,4 +23,10 @@ from .classifier import (  # noqa: F401
     REGIME_CLASSIFIER_VERSION,
     RegimeClassifierConfig,
     classify_regimes,
+)
+from .context import (  # noqa: F401
+    DEFAULT_CONTEXT_CONFIG,
+    HIGHER_TIMEFRAMES,
+    attach_regime_context,
+    build_regime_context,
 )

@@ -15,3 +15,4 @@ export * from "./marketdata/dataset";
 export * from "./feature/definition";
 export * from "./feature/snapshot";
 export * from "./regime/contract";
+export * from "./regime/context";
