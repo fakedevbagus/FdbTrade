@@ -18,9 +18,19 @@ Canonical market-data model shared by backend, research (Python mirror in
   data files.
 - `src/marketdata/provider.ts` — `MarketDataProvider` interface, request/
   capability/health schemas, structured `ProviderError` codes (P02-02).
+- `src/marketdata/dataset.ts` — historical dataset manifest schemas,
+  canonical candle serialization + deterministic dataset ids (P02-05).
+- `src/feature/definition.ts` — versioned feature definitions (version,
+  inputs, lookback warmup table, output type, null policy), feature groups,
+  lineage metadata, typed input windows (P03-01, ADR-0014).
+- `src/feature/snapshot.ts` — immutable feature-snapshot schemas, canonical
+  serialization + snapshot hash + deterministic store keys (P03-04).
 - `src/data/*.json` — the SINGLE source of truth for instrument, session and
   mapping values; consumed by both this package and `quant/datacore`.
   `fixtureProvider.json` holds the deterministic fixture anchors (P02-02).
+
+Python mirrors: `quant/datacore` (market data) and `quant/featurecore`
+(feature definitions + snapshots) — same model, stdlib only.
 
 ## Conventions
 

@@ -52,6 +52,7 @@ KNOWN_ADRS = {
     11: "data-quality-gates",
     12: "ingestion-idempotency-and-provider-health",
     13: "dataset-manifests",
+    14: "versioned-feature-definitions",
 }
 
 
