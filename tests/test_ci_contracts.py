@@ -45,6 +45,7 @@ KNOWN_ADRS = {
     4: "utc-time-policy",
     5: "live-trading-off-by-default",
     6: "ci-baseline",
+    7: "sql-migrations-and-database-foundation",
 }
 
 

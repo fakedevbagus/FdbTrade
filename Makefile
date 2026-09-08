@@ -1,8 +1,9 @@
-# FdbTrade root task runner (P00-02)
-# Deterministic entry points: install, lint, typecheck, test, build, start, check, help.
+# FdbTrade root task runner (P00-02; db targets added in P01-03)
+# Deterministic entry points: install, lint, typecheck, test, build, start, check,
+# db-up, db-down, db-migrate, db-status, help.
 # All internal timestamps are UTC; no secrets in output.
 
-.PHONY: help install lint typecheck test build start check
+.PHONY: help install lint typecheck test build start check db-up db-down db-migrate db-status
 
 help:
 	@echo "FdbTrade workspace task runner"
@@ -15,6 +16,10 @@ help:
 	@echo "  make build       Build all packages (no-op on placeholders)"
 	@echo "  make start       Start local dev servers (no-op on placeholders; P01+)"
 	@echo "  make check       Run lint + typecheck + test + build"
+	@echo "  make db-up       Start local postgres (Docker) and migrate from zero"
+	@echo "  make db-down     Stop local postgres (data volume preserved)"
+	@echo "  make db-migrate  Apply pending migrations (requires running postgres)"
+	@echo "  make db-status   Show migration ledger status"
 	@echo ""
 	@echo "Placeholder packages expose no business logic; targets become real in P01+."
 
@@ -39,3 +44,15 @@ start:
 
 check: lint typecheck test build
 	@echo "All workspace checks passed."
+
+db-up:
+	bash scripts/db-bootstrap.sh up
+
+db-down:
+	bash scripts/db-bootstrap.sh down
+
+db-migrate:
+	pnpm --filter @fdbtrade/backend run db:migrate
+
+db-status:
+	pnpm --filter @fdbtrade/backend run db:status

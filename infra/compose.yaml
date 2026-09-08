@@ -1,0 +1,37 @@
+# FdbTrade local data services (P01-03).
+#
+# Isolated Compose project ("fdbtrade"): this file must never reference,
+# depend on, or modify containers from other projects on this host.
+#
+# Secrets come from the git-ignored .env at the repository root (template:
+# infra/.env.example). No credentials are defaulted here — a missing variable
+# fails loudly instead of silently booting with a weak password.
+#
+# The container's PostgreSQL port (5432) is published on host port
+# FDB_DB_PORT (default 15432 locally: 5432 is often occupied by unrelated
+# services on developer machines).
+
+name: fdbtrade
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: fdbtrade-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${FDB_DB_NAME:?FDB_DB_NAME is required (copy infra/.env.example to .env)}
+      POSTGRES_USER: ${FDB_DB_USER:?FDB_DB_USER is required (copy infra/.env.example to .env)}
+      POSTGRES_PASSWORD: ${FDB_DB_PASSWORD:?FDB_DB_PASSWORD is required (copy infra/.env.example to .env)}
+    ports:
+      - "127.0.0.1:${FDB_DB_PORT:?FDB_DB_PORT is required (copy infra/.env.example to .env)}:5432"
+    volumes:
+      - fdbtrade_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+volumes:
+  fdbtrade_pgdata:

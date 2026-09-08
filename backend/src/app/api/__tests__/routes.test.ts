@@ -1,18 +1,26 @@
 /**
- * Unit tests for the health and catch-all routes (P01-02).
+ * Unit tests for the health and catch-all routes (P01-02/P01-03).
  *
  * Handlers are invoked directly (the live-server smoke test lives in
- * `tests/test_api_foundation_contracts.py`). Covers: health happy path and
- * 405 method guard, traceability round-trip, and the structured catch-all
- * 404.
+ * `tests/test_api_foundation_contracts.py`, the live database integration in
+ * `tests/test_db_foundation_contracts.py`). The database health check is
+ * mocked here so the route contract is deterministic without a database.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { GET as healthGet, POST as healthPost } from "@/app/api/health/route";
 import { GET as catchAllGet } from "@/app/api/[...slug]/route";
 
+vi.mock("@/db/client", () => ({
+  checkDatabaseHealth: vi.fn(async () => ({
+    status: "unavailable",
+    latencyMs: 1,
+    errorCode: "ECONNREFUSED",
+  })),
+}));
+
 describe("GET /api/health", () => {
-  it("returns the health payload in the success envelope", async () => {
+  it("reports degraded state and database check in the success envelope", async () => {
     const response = await healthGet(new Request("http://localhost/api/health"));
     expect(response.status).toBe(200);
     expect(response.headers.get("x-request-id")).toBeTruthy();
@@ -20,18 +28,34 @@ describe("GET /api/health", () => {
 
     const body = (await response.json()) as {
       ok: boolean;
-      data: Record<string, unknown>;
+      data: {
+        status: string;
+        service: string;
+        environment: string;
+        uptimeSeconds: number;
+        serverTimeUtc: string;
+        checks: { process: string; database: string };
+      };
       requestId: string;
       timestamp: string;
     };
     expect(body.ok).toBe(true);
-    expect(body.data.status).toBe("ok");
+    expect(body.data.status).toBe("degraded"); // mocked DB unavailable
     expect(body.data.service).toBe("fdbtrade-api");
     expect(body.data.environment).toBe("development");
     expect(typeof body.data.uptimeSeconds).toBe("number");
     expect(body.data.serverTimeUtc).toMatch(/Z$/u);
+    expect(body.data.checks.process).toBe("ok");
+    expect(body.data.checks.database).toBe("unavailable");
     expect(body.requestId).toBe(response.headers.get("x-request-id"));
     expect(body.timestamp).toMatch(/Z$/u);
+  });
+
+  it("never includes database error details in the response", async () => {
+    const response = await healthGet(new Request("http://localhost/api/health"));
+    const text = await response.text();
+    expect(text).not.toContain("ECONNREFUSED");
+    expect(text).not.toContain("password");
   });
 
   it("reuses the incoming request id for traceability", async () => {

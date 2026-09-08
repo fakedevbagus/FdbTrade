@@ -30,9 +30,10 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 BACKEND = REPO_ROOT / "backend"
 SRC = BACKEND / "src"
 
-# Pins must match the frontend (ADR-0001 stack).
+# Pins must match the frontend (ADR-0001 stack). pg added in P01-03 (ADR-0007).
 EXPECTED_DEPS = {
     "next": "16.3.4",
+    "pg": "8.23.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "zod": "4.5.4",
@@ -382,7 +383,18 @@ class LiveBootSmokeTest(unittest.TestCase):
         status, headers, body = request_json(f"{self.base_url()}/api/health")
         self.assertEqual(status, 200)
         self.assertTrue(body["ok"])
-        self.assertEqual(body["data"]["status"], "ok")
+        # P01-03: overall status is "ok" or "degraded" (no local database in
+        # a clean room); it must be consistent with checks.database.
+        self.assertIn(body["data"]["status"], ("ok", "degraded"))
+        self.assertIn(
+            body["data"]["checks"]["database"], ("ok", "unavailable")
+        )
+        expected = (
+            "ok"
+            if body["data"]["checks"]["database"] == "ok"
+            else "degraded"
+        )
+        self.assertEqual(body["data"]["status"], expected)
         self.assertEqual(body["data"]["service"], "fdbtrade-api")
         self.assertTrue(body["timestamp"].endswith("Z"))
         request_id = headers.get("x-request-id")

@@ -20,9 +20,19 @@ frontend shell uses). Default port: **3100**.
     unknown failures to a generic structured 500 (message never leaked).
   - `request-context.ts` — request/correlation ID generation and validation.
 - `src/env.ts` — zod-parsed server-side configuration. **Server-only** (see
-  `src/server-only.ts`); contains no secrets; the only module allowed to read
-  `process.env`.
-- `src/app/api/health/route.ts` — `GET` health endpoint (liveness + identity).
+  `src/server-only.ts`); the only app module that reads `process.env`
+  (the standalone migration CLI is the one documented exception); contains
+  no hardcoded secrets — credentials arrive at runtime via `FDB_DB_*`.
+- `src/db/client.ts` — typed, server-only PostgreSQL connection layer
+  (`pg` Pool singleton, sanitized health probe, typed `query` helper).
+  Connection failures are explicit and reduced to stable codes; raw driver
+  messages (which can contain connection details) are never surfaced.
+- `src/db/migrate.mjs` — deterministic SQL migration runner
+  (`migrate | rollback | status`; ADR-0007): checksummed migrations in
+  `db/migrations/NNNN_name.sql`, ledger in `public.schema_migrations`,
+  atomic per-migration transactions, immutable applied migrations.
+- `src/app/api/health/route.ts` — `GET` health endpoint (liveness + identity
+  + per-dependency `checks.database`; overall `status: ok | degraded`).
 - `src/app/api/echo/route.ts` — `POST` validation contract fixture used by the
   test suite to prove malformed input returns structured 4xx. No business
   logic.
@@ -35,6 +45,32 @@ frontend shell uses). Default port: **3100**.
 - Live execution is never configurable here (ADR-0005).
 - No secrets in source, logs, or responses; no `NEXT_PUBLIC_*` variables.
 - All internal timestamps are UTC (ADR-0004).
+
+## Database (P01-03)
+
+PostgreSQL 16 via the isolated `fdbtrade` Docker Compose project
+(`infra/compose.yaml`; port `FDB_DB_PORT`, default 15432 on this host because
+5432 is occupied by unrelated local services).
+
+```sh
+make db-up        # start postgres + migrate from zero (creates .env if missing)
+make db-migrate   # apply pending migrations
+make db-status    # show applied/pending
+make db-down      # stop postgres (data volume preserved)
+```
+
+Migrations live in `db/migrations/NNNN_name.sql` with optional
+`NNNN_name.down.sql` rollback files. Conventions and the rollback strategy are
+binding — see `docs/adr/ADR-0007-sql-migrations-and-database-foundation.md`:
+
+- Applied migrations are immutable (checksum-verified); fixes come as NEW
+  migrations.
+- `db:rollback` reverses the most recent migration via its `.down.sql`
+  (missing file = explicit error); destructive resets use
+  `scripts/db-bootstrap.sh reset --yes` (volume deletion). Production
+  recovery uses backups, not down-migrations.
+- Application objects live under the `fdb` schema; uuid v4 PKs; timestamptz
+  UTC (ADR-0004); idempotency enforced by constraints.
 
 ## Commands
 
