@@ -87,13 +87,20 @@ export const featureSnapshotSchema = z
 export type FeatureSnapshot = z.infer<typeof featureSnapshotSchema>;
 
 /**
+ * Serialization input: the content fields the hash covers (identity,
+ * values, versions) — snapshotHash and createdAtUtc are excluded (hash
+ * input never contains the hash or persistence metadata).
+ */
+export type SnapshotContent = Omit<FeatureSnapshot, "snapshotHash" | "createdAtUtc">;
+
+/**
  * Canonical snapshot serialization for hashing: stable field order, keys
  * sorted, nulls as `-`, numbers via JS `String()`. Byte-identical across
  * runs and with the Python mirror (which reimplements `String(number)` as
  * `js_number_str`, P02-05). Changing this form is a breaking change (pinned
  * by contract tests).
  */
-export function serializeSnapshotCanonical(snapshot: Omit<FeatureSnapshot, "snapshotHash">): string {
+export function serializeSnapshotCanonical(snapshot: SnapshotContent): string {
   const valueStr = (v: number | boolean | null): string =>
     v === null ? "-" : typeof v === "boolean" ? (v ? "true" : "false") : String(v);
   const features = Object.keys(snapshot.values)
