@@ -54,6 +54,7 @@ KNOWN_ADRS = {
     13: "dataset-manifests",
     14: "versioned-feature-definitions",
     15: "immutable-feature-snapshot-store",
+    16: "deterministic-rule-based-regime-engine",
 }
 
 

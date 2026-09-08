@@ -76,3 +76,4 @@ not used.
 | [ADR-0013](ADR-0013-dataset-manifests.md) | Historical dataset manifests and replayable datasets | Accepted |
 | [ADR-0014](ADR-0014-versioned-feature-definitions.md) | Versioned feature definitions and lineage contracts | Accepted |
 | [ADR-0015](ADR-0015-immutable-feature-snapshot-store.md) | Immutable feature snapshot store with deterministic hashes | Accepted |
+| [ADR-0016](ADR-0016-deterministic-rule-based-regime-engine.md) | Deterministic rule-based regime engine | Accepted |
