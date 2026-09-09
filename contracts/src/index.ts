@@ -17,3 +17,5 @@ export * from "./feature/snapshot";
 export * from "./regime/contract";
 export * from "./regime/context";
 export * from "./regime/diagnostics";
+export * from "./strategy/contract";
+export * from "./strategy/interface";

@@ -55,6 +55,7 @@ KNOWN_ADRS = {
     14: "versioned-feature-definitions",
     15: "immutable-feature-snapshot-store",
     16: "deterministic-rule-based-regime-engine",
+    17: "canonical-strategy-interface-and-signal-contract",
 }
 
 

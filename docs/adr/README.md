@@ -77,3 +77,4 @@ not used.
 | [ADR-0014](ADR-0014-versioned-feature-definitions.md) | Versioned feature definitions and lineage contracts | Accepted |
 | [ADR-0015](ADR-0015-immutable-feature-snapshot-store.md) | Immutable feature snapshot store with deterministic hashes | Accepted |
 | [ADR-0016](ADR-0016-deterministic-rule-based-regime-engine.md) | Deterministic rule-based regime engine | Accepted |
+| [ADR-0017](ADR-0017-canonical-strategy-interface-and-signal-contract.md) | Canonical strategy interface and signal contract v2 | Accepted |
