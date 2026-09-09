@@ -27,3 +27,11 @@ from .trend_pullback import (  # noqa: F401
     TrendPullbackConfig,
     evaluate_trend_pullback,
 )
+from .breakout import (  # noqa: F401
+    BREAKOUT_CONFIG_VERSION,
+    BREAKOUT_STRATEGY_ID,
+    BREAKOUT_STRATEGY_VERSION,
+    BreakoutConfig,
+    DEFAULT_BREAKOUT_CONFIG,
+    evaluate_breakout,
+)
