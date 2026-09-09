@@ -43,3 +43,11 @@ from .mean_reversion import (  # noqa: F401
     MeanReversionConfig,
     evaluate_mean_reversion,
 )
+from .momentum import (  # noqa: F401
+    DEFAULT_MOMENTUM_CONFIG,
+    MOMENTUM_CONFIG_VERSION,
+    MOMENTUM_STRATEGY_ID,
+    MOMENTUM_STRATEGY_VERSION,
+    MomentumConfig,
+    evaluate_momentum,
+)
