@@ -35,3 +35,11 @@ from .breakout import (  # noqa: F401
     DEFAULT_BREAKOUT_CONFIG,
     evaluate_breakout,
 )
+from .mean_reversion import (  # noqa: F401
+    DEFAULT_MEAN_REVERSION_CONFIG,
+    MEAN_REVERSION_CONFIG_VERSION,
+    MEAN_REVERSION_STRATEGY_ID,
+    MEAN_REVERSION_STRATEGY_VERSION,
+    MeanReversionConfig,
+    evaluate_mean_reversion,
+)
