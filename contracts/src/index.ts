@@ -20,3 +20,4 @@ export * from "./regime/diagnostics";
 export * from "./strategy/contract";
 export * from "./strategy/interface";
 export * from "./strategy/lifecycle";
+export * from "./ensemble/contract";

@@ -1,0 +1,53 @@
+{
+  "generatedBy": "backend/src/ensemble/__tests__/ensemble-parity-fixture.test.ts",
+  "note": "Deterministic fixture; the Python mirror (quant/ensemblecore/contract.py) must reproduce the identical canonical serialization and sha256.",
+  "instrument": "EURUSD",
+  "timeframe": "1h",
+  "canonical": "ensemble|ens_EURUSD_1h_2026-09-09T10:00:00.000Z|EURUSD|1h|2026-09-09T10:00:00.000Z|enter_long|long|1.0.0|1.0.0|range-mean-reversion|0.55|1|1|0.8|0.85|-|0|no_calibration_data|0.85|mtf-momentum|range-volatility-breakout:0.7|lookback-90d-v1|range-mean-reversion~1.0.0~1.0.0~long~0.6~e7b34a26961aa0a73946ec8086578e5aff3e09f83008bd4bfa3154666ff22365;trend-mtf-pullback~1.0.0~1.0.0~abstain~0.6~-|range-mean-reversion~long~0.6~0.6~0.36;trend-mtf-pullback~abstain~0.4~0.6~0|correlation_penalty_applied;vote_weighting_applied|ensemble-engine=1.0.0;regime-classifier=1.0.0|1",
+  "decisionHash": "c4638c10a82cbf3a4b085888ad13a3da0070dae3de67036b230aa17a199bc7f9",
+  "decision": {
+    "decisionId": "ens_EURUSD_1h_2026-09-09T10:00:00.000Z",
+    "action": "enter_long",
+    "direction": "long",
+    "dominantStrategyId": "range-mean-reversion",
+    "confidence": 0.55,
+    "reasonCodes": [
+      "correlation_penalty_applied",
+      "vote_weighting_applied"
+    ],
+    "componentVersions": {
+      "ensemble-engine": "1.0.0",
+      "regime-classifier": "1.0.0"
+    },
+    "contributions": [
+      {
+        "strategyId": "range-mean-reversion",
+        "stance": "long",
+        "weight": 0.6,
+        "confidence": 0.6,
+        "weightedContribution": 0.36
+      },
+      {
+        "strategyId": "trend-mtf-pullback",
+        "stance": "abstain",
+        "weight": 0.4,
+        "confidence": 0.6,
+        "weightedContribution": 0
+      }
+    ],
+    "votes": [
+      {
+        "strategyId": "range-mean-reversion",
+        "stance": "long",
+        "confidence": 0.6,
+        "signalSnapshotHash": "e7b34a26961aa0a73946ec8086578e5aff3e09f83008bd4bfa3154666ff22365"
+      },
+      {
+        "strategyId": "trend-mtf-pullback",
+        "stance": "abstain",
+        "confidence": 0.6,
+        "signalSnapshotHash": null
+      }
+    ]
+  }
+}

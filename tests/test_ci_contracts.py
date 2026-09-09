@@ -56,6 +56,7 @@ KNOWN_ADRS = {
     15: "immutable-feature-snapshot-store",
     16: "deterministic-rule-based-regime-engine",
     17: "canonical-strategy-interface-and-signal-contract",
+    18: "ensemble-decision-contract-and-evidence-preservation",
 }
 
 
