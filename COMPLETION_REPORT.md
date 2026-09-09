@@ -1,161 +1,169 @@
 # Completion Report
 
-Prompt ID: P03_Feature_Core (P03-01 through P03-04, executed in required order)
-Phase: P3 Feature Core
-Date/time UTC: 2026-09-09T00:30Z
-Branch/commit: main / four focused commits, HEAD at P03-04 commit
+Prompt ID: P04_Regime_Engine (P04-01 through P04-04, executed in required order)
+Phase: P4 Regime Engine
+Date/time UTC: 2026-09-09T14:45Z
+Branch/commit: main / five focused commits, HEAD at 3ba6358
 
 ## What changed
 
-The P3 Feature Core phase is complete: versioned feature definitions and
-lineage (P03-01), deterministic core indicators (P03-02), market-structure
-features with explicit no-look-ahead proofs (P03-03), and the immutable
-snapshot/lineage store with cross-layer hash parity (P03-04) — the phase
-gate "Feature schemas; snapshots; fixtures" is satisfied and `make check`
+The P4 Regime Engine phase is complete: the canonical regime contract with
+first-class degraded states (P04-01), the deterministic rule-based baseline
+classifier with cross-layer parity (P04-02), timestamp-correct multi-timeframe
+regime context with no future leakage (P04-03), and the regime diagnostics
+read model for the research dashboard/API (P04-04) — the phase gate
+"deterministic regime classifier with tests" is satisfied and `make check`
 is green.
 
-### P03-01 — Feature schema and lineage (ADR-0014)
-- `contracts/src/feature/definition.ts`: `FeatureDefinition` (featureId
-  snake_case, semver version, inputs from canonical series fields,
-  `fn` + `params`, `lookbackBars` PINNED to the deterministic warmup table
-  `functionLookback(fn, params)` — sma/ema period-1, rsi/atr period,
-  adx 2*period-1, macd (slow-1)+(signal-1) — a lying lookback rejects at
-  parse time), `FeatureGroup`, `FeatureLineage` (event time UTC + P02-05
-  dataset id/manifest digest binding), typed `InputWindow` (fail-closed
-  field guards, instrument-precision metadata travels with the window).
-- Null policies: `null_on_warmup` (deterministic warmup emits null) and
-  `null_on_insufficient_data` (fail closed — no invented bars, no
-  zero-fill).
-- `contracts/src/feature/snapshot.ts` (P03-04 shape defined here):
-  `FeatureSnapshot` (strict schema, hash-addressed, snapshotVersion 1),
-  canonical serialization (`serializeSnapshotCanonical` — fixed field
-  order, sorted keys, null `-`, JS number strings), deterministic store
-  keys (`snapshotKeyString`).
-- Stdlib Python mirror `quant/featurecore` (definition.py, snapshot.py)
-  reusing `datacore` validators.
+### P04-01 — Regime contract (ADR-0016)
+- `contracts/src/regime/contract.ts`: canonical states frozen as `trend`,
+  `range`, `high_volatility`, `low_volatility`, `transition`, `unknown`
+  (degraded states first-class); 14 typed reason codes incl. 4 degradation
+  codes; strict zod `regimeAssessmentSchema` (UTC bar-OPEN event time,
+  confidence in [0,1], sorted unique reasonCodes, classifier id + semver,
+  feature inputs); fail-closed refinements: `unknown` requires confidence
+  exactly 0 + a degradation code; degradation codes forbidden on
+  non-unknown states; `normalizeRegimeAssessment` sorts/dedupes codes.
+- Python stdlib mirror `quant/regimecore/contract.py`
+  (`parse_regime_assessment`, `normalize_reason_codes`, same rules).
 
-### P03-02 — Core indicators (backend `src/features/indicators.ts`)
-- Deterministic, bar-index-aligned series: `sma`, `ema` (SMA-seeded),
-  `rsi` (Wilder; flat-series convention = 50; clamped [0,100]), `atr`
-  (Wilder), `adx` (Wilder, first value at 2*period-1), `macd`
-  (line/signal/histogram), `returns`, `logReturns` (non-positive prices
-  fail closed), `realizedVolatility` (rolling sample stdev of 1-bar log
-  returns, annualization via caller-provided periodsPerYear).
-- 35 vitest cases: hand-computed fixtures, monotone/constant/edge cases,
-  warmup alignment, determinism, and no-look-ahead truncation proofs.
-- Python mirror `quant/featurecore/indicators.py` — TS<->Python numeric
-  parity PINNED by committed fixture `tests/fixtures/indicator_parity.json`
-  (written deterministically by a backend test; Python asserts exact
-  equality).
+### P04-02 — Deterministic baseline classifier
+- `backend/src/regime/classifier.ts`: rule-based classification over P03
+  features — ADX (trend strength), ATR/close fraction (volatility) vs a
+  rolling baseline from STRICTLY PRIOR bars, pip-slope (structure). Rule
+  order: missing feature -> `unknown`; insufficient vol history ->
+  `unknown`; vol ratio >= 1.5 -> `high_volatility`; <= 0.6 ->
+  `low_volatility`; ADX >= 25 + slope >= 0.5 pips/bar -> `trend`; ADX >= 25
+  without slope -> `transition`; ADX <= 20 -> `range`; ADX dead zone ->
+  `transition`. Thresholds are documented placeholders (ADR-0016, no
+  tuning before P8/P9 gates). `regimeFeatureSeriesFromCandles` builds the
+  aligned feature series from canonical candles.
+- Python mirror `quant/regimecore/classifier.py`; TS<->Python parity
+  PINNED by committed fixture `tests/fixtures/regime_parity.json`
+  (deterministically regenerated by a backend test).
+- No-look-ahead proven by tests: prefix-truncation and future-append
+  invariance across the full classification.
 
-### P03-03 — Market-structure features (backend `src/features/structure.ts`)
-- `candleStructure` (body/range, wick ratios null on zero range, direction,
-  inside/outside vs prior bar), `distanceToLevel` (metadata pips),
-  `rollingPriorHigh/Low` + `distanceToPriorRange` (level EXCLUDES the
-  current bar — no self-look-ahead), `trendSlope`/`trendSlopePips`
-  (rolling OLS), `multiHorizonReturns`, `realizedVolatilityWindows`,
-  `atrFraction`, `sessionFeatures` (UTC weekday/hour/day fraction,
-  schedule membership from session metadata, bounded backward
-  minutes-since-open, session-reopen flags).
-- Explicit no-look-ahead proof tests: tail truncation AND future-append
-  invariance across structure/slope/ATR/returns.
+### P04-03 — Multi-timeframe regime context
+- `contracts/src/regime/context.ts`: `regimeContextSchema` /
+  `regimeContextualAssessmentSchema` (entries per higher timeframe with
+  state, confidence, bar open/close times, stale flag, reason codes).
+- `backend/src/regime/context.ts`: `buildRegimeContext` uses an HTF
+  assessment ONLY when its bar has CLOSED (barOpen + TIMEFRAME_MS <=
+  event time; inclusive at the exact boundary — tested); still-open bars
+  fall back to the last closed bar (no intra-bar leakage); stale beyond
+  maxStaleBars (default 6/6/5 for 1h/4h/1d) degrades to `unknown` with
+  `stale_context`; no series -> `missing_context`. `attachRegimeContext`
+  maps context onto ascending LTF assessment series (fail-closed on
+  ordering/mixed timeframe/LTF-in-context).
+- Python mirror `quant/regimecore/context.py`.
 
-### P03-04 — Snapshot/lineage store (ADR-0015, backend `src/features/store.ts`)
-- `FeatureSnapshotStore`: append-only, keyed by (instrument, timeframe,
-  event time UTC, feature-group id+version, dataset id). Drafts validated
-  fail-closed through the full snapshot schema before hashing.
-- `snapshotHashFor` = sha256 over the canonical serialization (content
-  only — hash excludes snapshotHash and createdAtUtc, so the same input
-  snapshot + versions ALWAYS hashes identically; clock-independent).
-- Idempotent re-persist returns the EXISTING record without mutation;
-  conflicting content under the same key is REJECTED (historical lineage
-  never overwritten — prompt non-goal); malformed drafts rejected with
-  structured reasons; injectable clock.
-- Cross-layer parity contract test (`tests/test_snapshot_store_contracts.py`):
-  TS and Python produce the IDENTICAL snapshot hash (node-inlined TS
-  serialization, sha256; float/bool/int/null values).
+### P04-04 — Regime diagnostics
+- `contracts/src/regime/diagnostics.ts`: `regimeDiagnosticsSchema` —
+  counts/shares per canonical state, sorted transition counts
+  (from != to, positive), episode stats (episodes/bars/meanBars/maxBars)
+  per state, current episode, mean confidence, quality flags
+  (`empty_window`, `high_unknown_share`, `regime_churn`,
+  `single_state_window`, `low_confidence`, `stale_tail`), counts-sum ==
+  bars invariant.
+- `backend/src/regime/diagnostics.ts` (`computeRegimeDiagnostics`, pure
+  read model, fail-closed identity/order validation) + Python mirror
+  `quant/regimecore/diagnostics.py`.
+
+### Phase-wide
+- ADR-0016 (+ index row, CI ADR-list contract extended to 16).
+- Fixtures: `tests/fixtures/regime_parity.json` (new, committed).
 
 ## Files changed
 
-- contracts: `src/feature/{definition,snapshot}.ts` (new), `src/index.ts`
-  (exports), `src/__tests__/{feature-definitions,feature-groups-lineage}.test.ts`
-  (new, 20 cases), `README.md` (feature section).
-- backend: `src/features/{indicators,structure,store}.ts` (new),
-  `src/features/__tests__/` (6 new test files, 84 cases).
-- quant: `featurecore/{__init__,definition,indicators,snapshot}.py` (new),
-  `README.md` (featurecore section).
-- tests: `test_feature_core_contracts.py`,
-  `test_feature_groups_lineage_contracts.py`,
-  `test_feature_snapshot_contracts.py`,
-  `test_feature_indicators_contracts.py`,
-  `test_snapshot_store_contracts.py` (new),
-  `fixtures/indicator_parity.json` (new), `test_ci_contracts.py`
-  (ADR list extended to 0015 — justified: the ADR-list contract follows
-  the repo's per-ADR pattern from P02).
-- docs: ADR-0014, ADR-0015 + `docs/adr/README.md` index.
+- contracts: `src/regime/contract.ts`, `src/regime/context.ts`,
+  `src/regime/diagnostics.ts` (new), `src/index.ts` (exports),
+  `src/__tests__/regime-contract.test.ts` (new).
+- backend: `src/regime/classifier.ts`, `src/regime/context.ts`,
+  `src/regime/diagnostics.ts` (new) + tests `src/regime/__tests__/
+  classifier.test.ts`, `context.test.ts`, `diagnostics.test.ts`,
+  `regime-parity-fixture.test.ts` (new).
+- quant: `regimecore/__init__.py`, `contract.py`, `classifier.py`,
+  `context.py`, `diagnostics.py` (new package).
+- tests: `test_regime_contract_contracts.py`,
+  `test_regime_classifier_contracts.py`,
+  `test_regime_context_contracts.py`,
+  `test_regime_diagnostics_contracts.py` (new),
+  `test_ci_contracts.py` (ADR list 0016 — follows the repo per-ADR
+  pattern from P02/P03), `fixtures/regime_parity.json` (new).
+- docs: ADR-0016 + `docs/adr/README.md` index.
 
 ## Tests executed
 
-- `make check` — GREEN (lint + typecheck + test + build, all packages).
-- Backend vitest: 246 tests (72 feature-layer: 35 indicators, 25 structure,
-  12 store; plus all P1/P2 suites).
-- Contracts vitest: 48 tests (20 new feature schema cases).
-- Python stdlib contracts: 237 tests (44 new feature-core cases across 5
-  files; all prior suites still green).
-- Cross-layer: TS<->Python indicator numeric parity (committed fixture);
-  TS<->Python snapshot-hash parity (node-inlined serialization).
+- `make check` — GREEN (lint + typecheck + test + build, all packages;
+  re-run after the broker-token doc fix; initial run caught the
+  forbidden-token regression and was fixed + re-verified).
+- Backend vitest: 273 tests (50 new regime-layer: 15 classifier incl.
+  parity-fixture writer, 11 context, 12 diagnostics, plus prior suites).
+- Contracts vitest: 60 tests (12 new regime-contract cases).
+- Python stdlib: 279 tests (42 new regime cases across 4 files; all
+  prior suites green).
+- Cross-layer: TS<->Python classifier parity (committed fixture; states,
+  confidences, reason codes, inputs asserted identical).
 
 ## Acceptance criteria
 
-- [x] P03-01: every feature declares version, inputs, lookback and output
-      type; feature schema tests pass (contracts 20 + Python 20 cases).
-- [x] P03-02: known fixtures match expected outputs within documented
-      tolerance (toBeCloseTo 9 digits / places=10; hand-computed fixtures);
-      TS<->Python numeric parity pinned by fixture.
-- [x] P03-03: features computed without future bars; tests explicitly
-      prove no look-ahead (truncation + future-append invariance).
-- [x] P03-04: same input snapshot + version produces identical snapshot
-      hash (deterministic, order-insensitive, clock-independent);
-      immutable store (idempotent put, conflict rejection).
+- [x] P04-01: contract shared by strategies and analytics; unknown/
+      degraded states are first-class (strict schema refinements +
+      12 contracts vitest + 10 Python cases).
+- [x] P04-02: fixture datasets produce deterministic regimes; boundary
+      cases covered (3-phase fixture -> range/trend/high_volatility;
+      threshold-exact boundaries; determinism; no-look-ahead proofs;
+      parity fixture).
+- [x] P04-03: MTF alignment is timestamp-correct and tested around bar
+      boundaries (exact-close inclusion, still-open exclusion, stale/
+      missing degradation, fail-closed guards).
+- [x] P04-04: research dashboard/API can inspect regime states and
+      anomalies (typed diagnostics contract: distribution, transitions,
+      episodes, quality flags; schema round-trip validated).
 - [x] Relevant tests pass from a clean environment — `make check` green.
 - [x] Lint/typecheck/build clean for affected packages.
-- [x] No unrelated files modified without justification (ADR-list contract
-      test update justified above; `.git/config` core.fileMode repaired to
-      `false` per repo rules after a corrupted value blocked commits —
-      environment repair, not a repo file change).
+- [x] No unrelated files modified without justification (ADR-list
+      contract test extension follows the established per-ADR pattern;
+      ADR-0016 is in-scope for the phase).
 - [x] Completion report written — this file.
 
 ## Known limitations / blockers
 
-- Snapshot store is in-process only (restart loses state); swapping to a
-  durable backing store must preserve the persist/idempotency/conflict
-  contract (ADR-0015, cf. ADR-0012 precedent).
-- `mid` input series is reserved but rejected in candle windows until a
-  quote-derived series exists (fail-closed, documented).
-- Realized volatility annualization is caller-supplied (periodsPerYear);
-  no annualization policy is baked into the feature layer.
-- Fixture parity file is regenerated by the backend test; both layers must
-  stay in lockstep (pinned by tests on both sides).
+- Classifier thresholds (volWindow 50, high/low vol ratios 1.5/0.6,
+  ADX 25/20, minSlopePips 0.5) are baseline placeholders; tuning is
+  forbidden until the P8 backtest harness and P9 validation gates are
+  stable (ADR-0016) — no optimization happened in this phase.
+- MTF context currently consumes pre-classified HTF assessment series;
+  wiring it to live snapshot stores (P03-04) is a later integration
+  step (no store coupling added in P4).
+- Diagnostics is an in-process pure function; an HTTP research endpoint
+  exposing it belongs to a later phase (P9/P13) — the contract is ready.
+- Volatility baseline is a simple rolling mean of prior ATR fractions;
+  richer baselines (median/percentile) would need a version bump.
 
 ## Follow-up required before next prompt
 
-None blocking. P3 phase gate ("Feature schemas; snapshots; fixtures") is
-satisfied.
+None blocking. P4 phase gate ("deterministic regime classifier with
+tests") is satisfied.
 
 ## Risk notes
 
-Quant: all timestamps UTC; candle-open semantics preserved; warmup nulls
-are content (hashable), never fabricated values; no look-ahead is proven
-by tests, not asserted; indicator conventions (Wilder smoothing, EMA SMA
-seeding, RSI flat=50) are documented and pinned by tests on both layers;
-snapshot lineage binds every value to feature versions + dataset id +
-manifest digest, making every computation reproducible and tamper-evident.
-Security: no secrets in fixtures, logs or bundles; store rejection reasons
-are structured and sanitized. Trading safety: no strategy, signal, risk or
-broker code added; live execution remains OFF (ADR-0005); the feature
-layer is a pure data component (ADR-0003 boundaries intact).
+Quant: all timestamps UTC; bar-open semantics preserved; confidence is
+classifier certainty in [0,1], never a win probability; no look-ahead
+anywhere in the engine (proved by truncation/future-append tests and
+closed-bar-only MTF context); determinism pinned across TS/Python by
+the committed parity fixture; every assessment carries classifier id +
+semver + the feature inputs it used (reproducible lineage).
+Security: no secrets in fixtures, logs or bundles; all inputs validated
+fail-closed; rejection reasons are structured strings without payloads.
+Trading safety: no strategy, signal, risk or order-path code added;
+regime engine is a pure data component (ADR-0003); live execution
+remains OFF (ADR-0005). A safety-scanner regression (forbidden
+trading/broker token in API source) was caught by the existing CI
+contract test, fixed, and re-verified green.
 
 ## Next prompt (safe to run)
 
-`01_PROMPTS/P04_Regime_Engine/` — deterministic regime classifier with
-tests, per `00_CONTROL/RUN_ORDER.md` (P3 gate passed).
+`01_PROMPTS/P05_Strategy_Core/` — baseline strategies and the canonical
+signal contract, per `00_CONTROL/RUN_ORDER.md` (P4 gate passed).
