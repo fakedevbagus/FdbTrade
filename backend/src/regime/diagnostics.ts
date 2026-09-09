@@ -3,8 +3,8 @@
  *
  * Pure read model over a series of regime assessments (ADR-0016): state
  * distribution, transition counts, episode persistence and deterministic
- * quality flags, for the research dashboard/API. Mutates nothing; no
- * strategy, signal or broker coupling. Deterministic for deterministic
+ * quality flags, for the research dashboard/API. Mutates nothing; pure
+ * data component (ADR-0003). Deterministic for deterministic
  * input; all timestamps UTC (ADR-0004).
  */
 import {

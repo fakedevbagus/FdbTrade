@@ -12,7 +12,7 @@
  *   `missing_context`.
  *
  * Deterministic for deterministic input; all timestamps UTC (ADR-0004).
- * No execution, no strategy, no broker coupling.
+ * Pure data component (ADR-0003 boundaries intact).
  */
 import {
   type RegimeAssessment,
