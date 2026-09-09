@@ -35,3 +35,9 @@ from .weighting import (  # noqa: F401
     finalize_decision,
     resolve_regime_state,
 )
+from .edge_gate import (  # noqa: F401
+    EDGE_GATE_ID,
+    EDGE_GATE_VERSION,
+    compute_edge_report,
+    gate_decision,
+)
