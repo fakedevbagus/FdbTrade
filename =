@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "<string>", line 28, in <module>
+  File "/media/fakedevbagus/WD BLUE/BACKUP LINUX/PROJECTS/FdbTrade/quant/ensemblecore/weighting.py", line 186, in evaluate_ensemble
+    weighted_agreement = (agreeing_mass / directional_total) if directional_total else 0.0
+                                                                ^^^^^^^^^^^^^^^^^
+NameError: name 'directional_total' is not defined. Did you mean: 'directional_votes'?

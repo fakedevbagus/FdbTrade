@@ -303,8 +303,8 @@ def parse_decision(value: Mapping[str, object]) -> dict:
         _require_fraction(c["confidence"], "contribution.confidence")
         if isinstance(c["weightedContribution"], bool) or not isinstance(c["weightedContribution"], (int, float)):
             raise DataError("weightedContribution must be a number")
-        if (c["stance"] == "abstain") != (c["weightedContribution"] == 0):
-            raise DataError("abstain contributes 0; directional votes contribute non-zero mass")
+        if c["stance"] == "abstain" and c["weightedContribution"] != 0:
+            raise DataError("abstain contributes 0 (directional votes may contribute 0 at weight 0)")
     cid = [c["strategyId"] for c in contributions]
     if cid != sorted(cid):
         raise DataError("contributions must be sorted ascending by strategyId")

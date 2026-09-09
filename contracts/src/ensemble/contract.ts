@@ -264,8 +264,8 @@ export const ensembleContributionSchema = z
     weightedContribution: z.number().finite(),
   })
   .strict()
-  .refine((c) => (c.stance === "abstain") === (c.weightedContribution === 0), {
-    message: "abstain contributes 0; directional votes contribute non-zero mass",
+  .refine((c) => c.stance !== "abstain" || c.weightedContribution === 0, {
+    message: "abstain contributes 0 (directional votes may contribute 0 when their resolved weight is 0)",
     path: ["weightedContribution"],
   });
 

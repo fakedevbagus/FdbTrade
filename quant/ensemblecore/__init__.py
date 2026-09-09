@@ -25,3 +25,13 @@ from .contract import (  # noqa: F401
     parse_weight_table,
     serialize_decision_canonical,
 )
+from .weighting import (  # noqa: F401
+    DEFAULT_MIN_CONFIDENCE,
+    DEFAULT_MIN_SCORE,
+    ENSEMBLE_ENGINE_ID,
+    ENSEMBLE_ENGINE_VERSION,
+    REGIME_CONTEXT_PRECEDENCE,
+    evaluate_ensemble,
+    finalize_decision,
+    resolve_regime_state,
+)

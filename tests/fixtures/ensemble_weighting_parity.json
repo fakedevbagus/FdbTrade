@@ -1,0 +1,297 @@
+{
+  "generatedBy": "backend/src/ensemble/__tests__/weighting-parity-fixture.test.ts",
+  "note": "Deterministic engine-sweep fixture; the Python mirror (quant/ensemblecore/weighting.py) must reproduce identical outputs.",
+  "instrument": "EURUSD",
+  "timeframe": "1h",
+  "config": {
+    "minScore": 0.3,
+    "minConfidence": 0.2
+  },
+  "weightTable": {
+    "version": "1.0.0",
+    "weights": {
+      "trend": {
+        "mtf-momentum": 0.6,
+        "range-mean-reversion": 0.1,
+        "range-volatility-breakout": 0.2
+      },
+      "range": {
+        "mtf-momentum": 0.05,
+        "range-mean-reversion": 0.6,
+        "range-volatility-breakout": 0.35
+      },
+      "high_volatility": {
+        "mtf-momentum": 0,
+        "range-mean-reversion": 0,
+        "range-volatility-breakout": 0
+      },
+      "low_volatility": {
+        "mtf-momentum": 0,
+        "range-mean-reversion": 0,
+        "range-volatility-breakout": 0
+      },
+      "transition": {
+        "mtf-momentum": 0,
+        "range-mean-reversion": 0,
+        "range-volatility-breakout": 0
+      },
+      "unknown": {
+        "mtf-momentum": 0,
+        "range-mean-reversion": 0,
+        "range-volatility-breakout": 0
+      }
+    }
+  },
+  "correlationPenalty": {
+    "pairCorrelations": {},
+    "penaltyFactor": 1,
+    "source": "none"
+  },
+  "componentVersions": {
+    "regime-classifier": "1.0.0"
+  },
+  "cases": [
+    {
+      "name": "enter-long-range",
+      "regimeState": "range",
+      "stale": false,
+      "votes": [
+        {
+          "strategyId": "range-mean-reversion",
+          "stance": "long",
+          "confidence": 0.6,
+          "signalSnapshotHash": "c76d49e17680f4ec59ef6d3119fc629daa0f1f84d17d54abffddba10e289a087"
+        },
+        {
+          "strategyId": "trend-mtf-pullback",
+          "stance": "abstain",
+          "confidence": 0.5,
+          "signalSnapshotHash": null
+        }
+      ]
+    },
+    {
+      "name": "conflict-wait",
+      "regimeState": "range",
+      "stale": false,
+      "votes": [
+        {
+          "strategyId": "range-mean-reversion",
+          "stance": "long",
+          "confidence": 0.6,
+          "signalSnapshotHash": "c76d49e17680f4ec59ef6d3119fc629daa0f1f84d17d54abffddba10e289a087"
+        },
+        {
+          "strategyId": "range-volatility-breakout",
+          "stance": "short",
+          "confidence": 0.8,
+          "signalSnapshotHash": "7f75a51a93febe19e2b9ade31bc41b30e3158cbbaaa6397d6645b6fedac55eb1"
+        }
+      ]
+    },
+    {
+      "name": "gate-zero-weights",
+      "regimeState": "high_volatility",
+      "stale": false,
+      "votes": [
+        {
+          "strategyId": "range-mean-reversion",
+          "stance": "long",
+          "confidence": 0.6,
+          "signalSnapshotHash": "c76d49e17680f4ec59ef6d3119fc629daa0f1f84d17d54abffddba10e289a087"
+        },
+        {
+          "strategyId": "trend-mtf-pullback",
+          "stance": "abstain",
+          "confidence": 0.5,
+          "signalSnapshotHash": null
+        }
+      ]
+    },
+    {
+      "name": "degraded-context",
+      "regimeState": "unknown",
+      "stale": true,
+      "votes": [
+        {
+          "strategyId": "range-mean-reversion",
+          "stance": "long",
+          "confidence": 0.6,
+          "signalSnapshotHash": "c76d49e17680f4ec59ef6d3119fc629daa0f1f84d17d54abffddba10e289a087"
+        },
+        {
+          "strategyId": "trend-mtf-pullback",
+          "stance": "abstain",
+          "confidence": 0.5,
+          "signalSnapshotHash": null
+        }
+      ]
+    },
+    {
+      "name": "insufficient-mass",
+      "regimeState": "trend",
+      "stale": false,
+      "votes": [
+        {
+          "strategyId": "range-mean-reversion",
+          "stance": "long",
+          "confidence": 0.6,
+          "signalSnapshotHash": "c76d49e17680f4ec59ef6d3119fc629daa0f1f84d17d54abffddba10e289a087"
+        },
+        {
+          "strategyId": "trend-mtf-pullback",
+          "stance": "abstain",
+          "confidence": 0.5,
+          "signalSnapshotHash": null
+        }
+      ]
+    }
+  ],
+  "results": [
+    {
+      "name": "enter-long-range",
+      "action": "enter_long",
+      "direction": "long",
+      "dominantStrategyId": "range-mean-reversion",
+      "confidence": 1,
+      "reasonCodes": [
+        "vote_weighting_applied"
+      ],
+      "contributions": [
+        {
+          "strategyId": "range-mean-reversion",
+          "weight": 0.6,
+          "weightedContribution": 0.36
+        },
+        {
+          "strategyId": "trend-mtf-pullback",
+          "weight": 0,
+          "weightedContribution": 0
+        }
+      ],
+      "confidenceComponents": {
+        "voteAgreement": 1,
+        "weightedAgreement": 1,
+        "regimeAlignment": 1
+      },
+      "decisionHash": "c5ad038adb2dc3e0f4d28ceb9c79b64b703296cda008d363a8490f4b5b95868a"
+    },
+    {
+      "name": "conflict-wait",
+      "action": "wait",
+      "direction": null,
+      "dominantStrategyId": null,
+      "confidence": 0,
+      "reasonCodes": [
+        "conflicting_votes",
+        "vote_weighting_applied"
+      ],
+      "contributions": [
+        {
+          "strategyId": "range-mean-reversion",
+          "weight": 0.6,
+          "weightedContribution": 0.36
+        },
+        {
+          "strategyId": "range-volatility-breakout",
+          "weight": 0.35,
+          "weightedContribution": -0.27999999999999997
+        }
+      ],
+      "confidenceComponents": {
+        "voteAgreement": 0,
+        "weightedAgreement": 0,
+        "regimeAlignment": 1
+      },
+      "decisionHash": "080b7352127b2b3210223f6c9deb00cf07606246fe0785ade3173d7553b80659"
+    },
+    {
+      "name": "gate-zero-weights",
+      "action": "wait",
+      "direction": null,
+      "dominantStrategyId": null,
+      "confidence": 0,
+      "reasonCodes": [
+        "regime_gate_rejected",
+        "vote_weighting_applied"
+      ],
+      "contributions": [
+        {
+          "strategyId": "range-mean-reversion",
+          "weight": 0,
+          "weightedContribution": 0
+        },
+        {
+          "strategyId": "trend-mtf-pullback",
+          "weight": 0,
+          "weightedContribution": 0
+        }
+      ],
+      "confidenceComponents": {
+        "voteAgreement": 0,
+        "weightedAgreement": 0,
+        "regimeAlignment": 0
+      },
+      "decisionHash": "885e03f347b4420e5bf288dc248f1fd7e99d049a35c0c15130cc44a8804bd0dd"
+    },
+    {
+      "name": "degraded-context",
+      "action": "wait",
+      "direction": null,
+      "dominantStrategyId": null,
+      "confidence": 0,
+      "reasonCodes": [
+        "regime_context_degraded",
+        "regime_gate_rejected",
+        "vote_weighting_applied"
+      ],
+      "contributions": [
+        {
+          "strategyId": "range-mean-reversion",
+          "weight": 0,
+          "weightedContribution": 0
+        },
+        {
+          "strategyId": "trend-mtf-pullback",
+          "weight": 0,
+          "weightedContribution": 0
+        }
+      ],
+      "confidenceComponents": {
+        "voteAgreement": 0,
+        "weightedAgreement": 0,
+        "regimeAlignment": 0
+      },
+      "decisionHash": "73cb0b1c7eee6c14a9ff4960865c1d47e3c1e73461c680afdea6efbd01a0d185"
+    },
+    {
+      "name": "insufficient-mass",
+      "action": "wait",
+      "direction": null,
+      "dominantStrategyId": null,
+      "confidence": 0,
+      "reasonCodes": [
+        "insufficient_vote_mass",
+        "vote_weighting_applied"
+      ],
+      "contributions": [
+        {
+          "strategyId": "range-mean-reversion",
+          "weight": 0.1,
+          "weightedContribution": 0.06
+        },
+        {
+          "strategyId": "trend-mtf-pullback",
+          "weight": 0,
+          "weightedContribution": 0
+        }
+      ],
+      "confidenceComponents": {
+        "voteAgreement": 0,
+        "weightedAgreement": 0,
+        "regimeAlignment": 0.9
+      },
+      "decisionHash": "fd81aaed23e09f22651896b3d161991fbc8b9de5ab1a956dd89ce6625557c61c"
+    }
+  ]
+}
