@@ -19,3 +19,11 @@ from .contract import (  # noqa: F401
     signal_id_for,
     strategy_id_ok,
 )
+from .trend_pullback import (  # noqa: F401
+    DEFAULT_TREND_CONFIG,
+    TREND_CONFIG_VERSION,
+    TREND_STRATEGY_ID,
+    TREND_STRATEGY_VERSION,
+    TrendPullbackConfig,
+    evaluate_trend_pullback,
+)
