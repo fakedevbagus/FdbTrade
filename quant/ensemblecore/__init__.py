@@ -41,3 +41,11 @@ from .edge_gate import (  # noqa: F401
     compute_edge_report,
     gate_decision,
 )
+from .calibration import (  # noqa: F401
+    CALIBRATION_LAYER_ID,
+    CALIBRATION_LAYER_VERSION,
+    DEFAULT_MIN_SAMPLE_SIZE,
+    calibration_flags,
+    empirical_hit_rate,
+    stamp_calibration,
+)
