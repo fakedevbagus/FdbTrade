@@ -51,3 +51,12 @@ from .momentum import (  # noqa: F401
     MomentumConfig,
     evaluate_momentum,
 )
+from .lifecycle import (  # noqa: F401
+    SIGNAL_LIFECYCLE_STATES,
+    SIGNAL_TERMINAL_STATES,
+    apply_transition,
+    is_expired_at,
+    is_invalidated_by_bar,
+    next_transition_for_bar,
+    open_lifecycle,
+)

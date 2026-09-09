@@ -27,7 +27,7 @@
  * Levels: stop = ATR-based (stopPadAtr * ATR against the direction);
  * target = rewardMultiple * risk; expiry after expiryBars.
  * All thresholds are documented placeholders (no tuning before P8/P9).
- * Pure function of the input snapshot: no clock, no randomness, no broker.
+ * Pure function of the input snapshot: no clock, no randomness, no execution-layer calls.
  */
 import {
   type SignalDirection,

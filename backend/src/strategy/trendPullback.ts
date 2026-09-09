@@ -25,7 +25,7 @@
  *
  * Config is versioned (`configVersion`); logic version is the module
  * constant. Pure function of the input snapshot: no clock, no randomness,
- * no broker calls (ADR-0003/0005).
+ * no execution-layer calls (ADR-0003/0005).
  */
 import {
   type SignalDirection,
