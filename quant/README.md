@@ -20,6 +20,22 @@ no pip/precision literals.
 
 Backtest engine lands in P08; research lab in P09.
 
+## backtestcore/ (P08-01)
+
+Stdlib mirror of the event-driven backtest contracts and engine
+(`contracts/src/backtest/contract.ts`, `backend/src/backtest/engine.ts`):
+
+- `contract.py` — strict fail-closed parsers (intent, fill policy, run
+  config), deterministic ids, canonical serializations for config/equity/
+  trade hashing (byte-identical with the TS layer).
+- `engine.py` — deterministic bar-replay with the same frozen per-bar event
+  order (expiry -> fills -> exits -> MFE/MAE -> mark -> subject), the
+  `next-bar-open` zero-cost placeholder fill policy and the conservative
+  stop-first rule. NEVER calls a broker (ADR-0003/0019); live execution
+  stays OFF (ADR-0005).
+
+Cross-layer parity is pinned by `tests/fixtures/backtest_parity.json`.
+
 ## featurecore/ (P03)
 
 Stdlib mirror of the feature contracts (`contracts/src/feature`, ADR-0014):

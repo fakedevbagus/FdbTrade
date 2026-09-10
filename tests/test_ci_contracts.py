@@ -57,6 +57,7 @@ KNOWN_ADRS = {
     16: "deterministic-rule-based-regime-engine",
     17: "canonical-strategy-interface-and-signal-contract",
     18: "ensemble-decision-contract-and-evidence-preservation",
+    19: "event-driven-backtest-engine",
 }
 
 
