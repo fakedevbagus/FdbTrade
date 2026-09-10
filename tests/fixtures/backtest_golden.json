@@ -1,0 +1,98 @@
+{
+  "generatedBy": "backend/src/backtest/__tests__/golden.test.ts",
+  "note": "Golden regression fixture (P08-04): hand-authored 20-bar dataset, scripted subject, known signals/fills/metrics. Any change altering these digests outside documented tolerances must not pass CI. Python mirror: tests/test_backtest_engine_contracts.py GoldenFixtureContracts.",
+  "closesPips": [
+    1,
+    5,
+    10,
+    15,
+    20,
+    16,
+    12,
+    8,
+    4,
+    0,
+    -4,
+    -8,
+    -12,
+    -16,
+    -20,
+    -15,
+    -10,
+    -5,
+    0,
+    10
+  ],
+  "periodStartUtc": "2026-09-08T06:00:00.000Z",
+  "datasetDigest": "a4e18d395f25041013b4d16d5bb8f828072d4e7bc9e0700f70a63e627cf7c886",
+  "zeroCost": {
+    "runId": "btrun_a71b56f23608a63b",
+    "finalState": {
+      "equity": 9980,
+      "realizedPnl": -20,
+      "unrealizedPnl": 0,
+      "openPositionIds": [],
+      "pendingIntentIds": [
+        "btord_sig_golden_EURUSD_1h_2026-09-09T01:00:00.000Z_short"
+      ],
+      "closedTrades": 2
+    },
+    "equityCurveCanonical": "eq|2026-09-08T06:00:00.000Z|10000|0|0|0\neq|2026-09-08T07:00:00.000Z|10000|0|0|0\neq|2026-09-08T08:00:00.000Z|10000|0|0|0\neq|2026-09-08T09:00:00.000Z|10000|0|0|0\neq|2026-09-08T10:00:00.000Z|10005|0|5|1\neq|2026-09-08T11:00:00.000Z|10001|0|1|1\neq|2026-09-08T12:00:00.000Z|9997|0|-3|1\neq|2026-09-08T13:00:00.000Z|9993|0|-7|1\neq|2026-09-08T14:00:00.000Z|9990|-10|0|0\neq|2026-09-08T15:00:00.000Z|9990|-10|0|0\neq|2026-09-08T16:00:00.000Z|9990|-10|0|0\neq|2026-09-08T17:00:00.000Z|9990|-10|0|0\neq|2026-09-08T18:00:00.000Z|9994|-10|4|1\neq|2026-09-08T19:00:00.000Z|9998|-10|8|1\neq|2026-09-08T20:00:00.000Z|10002|-10|12|1\neq|2026-09-08T21:00:00.000Z|9997|-10|7|1\neq|2026-09-08T22:00:00.000Z|9992|-10|2|1\neq|2026-09-08T23:00:00.000Z|9987|-10|-3|1\neq|2026-09-09T00:00:00.000Z|9980|-20|0|0\neq|2026-09-09T01:00:00.000Z|9980|-20|0|0",
+    "equityDigest": "c07ca52cf05208cbbfb73b45a24cd7f30161f0af5233113aaac5ae72516b83cf",
+    "tradesCanonical": "trd|btpos_btord_sig_golden_EURUSD_1h_2026-09-08T09:00:00.000Z_long|long|2026-09-08T10:00:00.000Z|1.1015|2026-09-08T14:00:00.000Z|1.1005|stop|10000|-9.999999999998899|7|9\ntrd|btpos_btord_sig_golden_EURUSD_1h_2026-09-08T17:00:00.000Z_short|short|2026-09-08T18:00:00.000Z|1.0992|2026-09-09T00:00:00.000Z|1.1002|stop|10000|-10.000000000001119|14|5",
+    "tradesDigest": "9d420fc5437b5610976a1773011996cf1e761a16bfb72cd0e4378cd6c5499865",
+    "metrics": {
+      "netReturn": -0.0020000000000000018,
+      "cagr": -0.6026860877328837,
+      "maxDrawdown": 0.0024987506246876563,
+      "recoveryBars": null,
+      "sharpe": -28.13403284647385,
+      "sortino": -88.52274964736164,
+      "calmar": -241.19497231070002,
+      "closedTrades": 2,
+      "wins": 0,
+      "losses": 2,
+      "expectancy": -10.000000000000009,
+      "profitFactor": 0,
+      "averageR": -1,
+      "averageMfePips": 10.5,
+      "averageMaePips": 7,
+      "turnoverRatio": 2
+    }
+  },
+  "realistic": {
+    "runId": "btrun_558d3640afe30a90",
+    "finalState": {
+      "equity": 9976.8,
+      "realizedPnl": -23.2,
+      "unrealizedPnl": 0,
+      "openPositionIds": [],
+      "pendingIntentIds": [
+        "btord_sig_golden_EURUSD_1h_2026-09-09T01:00:00.000Z_short"
+      ],
+      "closedTrades": 2
+    },
+    "equityCurveCanonical": "eq|2026-09-08T06:00:00.000Z|10000|0|0|0\neq|2026-09-08T07:00:00.000Z|10000|0|0|0\neq|2026-09-08T08:00:00.000Z|10000|0|0|0\neq|2026-09-08T09:00:00.000Z|10000|0|0|0\neq|2026-09-08T10:00:00.000Z|10004.3|0|4.3|1\neq|2026-09-08T11:00:00.000Z|10000.3|0|0.3|1\neq|2026-09-08T12:00:00.000Z|9996.3|0|-3.7|1\neq|2026-09-08T13:00:00.000Z|9992.3|0|-7.7|1\neq|2026-09-08T14:00:00.000Z|9988.4|-11.6|0|0\neq|2026-09-08T15:00:00.000Z|9988.4|-11.6|0|0\neq|2026-09-08T16:00:00.000Z|9988.4|-11.6|0|0\neq|2026-09-08T17:00:00.000Z|9988.4|-11.6|0|0\neq|2026-09-08T18:00:00.000Z|9991.7|-11.6|3.3|1\neq|2026-09-08T19:00:00.000Z|9995.7|-11.6|7.3|1\neq|2026-09-08T20:00:00.000Z|9999.7|-11.6|11.3|1\neq|2026-09-08T21:00:00.000Z|9994.7|-11.6|6.3|1\neq|2026-09-08T22:00:00.000Z|9989.7|-11.6|1.3|1\neq|2026-09-08T23:00:00.000Z|9984.7|-11.6|-3.7|1\neq|2026-09-09T00:00:00.000Z|9976.8|-23.2|0|0\neq|2026-09-09T01:00:00.000Z|9976.8|-23.2|0|0",
+    "equityDigest": "220fbc6ed731a540c7043c4cf6a70a471ff407f03fff386c6bcd9bba2d039d73",
+    "tradesCanonical": "trd|btpos_btord_sig_golden_EURUSD_1h_2026-09-08T09:00:00.000Z_long|long|2026-09-08T10:00:00.000Z|1.10157|2026-09-08T14:00:00.000Z|1.10043|stop|10000|-11.599999999999188|6.3|9.7\ntrd|btpos_btord_sig_golden_EURUSD_1h_2026-09-08T17:00:00.000Z_short|short|2026-09-08T18:00:00.000Z|1.09913|2026-09-09T00:00:00.000Z|1.10027|stop|10000|-11.600000000001408|13.3|5.7",
+    "tradesDigest": "0866a323ed5c5ff945f3c3cb0ba9a663acbbb0c16d8d9f823430338a92c6242b",
+    "metrics": {
+      "netReturn": -0.0023200000000000998,
+      "cagr": -0.6572948465859112,
+      "maxDrawdown": 0.00274881800825645,
+      "recoveryBars": null,
+      "sharpe": -32.58507787166566,
+      "sortino": -91.44074789616383,
+      "calmar": -239.1190848617975,
+      "closedTrades": 2,
+      "wins": 0,
+      "losses": 2,
+      "expectancy": -11.600000000000298,
+      "profitFactor": 0,
+      "averageR": -1.0841121495327226,
+      "averageMfePips": 9.8,
+      "averageMaePips": 7.699999999999999,
+      "turnoverRatio": 2
+    }
+  }
+}

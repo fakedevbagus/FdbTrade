@@ -536,5 +536,157 @@ class ParityFixtureContracts(unittest.TestCase):
         self.assertEqual(trades, data["realistic"]["tradesCanonical"])
 
 
+GOLDEN_FIXTURE = REPO_ROOT / "tests" / "fixtures" / "backtest_golden.json"
+
+GOLDEN_CLOSES_PIPS = [
+    1, 5, 10, 15, 20,
+    16, 12, 8, 4, 0,
+    -4, -8, -12, -16, -20,
+    -15, -10, -5, 0, 10,
+]
+
+
+def golden_candles():
+    base = 1.1
+    pip = 0.0001
+    candles = []
+    prev_close = base
+    for i, pips in enumerate(GOLDEN_CLOSES_PIPS):
+        close = round(base + pips * pip, 5)
+        open_ = base if i == 0 else prev_close
+        from datacore.validate import instant_to_ms, ms_to_instant
+        ts = ms_to_instant(instant_to_ms("2026-09-08T06:00:00.000Z") + i * 3_600_000)
+        candles.append({
+            "instrument": "EURUSD", "timeframe": "1h", "timestamp": ts,
+            "open": open_,
+            "high": round(max(open_, close) + 2 * pip, 5),
+            "low": round(min(open_, close) - 2 * pip, 5),
+            "close": close, "volume": None,
+        })
+        prev_close = close
+    return candles
+
+
+def golden_intent(index, direction, entry_type):
+    import hashlib
+    from datacore.validate import instant_to_ms, ms_to_instant
+    pip = 0.0001
+    event_ms = instant_to_ms("2026-09-08T06:00:00.000Z") + index * 3_600_000
+    event_time = ms_to_instant(event_ms)
+    signal_id = f"sig_golden_EURUSD_1h_{event_time}_{direction}"
+    ref = 1.1 + GOLDEN_CLOSES_PIPS[index] * pip
+    entry_price = (
+        None if entry_type == "market"
+        else round(ref + (5 if direction == "long" else -5) * pip, 5)
+    )
+    return {
+        "intentId": f"btord_{signal_id}",
+        "signalId": signal_id,
+        "strategyId": "golden-subject",
+        "strategyVersion": "1.0.0",
+        "configVersion": "1.0.0",
+        "snapshotHash": hashlib.sha256(signal_id.encode("utf-8")).hexdigest(),
+        "instrument": "EURUSD",
+        "timeframe": "1h",
+        "eventTimeUtc": event_time,
+        "direction": direction,
+        "entryType": entry_type,
+        "entryPrice": entry_price,
+        "referencePrice": ref,
+        "stopLoss": round(ref - 10 * pip if direction == "long" else ref + 10 * pip, 5),
+        "takeProfit": round(ref + 20 * pip if direction == "long" else ref - 20 * pip, 5),
+        "expiresAtUtc": ms_to_instant(event_ms + 4 * 3_600_000),
+        "quantityUnits": 10_000,
+    }
+
+
+def golden_subject(candles, bar_index):
+    if bar_index == 3:
+        return golden_intent(3, "long", "market")
+    if bar_index == 11:
+        return golden_intent(11, "short", "market")
+    if bar_index == 19:
+        return golden_intent(19, "short", "limit")
+    return None
+
+
+def golden_config(policy_id):
+    realistic = policy_id == "realistic"
+    return {
+        "instrument": "EURUSD", "timeframe": "1h",
+        "periodStartUtc": "2026-09-08T06:00:00.000Z",
+        "periodEndUtc": "2026-09-09T02:00:00.000Z",
+        "initialEquity": 10_000, "warmupBars": 0,
+        "fillPolicy": {
+            "policyId": policy_id, "latencyBars": 1,
+            "spreadPips": 0.8 if realistic else 0,
+            "slippagePips": 0.3 if realistic else 0,
+            "commissionPips": 0.2 if realistic else 0,
+            "maxFillFraction": 1, "exitPriority": "stop-first",
+        },
+        "subject": {"id": "golden-subject", "version": "1.0.0", "configVersion": "1.0.0"},
+        "seed": "p08-04-golden",
+    }
+
+
+class GoldenFixtureContracts(unittest.TestCase):
+    """P08-04 golden fixtures: Python mirror must reproduce the committed
+    golden outputs EXACTLY (regression gate across both layers)."""
+
+    def test_zero_cost_golden_scenario_matches_committed_fixture(self):
+        self.assertTrue(GOLDEN_FIXTURE.exists(), "missing golden fixture")
+        data = json.loads(GOLDEN_FIXTURE.read_text(encoding="utf-8"))
+        result = run_backtest(golden_candles(), golden_config("next-bar-open"), golden_subject)
+        self.assertEqual(result["dataset"]["digest"], data["datasetDigest"])
+        self.assertEqual(result["runId"], data["zeroCost"]["runId"])
+        self.assertEqual(
+            serialize_equity_curve_canonical(result["equityCurve"]),
+            data["zeroCost"]["equityCurveCanonical"],
+        )
+        self.assertEqual(
+            serialize_closed_trades_canonical(result["positions"]),
+            data["zeroCost"]["tradesCanonical"],
+        )
+        self.assertEqual(
+            result["finalState"]["closedTrades"], data["zeroCost"]["finalState"]["closedTrades"]
+        )
+        # Known outcomes: two stop-outs; the bar-19 limit stays pending.
+        self.assertEqual(len(result["positions"]), 2)
+        self.assertEqual(result["finalState"]["pendingIntentIds"], data["zeroCost"]["finalState"]["pendingIntentIds"])
+
+    def test_realistic_golden_scenario_matches_committed_fixture(self):
+        data = json.loads(GOLDEN_FIXTURE.read_text(encoding="utf-8"))
+        result = run_backtest(golden_candles(), golden_config("realistic"), golden_subject)
+        self.assertEqual(result["runId"], data["realistic"]["runId"])
+        self.assertEqual(
+            serialize_equity_curve_canonical(result["equityCurve"]),
+            data["realistic"]["equityCurveCanonical"],
+        )
+        self.assertEqual(
+            serialize_closed_trades_canonical(result["positions"]),
+            data["realistic"]["tradesCanonical"],
+        )
+
+    def test_golden_metrics_match_committed_block(self):
+        data = json.loads(GOLDEN_FIXTURE.read_text(encoding="utf-8"))
+        result = run_backtest(golden_candles(), golden_config("next-bar-open"), golden_subject)
+        m = compute_metrics(result)
+        pinned = data["zeroCost"]["metrics"]
+        self.assertEqual(m["closedTrades"], pinned["closedTrades"])
+        self.assertEqual(m["wins"], pinned["wins"])
+        self.assertEqual(m["losses"], pinned["losses"])
+        self.assertAlmostEqual(m["expectancy"], pinned["expectancy"], places=9)
+        self.assertAlmostEqual(m["maxDrawdown"], pinned["maxDrawdown"], places=12)
+        self.assertAlmostEqual(m["netReturn"], pinned["netReturn"], places=12)
+        self.assertAlmostEqual(m["averageR"], pinned["averageR"], places=12)
+        self.assertEqual(m["profitFactor"], pinned["profitFactor"])
+
+    def test_realistic_costs_more_than_zero_cost(self):
+        data = json.loads(GOLDEN_FIXTURE.read_text(encoding="utf-8"))
+        zero_equity = data["zeroCost"]["finalState"]["equity"]
+        realistic_equity = data["realistic"]["finalState"]["equity"]
+        self.assertLess(realistic_equity, zero_equity)
+
+
 if __name__ == "__main__":
     unittest.main()
