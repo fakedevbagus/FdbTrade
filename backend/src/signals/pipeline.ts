@@ -596,3 +596,78 @@ export async function buildDashboardSnapshot(
     errors,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Scanner view (P07-02) — ranked rows + deterministic filter application
+// ---------------------------------------------------------------------------
+
+import {
+  applyScannerQuery,
+  type ScannerQuery,
+  type ScannerRow,
+  scannerQuerySchema,
+  scannerQueryToParams,
+} from "./scanner";
+
+/** Response contract of the scanner API. */
+export interface ScannerView {
+  asOfUtc: string;
+  pipelineId: string;
+  pipelineVersion: string;
+  /** The validated filter query this view was built from. */
+  query: ScannerQuery;
+  /** Canonical URL params for `query` (reproducible scanner state). */
+  canonicalParams: string;
+  /** Filtered + sorted rows (deterministic order). */
+  rows: ScannerRow[];
+  /** Row count before filtering (auditability of what was excluded). */
+  totalRows: number;
+  /** Per-instrument failures surfaced (fail closed — visible, not silent). */
+  errors: readonly { instrument: InstrumentId; error: string }[];
+}
+
+/**
+ * Build the scanner view: evaluate the pipeline at `asOfUtc` (the same
+ * deterministic snapshot as P07-01), expose the ranked enter rows, then
+ * apply the validated scanner query. WAIT decisions are filterable but not
+ * listed as opportunities (they carry no edge). Identical inputs ->
+ * byte-identical output.
+ */
+export async function buildScannerView(
+  request: SignalPipelineRequest,
+  queryInput: ScannerQuery,
+): Promise<ScannerView> {
+  const query = scannerQuerySchema.parse(queryInput);
+  const snapshot = await buildDashboardSnapshot(request);
+  const rows: ScannerRow[] = snapshot.topOpportunities.map((top) => {
+    const overview = snapshot.overview.find((o) => o.instrument === top.instrument);
+    return {
+      decisionId: top.decisionId,
+      instrument: top.instrument,
+      timeframe: PIPELINE_TIMEFRAME,
+      action: top.action,
+      direction:
+        top.action === "enter_long" ? "long" : top.action === "enter_short" ? "short" : null,
+      score: top.score,
+      netEdgePips: top.netEdgePips,
+      confidence: top.confidence,
+      regimeState: overview?.regimeState ?? "unknown",
+      regimeDegraded: overview?.regimeDegraded ?? true,
+      fresh: overview ? !overview.stale : false,
+      barsBehind: overview?.barsBehind ?? -1,
+      signalAgeBars: overview?.barsBehind ?? -1,
+      rank: top.rank,
+    };
+  });
+  const filtered = applyScannerQuery(rows, query);
+  return {
+    asOfUtc: snapshot.asOfUtc,
+    pipelineId: SIGNAL_PIPELINE_ID,
+    pipelineVersion: SIGNAL_PIPELINE_VERSION,
+    query,
+    canonicalParams: scannerQueryToParams(query).toString(),
+    rows: filtered,
+    totalRows: rows.length,
+    errors: snapshot.errors,
+  };
+}

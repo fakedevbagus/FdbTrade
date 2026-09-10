@@ -41,6 +41,7 @@ const rawSiteConfig = {
   nav: [
     { label: "Overview", href: "/" },
     { label: "Command Center", href: "/dashboard" },
+    { label: "Scanner", href: "/scanner" },
   ],
 } as const;
 

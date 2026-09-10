@@ -119,5 +119,71 @@ class DeterminismContract(unittest.TestCase):
             self.assertIn(required, test)
 
 
+class ScannerContract(unittest.TestCase):
+    """P07-02 scanner contracts (deterministic filters + URL state)."""
+
+    SCANNER = BACKEND_SRC / "signals" / "scanner.ts"
+    ROUTE = BACKEND_SRC / "app" / "api" / "signals" / "scanner" / "route.ts"
+    PAGE = FRONTEND_SRC / "app" / "(app)" / "scanner" / "page.tsx"
+
+    def test_engine_has_url_round_trip_and_fail_closed_parse(self):
+        text = self.SCANNER.read_text(encoding="utf-8")
+        for symbol in (
+            "scannerQueryToParams",
+            "scannerQueryFromParams",
+            "applyScannerQuery",
+        ):
+            self.assertIn(symbol, text)
+        # Fail-closed parse guards present.
+        self.assertIn("unknown scanner query parameter", text)
+        self.assertIn("duplicate query parameter", text)
+
+    def test_engine_is_pure(self):
+        text = self.SCANNER.read_text(encoding="utf-8")
+        self.assertNotIn("Date.now()", text)
+        self.assertNotIn("Math.random", text)
+
+    def test_route_is_get_only_and_session_guarded(self):
+        text = self.ROUTE.read_text(encoding="utf-8")
+        self.assertIn("requireSession", text)
+        self.assertIn('ApiError.methodNotAllowed(["GET"])', text)
+
+    def test_page_url_state_is_reproducible_and_has_no_order_button(self):
+        text = self.PAGE.read_text(encoding="utf-8")
+        # URL carries the filter state (reproducible views).
+        self.assertIn("canonicalParams", text)
+        # Non-goal: no order button anywhere in the scanner UI.
+        self.assertNotRegex(text, r"(?i)place\s*order|submit\s*order|order\s*button")
+        # Filter set present.
+        for token in ("direction", "regime", "minConfidence", "minEdgePips", "freshOnly", "maxAgeBars"):
+            self.assertIn(token, text)
+
+    def test_scanner_tests_cover_required_cases(self):
+        test = (
+            BACKEND_SRC / "signals" / "__tests__" / "scanner.test.ts"
+        ).read_text(encoding="utf-8")
+        for required in (
+            "round-trip",  # URL reproducibility
+            "unknown param rejects",  # malformed input
+            "duplicate",  # malformed input
+            "empty boundary",  # empty case
+            "idempotency",  # repeated application
+            "input order independence",  # determinism
+        ):
+            self.assertIn(required, test)
+
+    def test_no_execution_logic_in_scanner_sources(self):
+        forbidden = re.compile(
+            r"(?i)(submit\s*order|place\s*order|send\s*order|metatrader|\bmt5\b"
+            r"|\bbroker\b|order\s*api)"
+        )
+        for path in (self.SCANNER, self.ROUTE, self.PAGE):
+            self.assertIsNone(
+                forbidden.search(path.read_text(encoding="utf-8")),
+                f"forbidden trading token in {path}",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
+
