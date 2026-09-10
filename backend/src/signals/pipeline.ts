@@ -43,7 +43,7 @@ import {
   DEFAULT_CALIBRATION_CONFIG,
   stampCalibration,
 } from "@/ensemble/calibration";
-import { gateDecision, type EdgeGateConfig } from "@/ensemble/edgeGate";
+import { gateDecision, computeEdgeReport, type EdgeGateConfig } from "@/ensemble/edgeGate";
 import { evaluateEnsemble } from "@/ensemble/weighting";
 import { rankDecisions, type RankRow } from "@/ensemble/ranking";
 import { buildRegimeContext } from "@/regime/context";
@@ -669,5 +669,179 @@ export async function buildScannerView(
     rows: filtered,
     totalRows: rows.length,
     errors: snapshot.errors,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Signal detail view (P07-03)
+// ---------------------------------------------------------------------------
+
+/** One strategy vote with its signal levels (display form). */
+export interface DetailVoteRow {
+  strategyId: string;
+  strategyVersion: string;
+  configVersion: string;
+  stance: "long" | "short" | "abstain";
+  confidence: number;
+  reasonCodes: readonly string[];
+  signal: {
+    signalId: string;
+    direction: "long" | "short";
+    entryType: string;
+    entryPrice: number | null;
+    referencePrice: number;
+    stopLoss: number;
+    takeProfit: number | null;
+    expiresAtUtc: string;
+    confidence: number;
+    reasonCodes: readonly string[];
+    snapshotHash: string;
+  } | null;
+}
+
+/** Full detail view: every displayed claim maps to stored fields. */
+export interface SignalDetailView {
+  asOfUtc: string;
+  found: true;
+  decision: {
+    decisionId: string;
+    instrument: InstrumentId;
+    timeframe: Timeframe;
+    eventTimeUtc: string;
+    action: EnsembleDecision["action"];
+    direction: "long" | "short" | null;
+    dominantStrategyId: string | null;
+    confidence: number;
+    reasonCodes: readonly string[];
+    decisionHash: string;
+    weightsVersion: string;
+    componentVersions: Readonly<Record<string, string>>;
+    confidenceComponents: {
+      voteAgreement: number;
+      weightedAgreement: number;
+      regimeAlignment: number;
+      correlationPenalty: number;
+      calibration: {
+        empiricalHitRate: number | null;
+        sampleSize: number;
+        uncertaintyFlags: readonly string[];
+      };
+    };
+  };
+  votes: DetailVoteRow[];
+  regimeContext: RegimeContext;
+  edge: {
+    expectedMovePips: number | null;
+    stopDistancePips: number | null;
+    costFloorPips: number | null;
+    netEdgePips: number | null;
+    passes: boolean | null;
+    /** Derived analytics are labeled as such (acceptance criterion). */
+    derived: true;
+  };
+  dataQuality: {
+    fresh: boolean;
+    barsBehind: number;
+    degradedContext: boolean;
+    derived: true;
+  };
+  /** Strategy performance context: explicitly no data yet (P12 owns it). */
+  performanceContext: {
+    hasBacktestStats: false;
+    note: string;
+  };
+  expiry: {
+    /** Earliest live-signal expiry for an enter decision (null on WAIT). */
+    expiresAtUtc: string | null;
+  };
+}
+
+/**
+ * Build the full signal-detail view for one decisionId at `asOfUtc`.
+ * Re-evaluates the pipeline deterministically (same inputs -> same detail)
+ * and locates the requested decision among the results. Unknown or
+ * un-evaluable decisions return null (the caller maps that to 404).
+ */
+export async function buildSignalDetail(
+  request: SignalPipelineRequest,
+  decisionId: string,
+): Promise<SignalDetailView | null> {
+  assertAsOf(request.asOfUtc);
+  const instruments = request.instruments ?? [...INSTRUMENTS.keys()];
+  const provider = new FixtureProvider();
+
+  const results = await Promise.all(
+    instruments.map((id) => evaluateInstrument(provider, id, request.asOfUtc)),
+  );
+  const target = results.find(
+    (r) => r.ok && r.decision.decisionId === decisionId,
+  );
+  if (!target || !target.ok) {
+    return null;
+  }
+  const decision = target.decision;
+
+  // Edge report recomputed from the same deterministic inputs.
+  const report = computeEdgeReport(decision, edgeGateConfigFor(decision.instrument));
+
+  const liveExpiries = decision.votes
+    .filter(
+      (v) =>
+        v.signal !== null &&
+        decision.action !== "wait" &&
+        Date.parse(v.signal.expiresAtUtc) > Date.parse(request.asOfUtc),
+    )
+    .map((v) => (v as { signal: { expiresAtUtc: string } }).signal.expiresAtUtc)
+    .sort();
+
+  return {
+    asOfUtc: request.asOfUtc,
+    found: true,
+    decision: {
+      decisionId: decision.decisionId,
+      instrument: decision.instrument,
+      timeframe: decision.timeframe,
+      eventTimeUtc: decision.eventTimeUtc,
+      action: decision.action,
+      direction: decision.direction,
+      dominantStrategyId: decision.dominantStrategyId,
+      confidence: decision.confidence,
+      reasonCodes: decision.reasonCodes,
+      decisionHash: decision.decisionHash,
+      weightsVersion: decision.weightsVersion,
+      componentVersions: decision.componentVersions,
+      confidenceComponents: decision.confidenceComponents,
+    },
+    votes: decision.votes.map((v) => ({
+      strategyId: v.strategyId,
+      strategyVersion: v.strategyVersion,
+      configVersion: v.configVersion,
+      stance: v.stance,
+      confidence: v.confidence,
+      reasonCodes: v.reasonCodes,
+      signal: v.signal,
+    })),
+    regimeContext: decision.regimeContext,
+    edge: {
+      expectedMovePips: report?.expectedMovePips ?? null,
+      stopDistancePips: report?.stopDistancePips ?? null,
+      costFloorPips: report?.costFloorPips ?? null,
+      netEdgePips: report?.netEdgePips ?? null,
+      passes: report?.passes ?? null,
+      derived: true,
+    },
+    dataQuality: {
+      fresh: !target.overview.stale,
+      barsBehind: target.overview.barsBehind,
+      degradedContext: target.overview.regimeDegraded,
+      derived: true,
+    },
+    performanceContext: {
+      hasBacktestStats: false,
+      note: "No per-strategy backtest statistics exist yet; they arrive with the Backtest (P8) and Analytics (P12) phases. Nothing here is fabricated.",
+    },
+    expiry: {
+      expiresAtUtc: liveExpiries.length > 0 ? liveExpiries[0] : null,
+    },
   };
 }

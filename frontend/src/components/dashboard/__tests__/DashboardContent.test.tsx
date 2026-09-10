@@ -8,7 +8,8 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { DashboardContent, FreshnessBadge } from "@/components/dashboard/DashboardContent";
+import { DashboardContent } from "@/components/dashboard/DashboardContent";
+import { FreshnessBadge } from "@/components/ui/FreshnessBadge";
 import type { DashboardSnapshotView } from "@/lib/dashboard";
 
 const snapshot: DashboardSnapshotView = {

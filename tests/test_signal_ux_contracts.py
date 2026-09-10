@@ -184,6 +184,63 @@ class ScannerContract(unittest.TestCase):
             )
 
 
+class SignalDetailContract(unittest.TestCase):
+    """P07-03 signal-detail contracts (claims map to stored fields)."""
+
+    ROUTE = BACKEND_SRC / "app" / "api" / "signals" / "[id]" / "route.ts"
+    PAGE = FRONTEND_SRC / "app" / "(app)" / "signals" / "[id]" / "page.tsx"
+    TEST = BACKEND_SRC / "signals" / "__tests__" / "detail.test.ts"
+
+    def test_route_is_get_only_session_guarded_with_strict_id(self):
+        text = self.ROUTE.read_text(encoding="utf-8")
+        self.assertIn("requireSession", text)
+        self.assertIn('ApiError.methodNotAllowed(["GET"])', text)
+        self.assertIn("DECISION_ID_RE", text)
+        self.assertIn("notFound", text)
+
+    def test_page_shows_required_surfaces_with_derived_labels(self):
+        text = self.PAGE.read_text(encoding="utf-8")
+        for token in (
+            "BUY",  # BUY/SELL/WAIT headline
+            "stopLoss",  # SL
+            "takeProfit",  # TP
+            "derived",  # R:R + expected move labeled derived
+            "expectedMovePips",
+            "confidence",  # model confidence
+            "empiricalHitRate",  # calibration separated from confidence
+            "reasonCodes",
+            "regimeContext",  # regime
+            "dataQuality",  # data quality
+            "performanceContext",  # strategy performance context (honest)
+            "expiresAtUtc",  # expiry
+        ):
+            self.assertIn(token, text)
+        # No misleading certainty: the win-probability disclaimer is present.
+        self.assertRegex(text, r"NOT a win probability")
+
+    def test_detail_tests_cover_required_cases(self):
+        text = self.TEST.read_text(encoding="utf-8")
+        for required in (
+            "stored fields",  # acceptance: claims map to stored fields
+            "unknown decisionId",  # missing input -> 404
+            "malformed",  # malformed asOf
+            "determinism",  # deterministic detail
+            "WAIT decisions",  # boundary: no-plan case
+        ):
+            self.assertIn(required, text)
+
+    def test_no_execution_logic_in_detail_sources(self):
+        forbidden = re.compile(
+            r"(?i)(submit\s*order|place\s*order|send\s*order|metatrader|\bmt5\b"
+            r"|\bbroker\b|order\s*api)"
+        )
+        for path in (self.ROUTE, self.PAGE):
+            self.assertIsNone(
+                forbidden.search(path.read_text(encoding="utf-8")),
+                f"forbidden trading token in {path}",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
 

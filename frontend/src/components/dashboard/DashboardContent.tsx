@@ -17,6 +17,7 @@ import {
   type OverviewRowView,
   type TopOpportunityView,
 } from "@/lib/dashboard";
+import { FreshnessBadge } from "@/components/ui/FreshnessBadge";
 
 const REGIME_LABELS: Record<string, string> = {
   trend: "Trend",
@@ -43,22 +44,6 @@ function fmtPips(value: number | null): string {
   return value === null ? "—" : `${value >= 0 ? "+" : ""}${value.toFixed(1)} pips`;
 }
 
-export function FreshnessBadge({
-  stale,
-  barsBehind,
-}: {
-  stale: boolean;
-  barsBehind: number;
-}): JSX.Element {
-  if (!stale) {
-    return <span className="fdb-badge fdb-badge--ok">Fresh</span>;
-  }
-  return (
-    <span className="fdb-badge fdb-badge--warn">
-      Stale{barsBehind >= 0 ? ` (${barsBehind} bars behind)` : ""}
-    </span>
-  );
-}
 
 export function OverviewTable({ rows }: { rows: readonly OverviewRowView[] }): JSX.Element {
   return (
