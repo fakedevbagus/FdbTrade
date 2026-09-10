@@ -210,7 +210,7 @@ describe("backtest engine (P08-01)", () => {
     const bad: BacktestRunConfig[] = [
       makeConfig({ periodStartUtc: "2026-09-08T00:30:00.000Z", periodEndUtc: "2026-09-08T10:30:00.000Z" }),
       makeConfig({ fillPolicy: { ...makeConfig().fillPolicy, latencyBars: 0 } }),
-      makeConfig({ fillPolicy: { ...makeConfig().fillPolicy, policyId: "realistic" as never } }),
+      makeConfig({ fillPolicy: { ...makeConfig().fillPolicy, policyId: "magic" as never } }),
     ];
     for (const config of bad) {
       expect(() => runBacktest(makeCandles(), config, subjectReturning({}))).toThrow();

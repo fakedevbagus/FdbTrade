@@ -36,6 +36,7 @@
  * gaps are just absent bars (ADR-0010) — no bars are invented.
  */
 import {
+  type BacktestCostBreakdown,
   type BacktestDatasetRef,
   type BacktestEquityPoint,
   type BacktestEvent,
@@ -58,6 +59,8 @@ import {
   serializeCandlesCanonical,
 } from "@fdbtrade/contracts";
 import { createHash } from "node:crypto";
+
+import { assertRealisticPolicy, realisticFill } from "@/backtest/fillPolicy";
 
 /** The simulated subject: pure, deterministic, closed-world input. */
 export interface BacktestSubject {
@@ -164,6 +167,8 @@ interface PendingIntent {
   readonly fillAtBarIndex: number;
   /** For stop/limit intents: filled when a bar range touches the level. */
   readonly resting: boolean;
+  /** Units already filled (partial fills, P08-02 realistic policy). */
+  filledUnits: number;
 }
 
 function sha256Hex(text: string): string {
@@ -185,10 +190,15 @@ export function runBacktest(
 ): BacktestResult {
   const config = assertRunConfig(configInput);
   validateCandles(candles, config);
-  if (config.fillPolicy.policyId !== "next-bar-open") {
+  const policy = config.fillPolicy;
+  const realistic = policy.policyId === "realistic";
+  if (policy.policyId !== "next-bar-open" && policy.policyId !== "realistic") {
     throw new BacktestEngineError(
-      `fill policy ${config.fillPolicy.policyId} is not implemented by this engine version (P08-01: next-bar-open only)`,
+      `fill policy ${policy.policyId} is not implemented by this engine version`,
     );
+  }
+  if (realistic) {
+    assertRealisticPolicy(policy);
   }
 
   const frameMs = TIMEFRAME_MS[config.timeframe];
@@ -207,6 +217,8 @@ export function runBacktest(
     intent: BacktestOrderIntent,
     fillBarIndex: number,
     fillPrice: number,
+    entryCosts: BacktestCostBreakdown,
+    quantityUnits: number,
   ): BacktestPosition => {
     const atUtc = barOpen(fillBarIndex);
     const position: BacktestPosition = {
@@ -215,8 +227,8 @@ export function runBacktest(
       instrument: intent.instrument,
       timeframe: intent.timeframe,
       direction: intent.direction,
-      quantityUnits: intent.quantityUnits,
-      entry: { atUtc, price: fillPrice, costs: { ...ZERO_COST_BREAKDOWN } },
+      quantityUnits,
+      entry: { atUtc, price: fillPrice, costs: entryCosts },
       stopLoss: intent.stopLoss,
       takeProfit: intent.takeProfit,
       status: "open",
@@ -234,14 +246,21 @@ export function runBacktest(
     position: BacktestPosition,
     exitBarIndex: number,
     exitPrice: number,
+    exitCosts: BacktestCostBreakdown,
     reason: "stop" | "target" | "end_of_run",
   ): void => {
     const atUtc = barOpen(exitBarIndex);
+    // Commission is charged per side in pips of notional (never embedded in
+    // the fill price) — subtract both sides from realized PnL explicitly.
+    const commission =
+      (position.entry.costs.commissionPips + exitCosts.commissionPips) *
+      pipSizeOf(config) *
+      position.quantityUnits;
     const pnl =
-      position.direction === "long"
+      (position.direction === "long"
         ? (exitPrice - position.entry.price) * position.quantityUnits
-        : (position.entry.price - exitPrice) * position.quantityUnits;
-    position.exit = { atUtc, price: exitPrice, reason, costs: { ...ZERO_COST_BREAKDOWN } };
+        : (position.entry.price - exitPrice) * position.quantityUnits) - commission;
+    position.exit = { atUtc, price: exitPrice, reason, costs: exitCosts };
     position.status = "closed";
     position.realizedPnl = pnl;
     realized += pnl;
@@ -278,26 +297,76 @@ export function runBacktest(
       pending = null;
     }
 
-    // (2) Entry fills.
-    if (pending !== null && openPosition === null) {
-      if (!pending.resting && i >= pending.fillAtBarIndex) {
-        openPosition = openPositionFromIntent(pending.intent, i, bar.open);
-        pending = null;
-      } else if (pending.resting && pending.intent.entryPrice !== null) {
-        const level = pending.intent.entryPrice;
-        // A stop entry triggers when price trades THROUGH the level in the
-        // entry direction; a limit entry when price trades back TO it.
-        const touched =
-          pending.intent.entryType === "stop"
-            ? pending.intent.direction === "long"
-              ? bar.high >= level
-              : bar.low <= level
-            : pending.intent.direction === "long"
-              ? bar.low <= level
-              : bar.high >= level;
-        if (touched) {
-          openPosition = openPositionFromIntent(pending.intent, i, level);
-          pending = null;
+    // (2) Entry fills. With the realistic policy, `maxFillFraction` caps the
+    // per-bar fill; the unfilled remainder keeps filling on later bars into
+    // the SAME position (volume-weighted average entry; per-unit cost rates
+    // are unchanged — spread/slippage ride the fill price, commission is a
+    // per-unit rate). Deterministic partial-fill hook.
+    if (pending !== null) {
+      const scaling = openPosition !== null && openPosition.intentId === pending.intent.intentId;
+      if (openPosition === null || scaling) {
+        let trigger: number | null = null;
+        if (!pending.resting && i >= pending.fillAtBarIndex) {
+          trigger = bar.open;
+        } else if (pending.resting && pending.intent.entryPrice !== null) {
+          const level = pending.intent.entryPrice;
+          // A stop entry triggers when price trades THROUGH the level in the
+          // entry direction; a limit when it trades back TO it.
+          const touched =
+            pending.intent.entryType === "stop"
+              ? pending.intent.direction === "long"
+                ? bar.high >= level
+                : bar.low <= level
+              : pending.intent.direction === "long"
+                ? bar.low <= level
+                : bar.high >= level;
+          trigger = touched ? level : null;
+        }
+        if (trigger !== null) {
+          if (!realistic) {
+            openPosition = openPositionFromIntent(
+              pending.intent,
+              i,
+              trigger,
+              { ...ZERO_COST_BREAKDOWN },
+              pending.intent.quantityUnits,
+            );
+            pending = null;
+          } else {
+            const remaining = pending.intent.quantityUnits - pending.filledUnits;
+            const quote = realisticFill(
+              pending.intent.direction,
+              "entry",
+              trigger,
+              remaining,
+              policy,
+              pipSizeOf(config),
+              policy.maxFillFraction,
+              pending.intent.quantityUnits,
+            );
+            if (quote.filledQuantityUnits > 0) {
+              if (scaling && openPosition !== null) {
+                const pos = openPosition;
+                const totalUnits = pos.quantityUnits + quote.filledQuantityUnits;
+                pos.entry.price =
+                  (pos.entry.price * pos.quantityUnits + quote.price * quote.filledQuantityUnits) /
+                  totalUnits;
+                pos.quantityUnits = totalUnits;
+              } else {
+                openPosition = openPositionFromIntent(
+                  pending.intent,
+                  i,
+                  quote.price,
+                  quote.costs,
+                  quote.filledQuantityUnits,
+                );
+              }
+              pending.filledUnits += quote.filledQuantityUnits;
+              if (pending.filledUnits >= pending.intent.quantityUnits) {
+                pending = null;
+              }
+            }
+          }
         }
       }
     }
@@ -306,9 +375,15 @@ export function runBacktest(
     if (openPosition !== null) {
       const pos = openPosition;
       if (stopsTouched(pos, bar)) {
-        closePosition(pos, i, pos.stopLoss, "stop");
+        const q = realistic
+          ? realisticFill(pos.direction, "exit", pos.stopLoss, pos.quantityUnits, policy, pipSizeOf(config), 1)
+          : null;
+        closePosition(pos, i, q ? q.price : pos.stopLoss, q ? q.costs : { ...ZERO_COST_BREAKDOWN }, "stop");
       } else if (targetTouched(pos, bar)) {
-        closePosition(pos, i, pos.takeProfit!, "target");
+        const q = realistic
+          ? realisticFill(pos.direction, "exit", pos.takeProfit!, pos.quantityUnits, policy, pipSizeOf(config), 1)
+          : null;
+        closePosition(pos, i, q ? q.price : pos.takeProfit!, q ? q.costs : { ...ZERO_COST_BREAKDOWN }, "target");
       }
     }
 
@@ -347,6 +422,7 @@ export function runBacktest(
             intent: validated,
             fillAtBarIndex,
             resting: validated.entryType !== "market",
+            filledUnits: 0,
           };
           events.push({ type: "intent_submitted", atUtc, intentId: validated.intentId });
         } else {
@@ -366,16 +442,25 @@ export function runBacktest(
   // explicit event, never a silent drop.
   if (openPosition !== null) {
     const lastBar = candles[candles.length - 1];
+    const exitQuote = realistic
+      ? realisticFill(openPosition.direction, "exit", lastBar.close, openPosition.quantityUnits, policy, pipSizeOf(config), 1)
+      : null;
+    const exitPrice = exitQuote ? exitQuote.price : lastBar.close;
+    const exitCosts = exitQuote ? exitQuote.costs : { ...ZERO_COST_BREAKDOWN };
+    const commission =
+      (openPosition.entry.costs.commissionPips + exitCosts.commissionPips) *
+      pipSizeOf(config) *
+      openPosition.quantityUnits;
     const atUtc = lastBar.timestamp;
     const pnl =
-      openPosition.direction === "long"
-        ? (lastBar.close - openPosition.entry.price) * openPosition.quantityUnits
-        : (openPosition.entry.price - lastBar.close) * openPosition.quantityUnits;
+      (openPosition.direction === "long"
+        ? (exitPrice - openPosition.entry.price) * openPosition.quantityUnits
+        : (openPosition.entry.price - exitPrice) * openPosition.quantityUnits) - commission;
     openPosition.exit = {
       atUtc,
-      price: lastBar.close,
+      price: exitPrice,
       reason: "end_of_run",
-      costs: { ...ZERO_COST_BREAKDOWN },
+      costs: exitCosts,
     };
     openPosition.status = "closed";
     openPosition.realizedPnl = pnl;

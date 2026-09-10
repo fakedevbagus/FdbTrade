@@ -34,6 +34,11 @@ from backtestcore import (  # noqa: E402
     serialize_config_canonical,
     serialize_equity_curve_canonical,
 )
+from backtestcore.fill_policy import (  # noqa: E402
+    assert_realistic_policy,
+    realistic_fill,
+    round_trip_cost_pips,
+)
 
 FIXTURE = REPO_ROOT / "tests" / "fixtures" / "backtest_parity.json"
 
@@ -257,6 +262,117 @@ class SerializationContracts(unittest.TestCase):
         self.assertEqual(position_id_for("btord_sig_x"), "btpos_btord_sig_x")
 
 
+class RealisticPolicyContracts(unittest.TestCase):
+    """P08-02 realistic fill/cost policy (mirror + engine integration)."""
+
+    def realistic_config(self, **overrides):
+        config = make_config()
+        policy = {
+            "policyId": "realistic",
+            "latencyBars": 1,
+            "spreadPips": 0.8,
+            "slippagePips": 0.3,
+            "commissionPips": 0.2,
+            "maxFillFraction": 1,
+            "exitPriority": "stop-first",
+        }
+        policy.update(overrides.get("fillPolicy", {}))
+        config.update(overrides)
+        config["fillPolicy"] = policy
+        return config
+
+    def test_geometry_long_short_entry_exit(self):
+        policy = self.realistic_config()["fillPolicy"]
+        q = realistic_fill("long", "entry", 1.1, 100_000, policy, 0.0001)
+        self.assertAlmostEqual(q["price"], 1.1 + 0.00007, places=12)
+        self.assertEqual(q["costs"], {"spreadPips": 0.4, "slippagePips": 0.3, "commissionPips": 0.1})
+        q = realistic_fill("long", "exit", 1.11, 100_000, policy, 0.0001)
+        self.assertAlmostEqual(q["price"], 1.11 - 0.00007, places=12)
+        self.assertAlmostEqual(
+            realistic_fill("short", "entry", 1.1, 1, policy, 0.0001)["price"], 1.1 - 0.00007, places=12
+        )
+        self.assertAlmostEqual(
+            realistic_fill("short", "exit", 1.09, 1, policy, 0.0001)["price"], 1.09 + 0.00007, places=12
+        )
+
+    def test_partial_fill_cap_is_fraction_of_the_request(self):
+        policy = self.realistic_config()["fillPolicy"]
+        policy = {**policy, "maxFillFraction": 0.5}
+        self.assertEqual(
+            realistic_fill("long", "entry", 1.1, 100_000, policy, 0.0001)["filledQuantityUnits"],
+            50_000,
+        )
+        self.assertEqual(
+            realistic_fill(
+                "long", "entry", 1.1, 50_000, policy, 0.0001, 0.5, 100_000
+            )["filledQuantityUnits"],
+            50_000,
+        )
+        self.assertEqual(
+            realistic_fill(
+                "long", "entry", 1.1, 30_000, policy, 0.0001, 0.5, 100_000
+            )["filledQuantityUnits"],
+            30_000,
+        )
+
+    def test_round_trip_and_guards(self):
+        policy = self.realistic_config()["fillPolicy"]
+        self.assertAlmostEqual(round_trip_cost_pips(policy), 0.8 + 0.6 + 0.2, places=12)
+        with self.assertRaises(DataError):
+            assert_realistic_policy({**policy, "policyId": "next-bar-open"})
+        with self.assertRaises(DataError):
+            realistic_fill("long", "entry", 1.1, 1, policy, 0.0001, 0.0)
+
+    def test_engine_golden_path_costs_recorded(self):
+        result = run_backtest(
+            make_candles(), self.realistic_config(), subject_returning({2: long_intent_at_bar2()})
+        )
+        pos = result["positions"][0]
+        self.assertEqual(
+            pos["entry"]["costs"],
+            {"spreadPips": 0.4, "slippagePips": 0.3, "commissionPips": 0.1},
+        )
+        self.assertEqual(
+            pos["exit"]["costs"],
+            {"spreadPips": 0.4, "slippagePips": 0.3, "commissionPips": 0.1},
+        )
+        # Raw move 7 pips - 1.4 adverse - 0.2 commission = 5.4 pips.
+        expected = (7 - 1.4 - 0.2) * 0.0001 * 100_000
+        self.assertAlmostEqual(pos["realizedPnl"], expected, places=6)
+        self.assertAlmostEqual(result["finalState"]["equity"], 10_000 + expected, places=6)
+        # Cost assumptions echoed verbatim in the run config.
+        self.assertEqual(result["config"]["fillPolicy"]["spreadPips"], 0.8)
+        self.assertEqual(result["config"]["fillPolicy"]["policyId"], "realistic")
+
+    def test_engine_partial_fills_scale_into_same_position(self):
+        config = self.realistic_config(
+            fillPolicy={
+                "policyId": "realistic",
+                "latencyBars": 1,
+                "spreadPips": 0,
+                "slippagePips": 0,
+                "commissionPips": 0,
+                "maxFillFraction": 0.5,
+                "exitPriority": "stop-first",
+            }
+        )
+        result = run_backtest(make_candles(), config, subject_returning({2: long_intent_at_bar2()}))
+        self.assertEqual(len(result["positions"]), 1)
+        pos = result["positions"][0]
+        self.assertEqual(pos["quantityUnits"], 100_000)
+        self.assertAlmostEqual(pos["entry"]["price"], (1.1003 + 1.1004) / 2, places=12)
+        self.assertEqual(pos["entry"]["atUtc"], "2026-09-08T03:00:00.000Z")
+
+    def test_realistic_determinism(self):
+        a = run_backtest(
+            make_candles(), self.realistic_config(), subject_returning({2: long_intent_at_bar2()})
+        )
+        b = run_backtest(
+            make_candles(), self.realistic_config(), subject_returning({2: long_intent_at_bar2()})
+        )
+        self.assertEqual(json.dumps(a, sort_keys=True), json.dumps(b, sort_keys=True))
+
+
 class ParityFixtureContracts(unittest.TestCase):
     """Cross-layer parity: the mirror must reproduce the TS fixture exactly."""
 
@@ -276,6 +392,25 @@ class ParityFixtureContracts(unittest.TestCase):
         self.assertEqual(equity, data["equityCurveCanonical"])
         trades = serialize_closed_trades_canonical(result["positions"])
         self.assertEqual(trades, data["tradesCanonical"])
+
+
+
+    def test_realistic_scenario_matches_ts_fixture(self):
+        """P08-02 realistic-policy cross-layer parity (partial fills + costs)."""
+        data = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        policy = data["realistic"]["fillPolicy"]
+        config = make_config()
+        config["fillPolicy"] = policy
+        result = run_backtest(make_candles(), config, subject_returning({2: long_intent_at_bar2()}))
+        self.assertEqual(result["runId"], data["realistic"]["runId"])
+        self.assertEqual(result["finalState"]["closedTrades"], data["realistic"]["finalState"]["closedTrades"])
+        self.assertAlmostEqual(
+            result["finalState"]["realizedPnl"], data["realistic"]["finalState"]["realizedPnl"], places=6
+        )
+        equity = serialize_equity_curve_canonical(result["equityCurve"])
+        self.assertEqual(equity, data["realistic"]["equityCurveCanonical"])
+        trades = serialize_closed_trades_canonical(result["positions"])
+        self.assertEqual(trades, data["realistic"]["tradesCanonical"])
 
 
 if __name__ == "__main__":

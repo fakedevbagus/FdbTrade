@@ -28,6 +28,7 @@ from .contract import (
     position_id_for,
     serialize_config_canonical,
 )
+from .fill_policy import assert_realistic_policy, realistic_fill
 
 
 class BacktestEngineError(Exception):
@@ -76,11 +77,15 @@ def run_backtest(
     config = parse_run_config(config_input)
     parsed_candles = [parse_candle(c) for c in candles]
     _validate_candles(candles, config)
-    if config["fillPolicy"]["policyId"] != "next-bar-open":
+    policy = config["fillPolicy"]
+    realistic = policy["policyId"] == "realistic"
+    if policy["policyId"] not in ("next-bar-open", "realistic"):
         raise BacktestEngineError(
-            "fill policy " + config["fillPolicy"]["policyId"]
-            + " is not implemented by this engine version (P08-01: next-bar-open only)"
+            "fill policy " + policy["policyId"]
+            + " is not implemented by this engine version"
         )
+    if realistic:
+        assert_realistic_policy(policy)
 
     frame_ms = TIMEFRAME_MS[config["timeframe"]]
     pip_size = get_instrument(config["instrument"]).precision.pip
@@ -93,7 +98,10 @@ def run_backtest(
     realized = 0.0
     closed_trades = 0
 
-    def open_position_from(intent: Mapping, fill_bar_index: int, fill_price: float) -> dict:
+    def open_position_from(
+        intent: Mapping, fill_bar_index: int, fill_price: float, entry_costs: dict,
+        quantity_units: float,
+    ) -> dict:
         at = candles[fill_bar_index]["timestamp"]
         pos = {
             "positionId": position_id_for(intent["intentId"]),
@@ -101,8 +109,8 @@ def run_backtest(
             "instrument": intent["instrument"],
             "timeframe": intent["timeframe"],
             "direction": intent["direction"],
-            "quantityUnits": intent["quantityUnits"],
-            "entry": {"atUtc": at, "price": fill_price, "costs": dict(ZERO_COST_BREAKDOWN)},
+            "quantityUnits": quantity_units,
+            "entry": {"atUtc": at, "price": fill_price, "costs": dict(entry_costs)},
             "stopLoss": intent["stopLoss"],
             "takeProfit": intent["takeProfit"],
             "status": "open",
@@ -116,19 +124,24 @@ def run_backtest(
         return pos
 
     def close_position(
-        position: dict, exit_bar_index: int, exit_price: float, reason: str
+        position: dict, exit_bar_index: int, exit_price: float, exit_costs: dict, reason: str
     ) -> None:
         nonlocal realized, closed_trades, open_position
         at = candles[exit_bar_index]["timestamp"]
+        # Commission is charged per side in pips of notional (never embedded
+        # in the fill price) — subtract both sides from realized PnL.
+        commission = (
+            position["entry"]["costs"]["commissionPips"] + exit_costs["commissionPips"]
+        ) * pip_size * position["quantityUnits"]
         if position["direction"] == "long":
-            pnl = (exit_price - position["entry"]["price"]) * position["quantityUnits"]
+            pnl = (exit_price - position["entry"]["price"]) * position["quantityUnits"] - commission
         else:
-            pnl = (position["entry"]["price"] - exit_price) * position["quantityUnits"]
+            pnl = (position["entry"]["price"] - exit_price) * position["quantityUnits"] - commission
         position["exit"] = {
             "atUtc": at,
             "price": exit_price,
             "reason": reason,
-            "costs": dict(ZERO_COST_BREAKDOWN),
+            "costs": dict(exit_costs),
         }
         position["status"] = "closed"
         position["realizedPnl"] = pnl
@@ -154,28 +167,61 @@ def run_backtest(
             )
             pending = None
 
-        # (2) Entry fills.
-        if pending is not None and open_position is None:
-            if not pending["resting"] and i >= pending["fillAtBarIndex"]:
-                open_position = open_position_from(pending["intent"], i, bar["open"])
-                pending = None
-            elif pending["resting"] and pending["intent"]["entryPrice"] is not None:
-                level = pending["intent"]["entryPrice"]
-                if pending["intent"]["entryType"] == "stop":
-                    touched = (
-                        bar["high"] >= level
-                        if pending["intent"]["direction"] == "long"
-                        else bar["low"] <= level
-                    )
-                else:
-                    touched = (
-                        bar["low"] <= level
-                        if pending["intent"]["direction"] == "long"
-                        else bar["high"] >= level
-                    )
-                if touched:
-                    open_position = open_position_from(pending["intent"], i, level)
-                    pending = None
+        # (2) Entry fills. With the realistic policy, `maxFillFraction` caps
+        # the per-bar fill; the unfilled remainder keeps filling on later
+        # bars into the SAME position (volume-weighted average entry).
+        if pending is not None:
+            scaling = open_position is not None and open_position["intentId"] == pending["intent"]["intentId"]
+            if open_position is None or scaling:
+                trigger = None
+                if not pending["resting"] and i >= pending["fillAtBarIndex"]:
+                    trigger = bar["open"]
+                elif pending["resting"] and pending["intent"]["entryPrice"] is not None:
+                    level = pending["intent"]["entryPrice"]
+                    if pending["intent"]["entryType"] == "stop":
+                        touched = (
+                            bar["high"] >= level
+                            if pending["intent"]["direction"] == "long"
+                            else bar["low"] <= level
+                        )
+                    else:
+                        touched = (
+                            bar["low"] <= level
+                            if pending["intent"]["direction"] == "long"
+                            else bar["high"] >= level
+                        )
+                    trigger = level if touched else None
+                if trigger is not None:
+                    if not realistic:
+                        open_position = open_position_from(
+                            pending["intent"], i, trigger, dict(ZERO_COST_BREAKDOWN),
+                            pending["intent"]["quantityUnits"],
+                        )
+                        pending = None
+                    else:
+                        remaining = pending["intent"]["quantityUnits"] - pending["filledUnits"]
+                        quote = realistic_fill(
+                            pending["intent"]["direction"], "entry", trigger, remaining,
+                            policy, pip_size,
+                            policy["maxFillFraction"], pending["intent"]["quantityUnits"],
+                        )
+                        if quote["filledQuantityUnits"] > 0:
+                            if scaling and open_position is not None:
+                                pos = open_position
+                                total_units = pos["quantityUnits"] + quote["filledQuantityUnits"]
+                                pos["entry"]["price"] = (
+                                    pos["entry"]["price"] * pos["quantityUnits"]
+                                    + quote["price"] * quote["filledQuantityUnits"]
+                                ) / total_units
+                                pos["quantityUnits"] = total_units
+                            else:
+                                open_position = open_position_from(
+                                    pending["intent"], i, quote["price"],
+                                    quote["costs"], quote["filledQuantityUnits"],
+                                )
+                            pending["filledUnits"] += quote["filledQuantityUnits"]
+                            if pending["filledUnits"] >= pending["intent"]["quantityUnits"]:
+                                pending = None
 
         # (3) Exits (stop-first conservative).
         if open_position is not None:
@@ -187,9 +233,23 @@ def run_backtest(
                 target is not None and bar["high"] >= target and bar["low"] <= target
             )
             if stop_touched:
-                close_position(pos, i, stop, "stop")
+                q = realistic_fill(
+                    pos["direction"], "exit", stop, pos["quantityUnits"],
+                    policy, pip_size, 1.0,
+                ) if realistic else None
+                close_position(
+                    pos, i, q["price"] if q else stop,
+                    q["costs"] if q else dict(ZERO_COST_BREAKDOWN), "stop",
+                )
             elif target_touched:
-                close_position(pos, i, target, "target")
+                q = realistic_fill(
+                    pos["direction"], "exit", target, pos["quantityUnits"],
+                    policy, pip_size, 1.0,
+                ) if realistic else None
+                close_position(
+                    pos, i, q["price"] if q else target,
+                    q["costs"] if q else dict(ZERO_COST_BREAKDOWN), "target",
+                )
 
         # (4) MFE/MAE.
         if open_position is not None:
@@ -246,6 +306,7 @@ def run_backtest(
                         "intent": validated,
                         "fillAtBarIndex": i + config["fillPolicy"]["latencyBars"],
                         "resting": validated["entryType"] != "market",
+                        "filledUnits": 0.0,
                     }
                     events.append(
                         {
@@ -266,9 +327,19 @@ def run_backtest(
 
     # End of run: force-close any open position at the last bar close.
     if open_position is not None:
-        close_position(
-            open_position, len(candles) - 1, candles[-1]["close"], "end_of_run"
-        )
+        if realistic:
+            q = realistic_fill(
+                open_position["direction"], "exit", candles[-1]["close"],
+                open_position["quantityUnits"], policy, pip_size, 1.0,
+            )
+            close_position(
+                open_position, len(candles) - 1, q["price"], q["costs"], "end_of_run"
+            )
+        else:
+            close_position(
+                open_position, len(candles) - 1, candles[-1]["close"],
+                dict(ZERO_COST_BREAKDOWN), "end_of_run",
+            )
 
     positions.sort(
         key=lambda p: (p["entry"]["atUtc"], p["positionId"])
