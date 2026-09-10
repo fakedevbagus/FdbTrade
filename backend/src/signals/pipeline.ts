@@ -696,6 +696,8 @@ export interface DetailVoteRow {
     confidence: number;
     reasonCodes: readonly string[];
     snapshotHash: string;
+    /** Exact feature inputs used (lineage; consumed by the chart panel). */
+    inputs: Record<string, number | boolean | null>;
   } | null;
 }
 
@@ -844,4 +846,141 @@ export async function buildSignalDetail(
       expiresAtUtc: liveExpiries.length > 0 ? liveExpiries[0] : null,
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Chart view (P07-04) — market bars + signal overlays for one decision
+// ---------------------------------------------------------------------------
+
+/** One chart bar (display form; UTC open time, OHLC from the fixture). */
+export interface ChartBar {
+  openTimeUtc: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
+
+/** Signal marker pinned to a bar open time (coordinate = market time). */
+export interface ChartMarker {
+  /** Which bar the marker sits on (openTimeUtc of that bar). */
+  atUtc: string;
+  kind: "signal";
+  label: string;
+  decisionId: string;
+  direction: "long" | "short";
+}
+
+/** Horizontal price overlays anchored to stored signal levels. */
+export interface ChartLevels {
+  entryPrice: number | null;
+  referencePrice: number | null;
+  stopLoss: number | null;
+  takeProfit: number | null;
+}
+
+/** Feature/context panel rows (feature inputs of the dominant vote). */
+export interface ChartFeatureRow {
+  featureId: string;
+  value: number | boolean | null;
+}
+
+export interface SignalChartView {
+  asOfUtc: string;
+  found: true;
+  instrument: InstrumentId;
+  timeframe: Timeframe;
+  /** Last closed bars ending at the decision bar (UTC open times). */
+  bars: ChartBar[];
+  markers: ChartMarker[];
+  levels: ChartLevels;
+  /** True when the decision bar is behind asOfUtc (visibly stale). */
+  stale: boolean;
+  barsBehind: number;
+  /** Dominant vote's signal inputs (feature context panel). */
+  features: ChartFeatureRow[];
+  /** Regime state per context timeframe for the panel. */
+  regimeContext: RegimeContext;
+}
+
+const CHART_BARS = 120;
+
+/**
+ * Build the chart view for one decisionId: the last closed 1h bars ending
+ * at the decision bar, the signal marker pinned to that bar's open time,
+ * the entry/SL/TP overlays from the stored dominant-signal levels, and the
+ * dominant vote's feature inputs for the context panel. Deterministic for
+ * deterministic inputs; null when the decisionId is unknown at asOfUtc.
+ */
+export async function buildSignalChart(
+  request: SignalPipelineRequest,
+  decisionId: string,
+): Promise<SignalChartView | null> {
+  assertAsOf(request.asOfUtc);
+  const provider = new FixtureProvider();
+  const instruments = request.instruments ?? [...INSTRUMENTS.keys()];
+
+  for (const instrumentId of instruments) {
+    const closed = await latestClosedBar(provider, instrumentId, request.asOfUtc);
+    if (!closed) {
+      continue;
+    }
+    const decisionPrefix = `ens_${instrumentId}_`;
+    if (!decisionId.startsWith(decisionPrefix)) {
+      continue;
+    }
+    const history = await historyEndingAt(provider, instrumentId, closed.barOpenUtc);
+    const detail = await buildSignalDetail({ ...request, instruments: [instrumentId] }, decisionId);
+    if (detail === null) {
+      continue;
+    }
+    const bars: ChartBar[] = history.slice(-CHART_BARS).map((c) => ({
+      openTimeUtc: c.timestamp,
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close,
+    }));
+    const dominantVote = detail.votes.find(
+      (v) => v.strategyId === detail.decision.dominantStrategyId && v.signal !== null,
+    );
+    const signal = dominantVote?.signal ?? null;
+    const markers: ChartMarker[] =
+      signal !== null && detail.decision.direction !== null
+        ? [
+            {
+              atUtc: detail.decision.eventTimeUtc,
+              kind: "signal",
+              label: detail.decision.action,
+              decisionId: detail.decision.decisionId,
+              direction: detail.decision.direction,
+            },
+          ]
+        : [];
+    const features: ChartFeatureRow[] =
+      signal !== null
+        ? Object.keys(signal.inputs)
+            .sort()
+            .map((featureId) => ({ featureId, value: signal.inputs[featureId] }))
+        : [];
+    return {
+      asOfUtc: request.asOfUtc,
+      found: true,
+      instrument: instrumentId,
+      timeframe: PIPELINE_TIMEFRAME,
+      bars,
+      markers,
+      levels: {
+        entryPrice: signal?.entryPrice ?? null,
+        referencePrice: signal?.referencePrice ?? null,
+        stopLoss: signal?.stopLoss ?? null,
+        takeProfit: signal?.takeProfit ?? null,
+      },
+      stale: detail.dataQuality.barsBehind > 0,
+      barsBehind: detail.dataQuality.barsBehind,
+      features,
+      regimeContext: detail.regimeContext,
+    };
+  }
+  return null;
 }

@@ -241,6 +241,54 @@ class SignalDetailContract(unittest.TestCase):
             )
 
 
+class ChartOverlayContract(unittest.TestCase):
+    """P07-04 chart + overlay contracts (coordinates from market data)."""
+
+    ROUTE = BACKEND_SRC / "app" / "api" / "signals" / "[id]" / "chart" / "route.ts"
+    COMPONENT = FRONTEND_SRC / "components" / "chart" / "CandleChart.tsx"
+    TEST = BACKEND_SRC / "signals" / "__tests__" / "chart.test.ts"
+
+    def test_route_is_get_only_session_guarded(self):
+        text = self.ROUTE.read_text(encoding="utf-8")
+        self.assertIn("requireSession", text)
+        self.assertIn('ApiError.methodNotAllowed(["GET"])', text)
+
+    def test_component_geometry_is_pure_market_coordinates(self):
+        text = self.COMPONENT.read_text(encoding="utf-8")
+        # x from bar open-time index, y from price; no wall clock/randomness.
+        self.assertIn("chartGeometry", text)
+        self.assertNotIn("Date.now()", text)
+        self.assertNotIn("Math.random", text)
+        # Stale visibility contract.
+        self.assertIn("Stale data", text)
+        # Overlays drawn from stored levels.
+        for token in ("referencePrice", "stopLoss", "takeProfit"):
+            self.assertIn(token, text)
+
+    def test_no_tradingview_embed_or_scrape(self):
+        """Prompt non-goal: no TradingView embedding/scraping anywhere."""
+        for root in (BACKEND_SRC, FRONTEND_SRC):
+            for path in root.rglob("*.ts*"):
+                if "node_modules" in path.parts or ".next" in path.parts:
+                    continue
+                self.assertIsNone(
+                    re.search(r"(?i)tradingview", path.read_text(encoding="utf-8")),
+                    f"tradingview reference in {path}",
+                )
+
+    def test_chart_tests_cover_required_cases(self):
+        text = self.TEST.read_text(encoding="utf-8")
+        for required in (
+            "grid-aligned",  # coordinates match market timestamps
+            "levels come from stored signal fields",
+            "stale",  # stale visibly marked
+            "unknown decisionId",  # missing input
+            "malformed",  # malformed input
+            "determinism",  # deterministic render input
+        ):
+            self.assertIn(required, text)
+
+
 if __name__ == "__main__":
     unittest.main()
 

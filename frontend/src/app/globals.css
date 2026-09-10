@@ -465,3 +465,71 @@ a:focus-visible {
 .fdb-card {
   overflow-x: auto;
 }
+
+/* Chart & overlays (P07-04) ---------------------------------------------- */
+
+.fdb-chart {
+  margin: 0;
+}
+
+.fdb-chart svg {
+  display: block;
+  background: var(--fdb-surface-strong);
+  border: 1px solid var(--fdb-border);
+  border-radius: 0.5rem;
+}
+
+.fdb-chart__stale {
+  color: #f5b759;
+  font-size: var(--fdb-step--1);
+  margin-bottom: var(--fdb-space-2);
+}
+
+.fdb-chart__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fdb-space-3);
+  color: var(--fdb-fg-muted);
+  font-size: var(--fdb-step--1);
+  margin-top: var(--fdb-space-2);
+}
+
+.fdb-chart__level {
+  stroke-width: 1.5;
+}
+
+.fdb-chart__level--ref {
+  stroke: var(--fdb-accent);
+}
+
+.fdb-chart__level--sl {
+  stroke: var(--fdb-danger);
+}
+
+.fdb-chart__level--tp {
+  stroke: var(--fdb-ok);
+}
+
+.fdb-candle--up .fdb-candle__wick {
+  stroke: var(--fdb-ok);
+}
+
+.fdb-candle--up .fdb-candle__body {
+  fill: var(--fdb-ok);
+}
+
+.fdb-candle--down .fdb-candle__wick {
+  stroke: var(--fdb-danger);
+}
+
+.fdb-candle--down .fdb-candle__body {
+  fill: var(--fdb-danger);
+}
+
+.fdb-chart__marker--long {
+  fill: var(--fdb-ok);
+}
+
+.fdb-chart__marker--short {
+  fill: var(--fdb-danger);
+}

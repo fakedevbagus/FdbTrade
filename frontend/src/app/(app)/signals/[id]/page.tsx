@@ -14,8 +14,10 @@ import type { JSX } from "react";
 import { cookies } from "next/headers";
 
 import { ErrorState, FreshnessBadge } from "@/components/ui";
+import { CandleChart } from "@/components/chart/CandleChart";
 import { latestAsOfUtc } from "@/lib/scanner";
 import { fetchSignalDetail, type SignalDetailViewData } from "@/lib/signal-detail";
+import { fetchSignalChart } from "@/lib/signal-chart";
 
 export const metadata: Metadata = {
   title: "Signal detail",
@@ -47,6 +49,7 @@ export default async function SignalDetailPage({
   const asOfUtc = await latestAsOfUtc();
 
   const result = await fetchSignalDetail(id, asOfUtc, cookie);
+  const chartResult = await fetchSignalChart(id, asOfUtc, cookie);
   if (!result.ok) {
     return (
       <div className="fdb-page">
@@ -283,6 +286,55 @@ export default async function SignalDetailPage({
             Every vote is preserved verbatim from the evaluation (evidence is
             never hidden — ADR-0018).
           </p>
+        </section>
+
+        <section className="fdb-card" aria-labelledby="sd-chart">
+          <h2 id="sd-chart">Chart &amp; overlays</h2>
+          {chartResult.ok ? (
+            <>
+              <CandleChart
+                bars={chartResult.data.bars}
+                levels={chartResult.data.levels}
+                markers={chartResult.data.markers}
+                stale={chartResult.data.stale}
+              />
+              <p className="fdb-page__lead">
+                Bars are fixture candles with UTC open times; overlays sit at
+                the stored entry/SL/TP prices; the marker sits on the decision
+                bar&apos;s open time.
+              </p>
+              <h3>Feature / context panel</h3>
+              {chartResult.data.features.length === 0 ? (
+                <p className="fdb-empty">
+                  No directional signal inputs (WAIT decision) — the panel shows
+                  only regime context.
+                </p>
+              ) : (
+                <table className="fdb-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Feature</th>
+                      <th scope="col">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {chartResult.data.features.map((f) => (
+                      <tr key={f.featureId}>
+                        <td>{f.featureId}</td>
+                        <td>{f.value === null ? "—" : String(f.value)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </>
+          ) : (
+            <ErrorState
+              title="Chart unavailable"
+              message={chartResult.error}
+              hint="The detail tables below remain fully accurate."
+            />
+          )}
         </section>
 
         <section className="fdb-card" aria-labelledby="sd-performance">
