@@ -401,3 +401,67 @@ a:focus-visible {
 .fdb-button:hover {
   filter: brightness(1.1);
 }
+
+/* Command-center surfaces (P07-01) ---------------------------------------- */
+
+.fdb-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fdb-step--1);
+  font-variant-numeric: tabular-nums;
+}
+
+.fdb-table th,
+.fdb-table td {
+  text-align: left;
+  padding: var(--fdb-space-1) var(--fdb-space-2);
+  border-bottom: 1px solid var(--fdb-border);
+  white-space: nowrap;
+}
+
+.fdb-table th {
+  color: var(--fdb-fg-muted);
+  font-weight: 600;
+}
+
+.fdb-badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0 var(--fdb-space-2);
+  font-size: var(--fdb-step--1);
+  border: 1px solid var(--fdb-border);
+}
+
+.fdb-badge--ok {
+  color: var(--fdb-ok);
+  border-color: var(--fdb-ok);
+}
+
+.fdb-badge--warn {
+  color: #f5b759;
+  border-color: #f5b759;
+}
+
+.fdb-badge--danger {
+  color: var(--fdb-danger);
+  border-color: var(--fdb-danger);
+}
+
+.fdb-row--stale td {
+  color: var(--fdb-fg-muted);
+}
+
+.fdb-list {
+  margin: 0;
+  padding-left: var(--fdb-space-4);
+  font-size: var(--fdb-step--1);
+}
+
+.fdb-list--errors {
+  color: var(--fdb-danger);
+}
+
+/* Wide tables scroll horizontally on narrow viewports (responsive). */
+.fdb-card {
+  overflow-x: auto;
+}
