@@ -289,6 +289,65 @@ class ChartOverlayContract(unittest.TestCase):
             self.assertIn(required, text)
 
 
+class AlertCenterContract(unittest.TestCase):
+    """P07-05 alert-center contracts (idempotent, non-blocking delivery)."""
+
+    ALERTS = BACKEND_SRC / "signals" / "alerts.ts"
+    PREFS_ROUTE = BACKEND_SRC / "app" / "api" / "alerts" / "preferences" / "route.ts"
+    EVENTS_ROUTE = BACKEND_SRC / "app" / "api" / "alerts" / "events" / "route.ts"
+    PAGE = FRONTEND_SRC / "app" / "(app)" / "alerts" / "page.tsx"
+    TEST = BACKEND_SRC / "signals" / "__tests__" / "alerts.test.ts"
+
+    def test_core_has_idempotent_dispatch_and_noop_provider(self):
+        text = self.ALERTS.read_text(encoding="utf-8")
+        for token in (
+            "alertEventIdFor",
+            "noopAlertDelivery",
+            "AlertCenter",
+            "idempotent",
+        ):
+            self.assertIn(token, text)
+        # No wall clock / randomness in dispatch logic.
+        self.assertNotIn("Date.now()", text)
+        self.assertNotIn("Math.random", text)
+        # No WhatsApp automation (prompt non-goal).
+        self.assertNotRegex(text, r"(?i)whatsapp")
+
+    def test_failure_surfaced_never_blocking(self):
+        text = self.TEST.read_text(encoding="utf-8")
+        self.assertRegex(text, r"(?i)without\s+blocking")
+        self.assertIn("dispatch never throws", text)
+
+    def test_routes_are_session_guarded(self):
+        for route in (self.PREFS_ROUTE, self.EVENTS_ROUTE):
+            text = route.read_text(encoding="utf-8")
+            self.assertIn("requireSession", text)
+
+    def test_events_route_is_read_only(self):
+        text = self.EVENTS_ROUTE.read_text(encoding="utf-8")
+        self.assertIn('ApiError.methodNotAllowed(["GET"])', text)
+
+    def test_page_surfaces_preferences_and_event_log(self):
+        text = self.PAGE.read_text(encoding="utf-8")
+        self.assertIn("AlertPreferencesForm", text)
+        self.assertIn("Alert events", text)
+        # Failures surfaced with their reason.
+        self.assertIn("lastError", text)
+        # Idempotency honesty note.
+        self.assertRegex(text, r"idempotent")
+
+    def test_no_execution_logic_in_alert_sources(self):
+        forbidden = re.compile(
+            r"(?i)(submit\s*order|place\s*order|send\s*order|metatrader|\bmt5\b"
+            r"|\bbroker\b|order\s*api)"
+        )
+        for path in (self.ALERTS, self.PREFS_ROUTE, self.EVENTS_ROUTE, self.PAGE):
+            self.assertIsNone(
+                forbidden.search(path.read_text(encoding="utf-8")),
+                f"forbidden trading token in {path}",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
 
