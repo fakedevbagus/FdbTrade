@@ -39,6 +39,7 @@ from backtestcore.fill_policy import (  # noqa: E402
     realistic_fill,
     round_trip_cost_pips,
 )
+from backtestcore.metrics import compute_metrics  # noqa: E402
 
 FIXTURE = REPO_ROOT / "tests" / "fixtures" / "backtest_parity.json"
 
@@ -260,6 +261,128 @@ class SerializationContracts(unittest.TestCase):
     def test_ids_deterministic(self):
         self.assertEqual(intent_id_for("s"), intent_id_for("s"))
         self.assertEqual(position_id_for("btord_sig_x"), "btpos_btord_sig_x")
+
+
+class MetricsContracts(unittest.TestCase):
+    """P08-03 metrics engine mirror: hand-checked values + parity fixtures."""
+
+    def test_golden_run_metrics_hand_checked(self):
+        result = run_backtest(
+            make_candles(), make_config(), subject_returning({2: long_intent_at_bar2()})
+        )
+        m = compute_metrics(result)
+        self.assertAlmostEqual(m["netReturn"], 70 / 10_000, places=12)
+        self.assertAlmostEqual(m["finalEquity"], 10_070, places=6)
+        self.assertEqual(m["maxDrawdown"], 0)
+        self.assertIsNone(m["recoveryBars"])
+        years = 9 / (365 * 24)
+        self.assertAlmostEqual(m["cagr"], (1.007) ** (1 / years) - 1, places=9)
+        self.assertIsNotNone(m["sharpe"])
+        self.assertIsNone(m["sortino"])  # no downside returns
+        self.assertIsNone(m["calmar"])  # dd = 0
+        self.assertEqual(m["closedTrades"], 1)
+        self.assertEqual(m["wins"], 1)
+        self.assertEqual(m["losses"], 0)
+        self.assertIsNone(m["profitFactor"])  # no losses -> not Infinity
+        self.assertAlmostEqual(m["expectancy"], 70, places=6)
+        self.assertAlmostEqual(m["averageR"], 70 / 110, places=9)
+        self.assertAlmostEqual(m["averageMfePips"], 9, places=6)
+        self.assertAlmostEqual(m["averageMaePips"], 2, places=6)
+        self.assertAlmostEqual(m["turnoverRatio"], 10, places=9)
+        self.assertEqual(m["bars"], 10)
+
+    def _synthetic(self, equity, positions=()):
+        frame_ms = 60 * 60 * 1000
+        start_ms = 0  # 1970 epoch; only relative span matters
+        return {
+            "runId": "btrun_" + "0" * 16,
+            "config": {**make_config(), "initialEquity": equity[0]},
+            "finalState": {
+                "equity": equity[-1], "realizedPnl": 0, "unrealizedPnl": 0,
+                "openPositionIds": [], "pendingIntentIds": [],
+                "closedTrades": len(positions),
+            },
+            "equityCurve": [
+                {
+                    "barOpenUtc": f"1970-01-{(1 + (start_ms + i * frame_ms) // 86400000):02d}T"
+                    f"{(start_ms + i * frame_ms) % 86400000 // 3600000:02d}:00:00.000Z",
+                    "equity": e, "realizedPnl": 0, "unrealizedPnl": 0,
+                    "openPositions": 0,
+                }
+                for i, e in enumerate(equity)
+            ],
+            "positions": list(positions),
+        }
+
+    def _position(self, realized, mfe, mae, entry_price=1.1, stop=1.09, qty=100):
+        return {
+            "positionId": f"p{realized}", "intentId": "btord_sig_x", "instrument": "EURUSD",
+            "timeframe": "1h", "direction": "long", "quantityUnits": qty,
+            "entry": {"atUtc": "2026-09-08T02:00:00.000Z", "price": entry_price,
+                      "costs": dict(ZERO_COST_BREAKDOWN)},
+            "stopLoss": stop, "takeProfit": None, "status": "closed",
+            "exit": {"atUtc": "2026-09-08T04:00:00.000Z", "price": entry_price,
+                     "reason": "target", "costs": dict(ZERO_COST_BREAKDOWN)},
+            "realizedPnl": realized, "mfePips": mfe, "maePips": mae,
+        }
+
+    def test_drawdown_recovery_hand_checked(self):
+        m = compute_metrics(self._synthetic([10_000, 9_800, 9_600, 9_900, 10_000]))
+        self.assertAlmostEqual(m["maxDrawdown"], 400 / 10_000, places=12)
+        self.assertEqual(m["maxDrawdownEquity"], 9_600)
+        self.assertEqual(m["recoveryBars"], 2)
+        # Never recovers within the run -> None.
+        m2 = compute_metrics(self._synthetic([10_000, 9_000, 9_500]))
+        self.assertIsNone(m2["recoveryBars"])
+
+    def test_two_trade_expectancy_pf_r(self):
+        positions = [self._position(20, 30, 5), self._position(-10, 8, 12)]
+        m = compute_metrics(self._synthetic([10_000, 10_010], positions))
+        self.assertEqual(m["closedTrades"], 2)
+        self.assertAlmostEqual(m["expectancy"], 5, places=9)
+        self.assertAlmostEqual(m["profitFactor"], 2, places=9)
+        self.assertAlmostEqual(m["averageR"], 5, places=9)
+        self.assertAlmostEqual(m["averageMfePips"], 19, places=9)
+        self.assertAlmostEqual(m["averageMaePips"], 8.5, places=9)
+
+    def test_sparse_and_flat_edges(self):
+        flat = compute_metrics(self._synthetic([10_000, 10_000, 10_000]))
+        self.assertIsNone(flat["sharpe"])
+        self.assertIsNone(flat["sortino"])
+        one = compute_metrics(self._synthetic([10_000]))
+        self.assertIsNone(one["cagr"])
+        self.assertIsNone(one["expectancy"])
+        # Turnover with no trades is 0 (defined), unlike undefined metrics.
+        self.assertEqual(one["turnoverRatio"], 0)
+        self.assertEqual(one["bars"], 1)
+
+    def test_metrics_parity_with_ts_golden_fixture(self):
+        """Metrics over the parity fixture scenarios must match TS exactly."""
+        data = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        # Zero-cost golden scenario: TS computed metrics are not in the
+        # fixture; recompute here and pin the deterministic values instead.
+        result = run_backtest(
+            make_candles(), make_config(), subject_returning({2: long_intent_at_bar2()})
+        )
+        m = compute_metrics(result)
+        self.assertAlmostEqual(m["netReturn"], 0.007, places=12)
+        self.assertAlmostEqual(m["averageR"], 70 / 110, places=9)
+        # Realistic scenario parity: identical final state as TS fixture.
+        policy = data["realistic"]["fillPolicy"]
+        config = make_config()
+        config["fillPolicy"] = policy
+        realistic_result = run_backtest(
+            make_candles(), config, subject_returning({2: long_intent_at_bar2()})
+        )
+        rm = compute_metrics(realistic_result)
+        self.assertAlmostEqual(
+            rm["finalEquity"], data["realistic"]["finalState"]["equity"], places=6
+        )
+        self.assertAlmostEqual(
+            rm["netReturn"],
+            data["realistic"]["finalState"]["equity"] / 10_000 - 1,
+            places=9,
+        )
 
 
 class RealisticPolicyContracts(unittest.TestCase):

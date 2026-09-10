@@ -32,3 +32,8 @@ from .engine import (  # noqa: F401
     BacktestEngineError,
     run_backtest,
 )
+from .metrics import (  # noqa: F401
+    METRICS_ENGINE_ID,
+    METRICS_ENGINE_VERSION,
+    compute_metrics,
+)
