@@ -1,204 +1,149 @@
 # Completion Report
 
-Prompt ID: P08_Backtest_Engine (P08-01 through P08-05, executed in required order)
-Phase: P8 Backtest Engine
-Date/time UTC: 2026-09-10T21:30Z
-Branch/commit: main / five focused commits (P08-01..P08-05)
+Prompt ID: P09_Research_Lab (P09-01 through P09-05, executed in required order)
+Phase: P9 Research Lab
+Date/time UTC: 2026-09-11T15:00Z
+Branch/commit: main / P09 research-lab commit (this change)
 
 ## What changed
 
-The P8 Backtest Engine phase is complete: the event-driven backtest model
-with deterministic replay and zero-cost placeholder fill policy (P08-01,
-ADR-0019), the realistic fill/cost model (P08-02), the metrics engine
-(P08-03), the golden backtest fixtures (P08-04) and the backtest API + run
-artifacts (P08-05). The phase gate "Event-driven replay + realistic costs +
-golden run" is satisfied and `make check` is green (lint + typecheck + full
-test suite + build for every package).
+The P9 Research Lab phase is complete: deterministic time splits (P09-01),
+walk-forward evaluation over the frozen P08 engine (P09-02), purged/embargoed
+validation index math (P09-03), stress scenarios + seeded Monte Carlo
+diagnostics with historical/stressed labeling (P09-04), and the strategy
+promotion registry with evidence gates (P09-05). ADR-0020 recorded.
+Lint + typecheck + full test suites + build are green for every package
+(Python suite: 476 tests OK).
 
-### P08-01 — Event-driven backtest model (ADR-0019)
-- `contracts/src/backtest/contract.ts` (exported via the package index):
-  strict schemas — order intents (derived from canonical signals, full
-  lineage, direction-consistent levels, grid-aligned event/expiry), fills
-  (explicit per-fill cost breakdown), positions (entry/exit, MFE/MAE in
-  pips, realized PnL), fill policy (latency >= 1, cost fields >= 0,
-  maxFillFraction in (0,1], frozen stop-first exit priority), run config
-  (period/equity/warmup/policy/subject/seed), append-only event log,
-  equity-curve points, final state and the full run result. Deterministic
-  ids (`btord_{signalId}`, `btpos_{intentId}`, `btrun_` + 16 hex of the
-  config hash) and canonical serializations (config/equity/trades) that
-  are byte-identical with the Python mirror.
-- `backend/src/backtest/engine.ts`: deterministic bar-replay with a FROZEN
-  per-bar event order (intent expiry -> entry fills -> exits -> MFE/MAE ->
-  mark -> subject evaluation). No look-ahead by construction (subjects see
-  candles [0..i] only; market fills happen `latencyBars` >= 1 bars later);
-  conservative stop-first intra-bar rule; admission rejections
-  (`position_open` / `intent_pending`) are event-logged, never silent;
-  end-of-run force-close (`end_of_run`); session gaps are absent bars, no
-  invented data. P08-01 ships the labeled `next-bar-open` ZERO-COST
-  placeholder policy (clearly identifiable via the policy id).
-- Python mirrors `quant/backtestcore/contract.py` + `engine.py` and the
-  cross-layer parity fixture `tests/fixtures/backtest_parity.json`.
-- ADR-0019 recorded; ADR index + CI KNOWN_ADRS updated.
+### P09-01 - Deterministic time splits (ADR-0020 section 1)
+- `contracts/src/research/splits.ts`: strict schemas (range/request/plan),
+  `planResearchSplit` (floor train/validate sizes, leftover bars to TEST,
+  gaps carved AFTER sizing), `barsOfSection`, byte-identical canonical
+  serialization for hashing. Fail-closed on ratio sums != 1, empty
+  sections, and starvation by gaps/minSectionBars.
+- Python mirror `quant/research/splits.py` (same planner semantics, same
+  canonical string, verified byte-identical by tests).
 
-### P08-02 — Realistic fill/cost model
-- `backend/src/backtest/fillPolicy.ts` (+ Python mirror
-  `quant/backtestcore/fill_policy.py`): half-spread per fill side, adverse
-  slippage per fill, round-trip commission split per side (charged on
-  notional and subtracted from realized PnL explicitly — never embedded
-  in the fill price), deterministic partial-fill cap
-  (`maxFillFraction` of the ORIGINAL request per bar) with same-position
-  VWAP scale-in, explicit bar-close semantics (closed-bar triggers, fill
-  dated at the triggering bar's open time).
-- Engine dispatches by policy id (`next-bar-open` | `realistic`); every
-  fill carries its cost breakdown; the run config (and therefore every
-  manifest) echoes the complete cost assumptions verbatim — costs are
-  configurable and VISIBLE in run metadata, unit-tested.
-- Parity fixture extended with a realistic golden scenario (partial fills,
-  VWAP entry, per-fill costs) — TS and Python byte-identical.
+### P09-02 - Walk-forward evaluation (ADR-0020 section 2)
+- `contracts/src/research/walkforward.ts`: rolling/expanding folds,
+  forward-only, non-overlapping test segments, purged gap bars between
+  train and test, `minFolds` gate, canonical serialization.
+- `backend/src/research/walkforwardRunner.ts`: fold slicing over the P08
+  engine (fold-scoped run configs keep the full attribution chain;
+  closed-world slices per fold - no look-ahead across folds), per-fold
+  metrics + median-OOS-net-return / worst-drawdown summary. No
+  optimization - one fixed subject per call.
+- Python mirror `quant/research/walkforward.py`.
 
-### P08-03 — Metrics engine
-- `backend/src/backtest/metrics.ts` (+ Python mirror
-  `quant/backtestcore/metrics.py`): net return, CAGR (annualized over the
-  equity-curve span), max drawdown + recovery bars, Sharpe/Sortino
-  (annualized per-bar returns), Calmar, expectancy, profit factor,
-  average R (mean PnL / mean stop-distance risk), average MFE/MAE, turnover
-  ratio. Divisions-by-zero and sparse data yield explicit nulls — never a
-  fabricated 0, never Infinity; every metric is emitted for every run (no
-  cherry-picked fields). Hand-checked fixture tests pin the arithmetic.
+### P09-03 - Purged/embargoed validation (ADR-0020 section 3)
+- `contracts/src/research/purge.ts` (+ mirror `quant/research/purge.py`):
+  horizon-based train purge (bars whose [bar, bar+horizonBars) label
+  window touches the test range are dropped) plus the post-test embargo
+  tail (embargoBars after each test range). Pure deterministic index math;
+  forward-only gate enforced.
 
-### P08-04 — Golden backtest fixtures
-- Hand-authored 20-bar EURUSD dataset (rise -> collapse -> fall -> rally)
-  with a scripted subject producing KNOWN signals (long stop-out, short
-  stop-out, never-filled limit pending at end), KNOWN fills and hand-checked
-  metrics (2 losses, PF 0, expectancy -10).
-- Committed `tests/fixtures/backtest_golden.json`: dataset digest, run ids
-  for BOTH fill policies, canonical equity/trade serializations + sha256
-  digests and the full metrics block.
-- Regression gate: any engine/contract/cost change that alters golden
-  outputs outside documented tolerances fails the TS tests AND the Python
-  mirror (`GoldenFixtureContracts`); tolerance-free invariant "realistic
-  costs more than zero-cost" is asserted. No live data required.
+### P09-04 - Stress testing + Monte Carlo (ADR-0020 section 4)
+- `contracts/src/research/stress.ts` (+ mirror `quant/research/stress.py`):
+  multiplier-resolved scenarios (spread/slippage/commission multipliers +
+  extra latency bars) always labeled `stressed`; historical results stay
+  `historical` so the two can never be confused. Shared FNV-1a + LCG
+  `seededShuffle` produces the SAME permutation in TS and Python;
+  cumulative-path max drawdown and block-reshuffle Monte Carlo with
+  sample bounds (1..10000) and full seed provenance.
 
-### P08-05 — Backtest API and run artifacts
-- `backend/src/backtest/runStore.ts`: run manifest — subject lineage
-  (strategy versions), dataset id + digest, config hash (sha256 of the
-  canonical config serialization), verbatim cost assumptions, engine +
-  metrics-engine versions, seed, the complete metrics block and artifact
-  digests. Filesystem store (`<runId>.json` under the gitignored
-  `artifacts/backtest-runs`): idempotent save (same content no-op,
-  different content under the same id fails closed), reopen revalidates
-  the strict result schema and recomputes EVERY digest (config hash,
-  dataset digest, equity/trade digests) + engine identity — a reopened
-  run is fully attributed to its exact inputs or fails closed.
-- `backend/src/backtest/api.ts` + `apiSchema.ts`: deterministic end-to-end
-  service (fixture-provider candles -> engine -> metrics -> manifest ->
-  store -> reopen). The only served subject today is the documented `noop`
-  placeholder (real strategy subjects arrive with P9 research lab — the
-  engine surface they need is frozen and tested here).
-- `POST /api/backtest/runs` (execute + persist, idempotent), `GET
-  /api/backtest/runs` (list manifests), `GET /api/backtest/runs/[runId]`
-  (reopen + metrics) — session-guarded, strict zod boundary, fail-closed
-  validation, 405 on write-method misuse. No optimization UI (non-goal).
+### P09-05 - Strategy promotion registry (ADR-0020 section 5)
+- `contracts/src/research/promotion.ts` (+ mirror
+  `quant/research/promotion.py`): candidate -> challenger -> champion
+  lifecycle with rejected/retired absorbing terminals. Promotion to
+  challenger/champion requires the sha256-pinned evidence bundle (split /
+  walk-forward / purge / stress hashes + OOS metrics); transitions are
+  append-only and strictly UTC-ascending; the rollback pointer
+  (`previousChampionId`) records the prior champion. No order authority
+  anywhere (ADR-0005 upheld) - promotion is a research label, never an
+  execution trigger.
 
 ## Files changed
 
-- contracts: `src/backtest/contract.ts` (new), `src/index.ts`,
-  `src/__tests__/backtest-contract.test.ts` (new)
-- backend: `src/backtest/{engine,fillPolicy,metrics,runStore,api,
-  apiSchema,storeDir}.ts` (new), `src/backtest/__tests__/{helpers,engine,
-  fillPolicy,metrics,golden,runStore,api,parity}.test.ts` (new),
-  `src/app/api/backtest/runs/route.ts` (new),
-  `src/app/api/backtest/runs/[runId]/route.ts` (new),
-  `src/app/api/backtest/runs/__tests__/route.test.ts` (new)
-- quant: `backtestcore/{__init__,contract,engine,fill_policy,metrics}.py`
-  (new)
-- tests: `test_backtest_engine_contracts.py` (new), fixtures
-  `backtest_parity.json`, `backtest_golden.json` (new)
-- docs: `docs/adr/ADR-0019-event-driven-backtest-engine.md` (new),
-  `docs/adr/README.md` (index), `tests/test_ci_contracts.py` (KNOWN_ADRS),
-  `quant/README.md`
-- No unrelated files modified.
+- `contracts/src/research/` (new): `splits.ts`, `walkforward.ts`,
+  `purge.ts`, `stress.ts`, `promotion.ts`
+- `contracts/src/index.ts` (research barrel exports)
+- `contracts/src/__tests__/research-lab-a.test.ts` (new: 4 tests),
+  `research-lab-b.test.ts` (new: 5 tests)
+- `quant/research/` (new): `__init__.py`, `splits.py`, `walkforward.py`,
+  `purge.py`, `stress.py`, `promotion.py`
+- `quant/README.md` (research section)
+- `backend/src/research/walkforwardRunner.ts` (new),
+  `backend/src/research/__tests__/walkforward.test.ts` (new: 2 tests)
+- `tests/test_research_lab.py` (new: 10 tests)
+- `tests/test_ci_contracts.py` (KNOWN_ADRS + ADR-0020 entry)
+- `docs/adr/ADR-0020-research-lab-validation-gates.md` (new),
+  `docs/adr/README.md` (index)
+- `COMPLETION_REPORT.md` (this report)
 
 ## Tests executed
 
-- `make check` (root): green — lint + typecheck + test + build across all
-  packages, plus the Python stdlib suite.
-- contracts vitest: 113 passed (incl. 6 new backtest-contract cases).
-- backend vitest: 536 passed (incl. 51 new backtest cases).
-- Python stdlib: 466 passed (incl. 29 backtest mirror + parity + golden
-  cases).
-- During the run, an unrelated local process held port 3000 and broke the
-  `make start` smoke test (environment, not code); it was terminated and
-  the test re-verified green.
+- `python3 -m unittest discover -s tests -p 'test_*.py'`: 476 tests, OK
+  (includes the new `test_research_lab` 10/10 and the updated
+  `test_ci_contracts` ADR gate).
+- `contracts` vitest: 11 files / 122 tests passed (includes
+  research-lab-a 4/4 and research-lab-b 5/5).
+- `backend` vitest: 61 files / 538 tests passed (includes the walk-forward
+  runner 2/2).
+- `pnpm -r run lint`: clean. `pnpm -r run typecheck`: clean.
+  `pnpm -r run build`: clean (Next build with all API routes).
 
 ## Acceptance criteria
 
-- [x] P08-01: same dataset/version/seed reproduces the same results —
-      determinism pinned by engine tests + parity fixtures (byte-identical
-      TS/Python runs, run-id idempotency, run-id sensitivity to every
-      config field).
-- [x] P08-02: cost model configurable, visible in run metadata (run config
-      echoed verbatim in every result + manifest) and unit-tested
-      (geometry, commission split, partial fills, config guards, golden
-      engine integration).
-- [x] P08-03: metrics match hand-checked fixtures; divisions-by-zero and
-      sparse data handled with explicit nulls (tested flat curve, single
-      point, zero variance, no-loss, no-downside edges).
-- [x] P08-04: golden regression suite blocks changes that alter results
-      outside documented tolerances — dataset digest, run ids, canonical
-      serializations + sha256 digests and the metrics block are committed;
-      both TS tests and the Python mirror enforce them; zero tolerance by
-      design (deterministic engine).
-- [x] P08-05: a backtest run can be reopened and fully attributed to exact
-      inputs — reopen verifies config hash, dataset digest, equity/trade
-      digests, engine identity and strict schema revalidation; tampering
-      tests prove fail-closed behavior.
-- [x] Relevant tests pass from a clean environment — `make check` green.
-- [x] Lint/typecheck/build clean for all affected packages.
-- [x] No unrelated files modified.
-- [x] Completion report written (this file, mirrored in 02_REPORTS/).
+- [x] P09-01: deterministic, non-overlapping, chronological splits with
+      configurable gaps; golden boundaries hand-checked; malformed input
+      fails closed.
+- [x] P09-02: rolling/expanding walk-forward over the frozen engine with
+      per-fold metrics and a reproducible summary; no look-ahead across
+      folds (closed-world slices proven by tests).
+- [x] P09-03: purge/embargo drops horizon-leaking bars deterministically;
+      the forward-only gate is enforced.
+- [x] P09-04: stress scenarios resolve explicit cost/latency assumptions
+      and are labeled `stressed`; Monte Carlo is seeded/deterministic with
+      drawdown diagnostics; historical vs stressed can never be confused.
+- [x] P09-05: promotion requires pinned evidence; the lifecycle has no
+      skips or resurrections; rollback pointer recorded; no execution
+      authority (ADR-0005).
+- [x] Relevant tests pass from a clean environment; lint/typecheck/build
+      clean; no unrelated files modified.
+- [x] Completion report written (this file).
 
 ## Known limitations / blockers
 
-- The API serves only the documented `noop` subject (zero trades) — wiring
-  the P5 baseline strategies bar-by-bar (regime context + ensemble per
-  bar) is P9 research-lab work; the engine/contract surface they need is
-  frozen and fully tested with scripted subjects.
-- MFE/MAE are per-position aggregates over closed bars; intra-bar
-  excursion sequencing is not modeled (documented, conservative).
-- Partial fills use a deterministic per-bar cap (maxFillFraction of the
-  original request); stochastic fill policies remain future work (the
-  recorded seed enables attribution when they arrive).
-- The run store is a local filesystem directory (gitignored scratch);
-  durable/DB storage is a later-phase decision (the manifest format and
-  digests are the stable surface).
-- The killed port-3000 process belonged to an unrelated local project
-  (`node apps/web/server.mjs`); flagged for transparency.
+- The walk-forward runner evaluates TEST folds only; the train-range
+  fitting step is a future concern (no optimizer exists yet by design -
+  the blueprint forbids optimization before the validation gates are
+  stable).
+- Monte Carlo reshuffles per-trade PnL blocks; full equity-path
+  resampling with per-fill cost re-application is future work.
+- Seeds are recorded provenance; the deterministic core consumes them
+  only through the documented FNV/LCG shuffle stream.
+- The P09 contracts are library-level (splits/walk-forward/purge/stress
+  are pure functions); no new HTTP endpoints were added - the P08 API
+  boundary is untouched.
 
 ## Follow-up required before next prompt
 
-None blocking. The P8 phase gate ("Event-driven replay + realistic costs +
-golden run") is satisfied.
+None blocking. The P9 phase gate ("WFO/OOS/stress/Monte Carlo and
+promotion registry") is satisfied.
 
 ## Risk notes
 
-Quant: no look-ahead by construction (closed-world slices proven by tests);
-latency >= 1 enforced (zero-latency fills rejected); intra-bar ambiguity
-resolves conservatively (stop-first); transaction costs are mandatory and
-carried per fill with explicit breakdowns; zero-cost runs are labeled via
-the policy id, never silently free; metrics emit explicit nulls instead of
-fabricated numbers; every displayed metric maps to the frozen P08-03
-computation. Determinism: the engine is a pure function of its inputs; the
-seed is recorded provenance the deterministic core never consumes.
-Security: no secrets in source/fixtures/run artifacts (run store is a local
-gitignored directory); API routes are session-guarded with strict zod
-validation at the boundary; structured errors never leak internals; the
-safety scanners (execution tokens, secrets) run in CI and stay green.
-Trading safety: the engine never contacts any execution layer; it is a
-simulation only (ADR-0003/0005); live execution remains OFF; strategy ->
-signal -> risk -> execution boundaries untouched.
+Quant: forward-only everywhere (splits, folds, purge); gaps/embargoes are
+counted in explicit bars, never invented; costs stay mandatory underneath
+(the walk-forward runner drives the P08 engine with real fill policies);
+metrics emit nulls, never fabricated numbers; stressed outputs cannot
+masquerade as historical (kind label). Security: no secrets in source or
+fixtures; strict zod/datacore validation at every boundary; the CI ADR
+gate was updated for ADR-0020. Trading safety: research never contacts an
+execution layer (ADR-0003/0005); promotion is a label, not a trigger;
+live execution remains OFF.
 
 ## Next prompt (safe to run)
 
-`01_PROMPTS/P09_Research_Lab/` — WFO/OOS/stress/Monte Carlo and the
-promotion registry, per `00_CONTROL/RUN_ORDER.md` (P8 gate passed).
+P10 Paper Broker - realistic paper broker and reconciliation, per
+`00_CONTROL/RUN_ORDER.md` (P9 gate passed).

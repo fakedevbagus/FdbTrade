@@ -58,6 +58,7 @@ KNOWN_ADRS = {
     17: "canonical-strategy-interface-and-signal-contract",
     18: "ensemble-decision-contract-and-evidence-preservation",
     19: "event-driven-backtest-engine",
+    20: "research-lab-validation-gates",
 }
 
 

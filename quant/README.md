@@ -20,6 +20,21 @@ no pip/precision literals.
 
 Backtest engine lands in P08; research lab in P09.
 
+## research/ (P09, ADR-0020)
+
+Stdlib mirror of `contracts/src/research`:
+
+- `splits.py` — deterministic train/validate/test partition with purge
+  gaps (P09-01); byte-identical canonical serialization.
+- `walkforward.py` — rolling/expanding folds, forward-only (P09-02).
+- `purge.py` — horizon-based train purge + embargo tail (P09-03).
+- `stress.py` — multiplier scenarios, seeded shuffle + block Monte Carlo
+  (P09-04; stressed outputs always labeled `stressed`).
+- `promotion.py` — candidate/challenger/champion lifecycle with evidence
+  gates (P09-05; no order authority, ADR-0005).
+
+Covered by `tests/test_research_lab.py` (mirrors the TS suites).
+
 ## backtestcore/ (P08-01)
 
 Stdlib mirror of the event-driven backtest contracts and engine

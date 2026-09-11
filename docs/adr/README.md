@@ -80,3 +80,4 @@ not used.
 | [ADR-0017](ADR-0017-canonical-strategy-interface-and-signal-contract.md) | Canonical strategy interface and signal contract v2 | Accepted |
 | [ADR-0018](ADR-0018-ensemble-decision-contract-and-evidence-preservation.md) | Ensemble decision contract and auditable evidence preservation | Accepted |
 | [ADR-0019](ADR-0019-event-driven-backtest-engine.md) | Event-driven backtest engine and run-result contract | Accepted |
+| [ADR-0020](ADR-0020-research-lab-validation-gates.md) | Research-lab validation gates and promotion registry | Accepted |

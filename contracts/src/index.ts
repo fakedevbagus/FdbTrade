@@ -22,3 +22,9 @@ export * from "./strategy/interface";
 export * from "./strategy/lifecycle";
 export * from "./ensemble/contract";
 export * from "./backtest/contract";
+export * from "./research/splits";
+export * from "./research/walkforward";
+export * from "./research/purge";
+export * from "./research/stress";
+export * from "./research/promotion";
+
