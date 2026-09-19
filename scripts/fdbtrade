@@ -1,0 +1,456 @@
+#!/usr/bin/env python3
+"""FdbTrade operator CLI (M44).
+
+Stdlib-only, deterministic. Loopback 127.0.0.1.
+LIVE_EXECUTION_ENABLED=false, PROVIDER_ORDER_TRANSPORT_ENABLED=false.
+"""
+
+import argparse, json, os, pathlib, shutil, signal, socket, subprocess, sys, time, urllib.error, urllib.request
+from datetime import datetime, timezone
+
+REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+VENV_DIR = REPO_ROOT / ".venv"
+STATE_FILE = REPO_ROOT / ".fdbtrade" / "state.json"
+
+
+def utc_now_iso():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def log(msg):
+    """Human-readable diagnostics go to stderr so stdout stays machine-parseable."""
+    print(f"[{utc_now_iso()}] {msg}", file=sys.stderr)
+
+
+def preflight(as_json=False):
+    errors = []
+    warnings = []
+    checks = {}
+
+    # Python
+    py_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    checks["python"] = py_version
+    log(f"Python: {py_version}")
+
+    # Node
+    try:
+        result = subprocess.run(["node", "--version"], capture_output=True, text=True, check=True)
+        checks["node"] = result.stdout.strip()
+        log(f"Node: {result.stdout.strip()}")
+    except Exception as e:
+        errors.append(f"Node not found: {e}")
+
+    # npm
+    try:
+        result = subprocess.run(["npm", "--version"], capture_output=True, text=True, check=True)
+        checks["npm"] = result.stdout.strip()
+        log(f"npm: {result.stdout.strip()}")
+    except Exception as e:
+        warnings.append(f"npm not found: {e}")
+
+    # pnpm
+    try:
+        result = subprocess.run(["pnpm", "--version"], capture_output=True, text=True, check=True)
+        checks["pnpm"] = result.stdout.strip()
+        log(f"pnpm: {result.stdout.strip()}")
+    except Exception as e:
+        warnings.append(f"pnpm not found: {e}")
+
+    # Make
+    try:
+        result = subprocess.run(["make", "--version"], capture_output=True, text=True, check=True)
+        checks["make"] = result.stdout.split("\n")[0]
+        log(f"Make: {checks['make']}")
+    except Exception as e:
+        errors.append(f"Make not found: {e}")
+
+    # Bash
+    try:
+        result = subprocess.run(["bash", "--version"], capture_output=True, text=True, check=True)
+        checks["bash"] = result.stdout.split("\n")[0]
+        log(f"Bash: {checks['bash']}")
+    except Exception as e:
+        errors.append(f"Bash not found: {e}")
+
+    # SQLite — report both the CLI binary and the Python stdlib driver, because
+    # the private beta Python side is stdlib-driven and the host binary may be
+    # absent. Availability is reported honestly; it is never assumed.
+    try:
+        result = subprocess.run(["sqlite3", "--version"], capture_output=True, text=True, check=True)
+        checks["sqlite3"] = result.stdout.strip()
+        log(f"SQLite: {checks['sqlite3']}")
+    except Exception:
+        checks["sqlite3"] = "not found"
+        warnings.append("sqlite3 CLI binary not found (Python stdlib sqlite3 module is used instead)")
+
+    try:
+        import sqlite3 as _stdlib_sqlite3
+        checks["python_sqlite"] = _stdlib_sqlite3.sqlite_version
+        log(f"Python sqlite3 module: {_stdlib_sqlite3.sqlite_version}")
+    except Exception as e:
+        checks["python_sqlite"] = "unavailable"
+        errors.append(f"Python sqlite3 module unavailable: {e}")
+
+    # Disk
+    total, used, free = shutil.disk_usage(REPO_ROOT)
+    free_gb = free // (2**30)
+    checks["disk"] = f"{free_gb}GB free"
+    log(f"Disk: {free_gb}GB free")
+    if free_gb < 5:
+        warnings.append(f"Low disk: {free_gb}GB free (>5GB recommended)")
+
+    # Permissions
+    if os.access(REPO_ROOT, os.W_OK):
+        checks["permissions"] = "writable"
+        log("Permissions: writable")
+    else:
+        errors.append("Repo not writable")
+
+    # Ports (loopback only — the private beta never binds a public interface)
+    port_state = {}
+    for port in (3000, 3100, 15432):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        result = sock.connect_ex(("127.0.0.1", port))
+        sock.close()
+        if result == 0:
+            port_state[str(port)] = "in_use"
+            warnings.append(f"Port {port} in use on 127.0.0.1")
+        else:
+            port_state[str(port)] = "available"
+    checks["ports"] = port_state
+
+    log("Ports checked on loopback: 3000, 3100, 15432")
+    # Guarantee the full documented preflight surface is always reported, even
+    # when a tool is missing, so downstream gates and tests see stable keys.
+    for key in ("python", "node", "npm", "pnpm", "make", "bash", "sqlite3",
+                "python_sqlite", "disk", "permissions", "ports"):
+        checks.setdefault(key, "unavailable")
+
+    payload = {
+        "command": "preflight",
+        "checkedAt": utc_now_iso(),
+        "status": "fail" if errors else ("warn" if warnings else "pass"),
+        "errors": errors,
+        "warnings": warnings,
+        "checks": checks,
+        "safety": {
+            "liveExecutionEnabled": False,
+            "providerOrderTransportEnabled": False,
+            "loopbackOnly": True,
+        },
+    }
+
+    if as_json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 1 if errors else 0
+
+    print()
+    if errors:
+        print("ERRORS:")
+        for e in errors:
+            print(f"  ERROR: {e}")
+    if warnings:
+        print("WARNINGS:")
+        for w in warnings:
+            print(f"  WARN: {w}")
+    if not errors and not warnings:
+        print("All preflight checks passed")
+    print()
+    print(json.dumps(checks, indent=2))
+    return 1 if errors else 0
+
+
+def has_installable_requirements(req_file):
+    """True when a requirements file declares at least one installable line.
+
+    An installable-free file is valid policy here: the Python side is
+    stdlib-only, and `pip install -r` would otherwise abort with
+    "You must give at least one requirement to install".
+    """
+    if not req_file.exists():
+        return False
+    for line in req_file.read_text(encoding="utf-8").splitlines():
+        if line.split("#", 1)[0].strip():
+            return True
+    return False
+
+
+def init(dry_run=False):
+    log("Initializing..." + (" (dry run)" if dry_run else ""))
+    if not VENV_DIR.exists():
+        if dry_run:
+            log(f"PLAN: create venv at {VENV_DIR}")
+        else:
+            log(f"Creating venv at {VENV_DIR}...")
+            try:
+                subprocess.run([sys.executable, "-m", "venv", str(VENV_DIR)], check=True, capture_output=True)
+                log("Venv created")
+            except Exception as e:
+                log(f"ERROR: venv create failed: {e}")
+                return 1
+    else:
+        log(f"Venv exists at {VENV_DIR}")
+
+    req_file = REPO_ROOT / "requirements.txt"
+    if has_installable_requirements(req_file):
+        if dry_run:
+            log("PLAN: pip install -r requirements.txt (locked pins only)")
+        else:
+            log("Installing declared Python deps...")
+            pip = str(VENV_DIR / "bin" / "pip")
+            try:
+                subprocess.run([pip, "install", "-r", str(req_file)], check=True)
+                log("Python deps installed")
+            except Exception as e:
+                log(f"ERROR: Python deps failed: {e}")
+                return 1
+    else:
+        log("No installable Python requirements (quant/tests/scripts are stdlib-only)")
+
+    if dry_run:
+        log("PLAN: pnpm install --frozen-lockfile")
+        log("Dry run complete: no changes were made")
+        return 0
+
+    log("Installing Node deps (frozen lockfile)...")
+    try:
+        subprocess.run(["pnpm", "install", "--frozen-lockfile"], check=True, cwd=str(REPO_ROOT))
+        log("Node deps installed")
+    except Exception as e:
+        log(f"ERROR: Node deps failed: {e}")
+        return 1
+
+    log("Initialization complete")
+    return 0
+
+
+def start():
+    """Start backend on loopback 127.0.0.1:3100 (never a public interface)."""
+    log("Starting FdbTrade services...")
+    existing = _pids_listening_on(3100)
+    if existing:
+        log(f"Backend already listening on 127.0.0.1:3100 (PID {existing[0]}). Use 'fdbtrade stop' first.")
+        return 1
+
+    log("Starting backend on http://127.0.0.1:3100")
+    proc = subprocess.Popen(
+        ["pnpm", "--filter", "@fdbtrade/backend", "dev"],
+        cwd=str(REPO_ROOT),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+
+    start_time = time.time()
+    while time.time() - start_time < 60:
+        try:
+            with urllib.request.urlopen("http://127.0.0.1:3100/api/health", timeout=2) as resp:
+                if resp.status == 200:
+                    log("Backend ready (127.0.0.1:3100)")
+                    (REPO_ROOT / ".fdbtrade").mkdir(exist_ok=True)
+                    STATE_FILE.write_text(json.dumps({"pid": proc.pid, "started": utc_now_iso()}), encoding="utf-8")
+                    return 0
+        except Exception:
+            time.sleep(1)
+
+    log("Backend failed to start within 60s")
+    proc.terminate()
+    return 1
+
+
+def _pids_listening_on(port):
+    """PIDs listening on a loopback port, without broad process-name matching."""
+    pids = []
+    try:
+        result = subprocess.run(["ss", "-tlnpH"], capture_output=True, text=True)
+        if result.returncode == 0:
+            for line in result.stdout.splitlines():
+                if f":{port}" not in line:
+                    continue
+                for token in line.split():
+                    if not token.startswith("users:"):
+                        continue
+                    for part in token.split(","):
+                        if "pid=" in part:
+                            value = part.split("pid=", 1)[1].split(",")[0]
+                            if value.isdigit():
+                                pids.append(int(value))
+    except Exception:
+        pass
+    return sorted(set(pids))
+
+
+def stop():
+    """Stop the FdbTrade backend only.
+
+    Deliberately scoped: the PID recorded in the operator state file first, then
+    the process actually listening on loopback 127.0.0.1:3100. Unrelated Node or
+    Next servers on this host are never matched by process name.
+    """
+    log("Stopping FdbTrade services...")
+    targets = []
+    if STATE_FILE.exists():
+        try:
+            state = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+            pid = state.get("pid")
+            if isinstance(pid, int):
+                targets.append(pid)
+        except Exception:
+            pass
+    targets.extend(_pids_listening_on(3100))
+
+    stopped = []
+    for pid in sorted(set(targets)):
+        try:
+            os.kill(pid, signal.SIGTERM)
+            stopped.append(pid)
+            log(f"Sent SIGTERM to PID {pid}")
+        except ProcessLookupError:
+            log(f"PID {pid} already exited")
+        except PermissionError:
+            log(f"ERROR: no permission to stop PID {pid}")
+            return 1
+
+    if STATE_FILE.exists():
+        STATE_FILE.unlink()
+
+    if stopped:
+        log(f"Stopped {len(stopped)} process(es)")
+    else:
+        log("No running FdbTrade service found")
+    return 0
+
+
+def status():
+    """Show service health and process state."""
+    print("\n=== FdbTrade Status ===\n")
+    print("Backend (http://127.0.0.1:3100):")
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:3100/api/health", timeout=2) as resp:
+            data = json.loads(resp.read().decode())
+            print(f"  Status: {data.get('status', 'unknown')}")
+            print(f"  Service: {data.get('service', 'N/A')}")
+            print(f"  Environment: {data.get('environment', 'N/A')}")
+            print(f"  Uptime: {data.get('uptimeSeconds', 0)}s")
+    except urllib.error.URLError as e:
+        print(f"  Unavailable: {e.reason}")
+    except Exception as e:
+        print(f"  Error: {e}")
+
+    print("\nDatabase:")
+    try:
+        result = subprocess.run(["docker", "inspect", "fdbtrade-postgres"], capture_output=True, text=True)
+        if result.returncode == 0:
+            print("  Status: container running")
+        else:
+            print("  Status: container not running (run 'make db-up')")
+    except Exception as e:
+        print(f"  {e}")
+
+    print("\nOperator state:")
+    if STATE_FILE.exists():
+        state = json.loads(STATE_FILE.read_text())
+        print(f"  Last started: {state.get('started', 'N/A')}")
+        print(f"  PID: {state.get('pid', 'N/A')}")
+    else:
+        print("  No state file (services not started via fdbtrade)")
+
+    print("\nPython venv:")
+    if VENV_DIR.exists():
+        print(f"  Exists: {VENV_DIR}")
+    else:
+        print("  Missing (run 'fdbtrade init')")
+
+    print("\nSafety flags:")
+    print("  LIVE_EXECUTION_ENABLED=false")
+    print("  PROVIDER_ORDER_TRANSPORT_ENABLED=false")
+    print("  Provider: fixture (read-only)")
+    print("  Broker: paper")
+    print()
+    return 0
+
+
+def check():
+    """Run make check gates."""
+    log("Running make check...")
+    result = subprocess.run(["make", "check"], cwd=str(REPO_ROOT))
+    return result.returncode
+
+
+def recover():
+    """Recovery guidance for common failures."""
+    print("""
+=== FdbTrade Recovery Guide ===
+
+1. Port conflict (3000/3100/15432 in use):
+   fdbtrade stop
+   ss -tlnp | grep -E ':3000|:3100|:15432'
+
+2. Database unreachable:
+   make db-down
+   make db-up
+
+3. .env missing or corrupt:
+   cp infra/.env.example .env
+   make db-up
+
+4. .venv missing or corrupt:
+   rm -rf .venv
+   fdbtrade init
+
+5. Node modules missing:
+   rm -rf node_modules
+   pnpm install --frozen-lockfile
+
+6. Git working tree dirty:
+   git status
+   git stash
+
+7. Full clean slate:
+   make db-down
+   docker volume rm fdbtrade_pgdata
+   rm -rf .venv node_modules .env
+   git clean -fdX
+   fdbtrade init
+
+Documentation: See RECOVERY.md for details.
+""")
+    return 0
+
+
+def main():
+    parser = argparse.ArgumentParser(prog="fdbtrade", description="FdbTrade operator CLI (M44)")
+    sub = parser.add_subparsers(dest="cmd", help="commands")
+    p_preflight = sub.add_parser("preflight", help="check dependencies and environment")
+    p_preflight.add_argument("--json", action="store_true", help="emit machine-readable JSON only")
+    p_init = sub.add_parser("init", help="create venv and install locked dependencies")
+    p_init.add_argument("--dry-run", action="store_true", help="validate and print the plan only")
+    sub.add_parser("start", help="start backend on 127.0.0.1:3100")
+    sub.add_parser("stop", help="stop the FdbTrade backend")
+    sub.add_parser("status", help="show service health")
+    sub.add_parser("check", help="run make check")
+    sub.add_parser("recover", help="show recovery guidance")
+    args = parser.parse_args()
+
+    if not args.cmd:
+        parser.print_help()
+        return 0
+
+    if args.cmd == "preflight":
+        return preflight(as_json=args.json)
+    if args.cmd == "init":
+        return init(dry_run=args.dry_run)
+
+    handlers = {
+        "start": start,
+        "stop": stop,
+        "status": status,
+        "check": check,
+        "recover": recover,
+    }
+    return handlers.get(args.cmd, lambda: 2)()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

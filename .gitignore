@@ -28,7 +28,12 @@ venv/
 # Logs, artifacts, scratch
 logs/
 *.log
-artifacts/
+# Build scratch under artifacts/ stays ignored, but the M44 private-beta
+# acceptance evidence is an authority file and MUST be committable.
+# Note: `artifacts/*` (not `artifacts/`) is required so the negative pattern
+# below can re-include the subdirectory.
+artifacts/*
+!artifacts/private-beta/
 .tmp/
 
 # OS / editor

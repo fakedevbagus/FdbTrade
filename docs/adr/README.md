@@ -93,5 +93,6 @@ not used.
 | [ADR-0030](ADR-0030-demo-execution-and-environment-guards.md) | Demo execution adapter and environment guards | Accepted |
 | [ADR-0031](ADR-0031-live-gate-preflight-approval-pilot-controls.md) | Live gate preflight, approval, pilot controls and circuit breakers | Accepted |
 | [ADR-0032](ADR-0032-advanced-alpha-research-layer.md) | Advanced-alpha research layer (meta-labeling, ML challengers, provider comparison, portfolio intelligence, adaptive research, feature sandbox) | Accepted |
+| [ADR-0033](ADR-0033-reproducible-bootstrap-and-beta-onboarding.md) | Reproducible bootstrap and beta onboarding | Accepted |
 
 

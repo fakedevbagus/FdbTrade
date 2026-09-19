@@ -71,8 +71,7 @@ KNOWN_ADRS = {
     30: "demo-execution-and-environment-guards",
     31: "live-gate-preflight-approval-pilot-controls",
     32: "advanced-alpha-research-layer",
-
-
+    33: "reproducible-bootstrap-and-beta-onboarding",
 }
 
 

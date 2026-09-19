@@ -1,0 +1,24 @@
+# FdbTrade Python requirements (M44 — Reproducible bootstrap and beta onboarding)
+#
+# POLICY: the Python side of FdbTrade is deliberately stdlib-only.
+#   - quant/    deterministic contract mirrors (unittest, decimal, hashlib, json)
+#   - tests/    stdlib unittest contract + behavior tests
+#   - scripts/  stdlib operator tooling (fdbtrade)
+#   - backend/  TypeScript (dependencies come from pnpm-lock.yaml, not pip)
+#
+# There are therefore ZERO third-party Python packages to pin. Pinning an unused
+# package would add supply-chain surface and violate the clarified blueprint rule
+# that dependencies are only added with justification.
+#
+# This file is kept as the manifest of record so `make bootstrap`,
+# `scripts/bootstrap.sh` and `scripts/fdbtrade init` have a single declared
+# Python dependency surface to validate. Consumers MUST tolerate a file with no
+# installable lines (see the requirement guard in `scripts/bootstrap.sh` and
+# `scripts/fdbtrade`).
+#
+# VERIFIED: no third-party imports exist under quant/, tests/ or scripts/.
+# If a future milestone needs a third-party package it must:
+#   1. land its own ADR justifying the dependency and its pin, and
+#   2. add it below as an exact `name==version` pin (never a range).
+#
+# Installable requirements follow this line. No unpinned entries are allowed.
