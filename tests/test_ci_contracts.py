@@ -72,6 +72,7 @@ KNOWN_ADRS = {
     31: "live-gate-preflight-approval-pilot-controls",
     32: "advanced-alpha-research-layer",
     33: "reproducible-bootstrap-and-beta-onboarding",
+    34: "continuous-scheduler-and-runtime-hardening",
 }
 
 

@@ -1,12 +1,12 @@
-# FdbTrade — Fresh Chat Resume Prompt (M43 → M44)
+# FdbTrade — Fresh Chat Resume Prompt (M45 → M46)
 
 Use this prompt when starting a new agent session to resume work on FdbTrade.
 
 ## Repository State
 
 - **Baseline milestone:** M43 (private-beta handoff complete and certified)
-- **Current milestone:** M44 — Reproducible bootstrap and beta onboarding (**implemented, acceptance gates passing**)
-- **Next authorized milestone:** M45 — Continuous scheduler and runtime hardening (**not started; do not begin in the same run**)
+- **Current milestone:** M45 — Continuous scheduler and runtime hardening (**complete, all acceptance gates passing**)
+- **Next authorized milestone:** M46 — User-facing historical research workflow (**not started; do not begin in the same run**)
 - **Git HEAD (M43 baseline):** `f284c2f` (P18 complete, legacy roadmap)
 - **Branch:** `main`
 - **Execution authority:** live execution OFF, provider order transport OFF, loopback-only, paper-only.
@@ -43,39 +43,41 @@ FdbTrade is a private, single-user trading intelligence OS. The legacy P0-P18 ro
    make handoff-check
    make private-beta-check
    ```
-4. **Execute only M44** — do not begin M45.
+4. **Execute only M46** — do not begin M47.
 
-## M44 Scope
+## M45 delivered (verified, all gates pass)
 
-Implement **only** Reproducible bootstrap and beta onboarding:
+- ✅ `backend/src/runtime/clock.ts` — explicit `ClockSource`, `SystemClock`, `ManualClock` (deterministic, UTC)
+- ✅ `backend/src/runtime/lock.ts` — one process lock per runtime database, heartbeat, takeover of stale locks
+- ✅ `backend/src/runtime/lease.ts` — cycle lease state machine (pending→leased→running→committing→completed), timeout/retry/shutdown
+- ✅ `backend/src/runtime/dedupe.ts` — universal deduplication across 5 domains (cycle, job, outbox, paper_order, fill)
+- ✅ `backend/src/runtime/checkpoints.ts` — hash-chained durable checkpoints, completion ledger (first-write-wins)
+- ✅ `backend/src/runtime/degradation.ts` — controlled degradation (queue, memory, disk, staleness → 4 levels)
+- ✅ `backend/src/runtime/health.ts` — pure health projection across 6 subsystems
+- ✅ `backend/src/runtime/retention.ts` — bounded cycle-correlated ring log
+- ✅ `backend/src/runtime/scheduler.ts` — continuous scheduler engine with tick loop
+- ✅ `backend/src/runtime/observation.ts` — observation-only stage handlers, zero order authority
+- ✅ `backend/src/runtime/startup.ts` — disabled by default, opt-in via `FDB_CONTINUOUS_SCHEDULER_ENABLED=true`
+- ✅ `backend/src/runtime/soak.ts` — fixture soak harness with crash recovery convergence
+- ✅ `backend/src/runtime/__tests__/runtime.test.ts` — 56 Vitest tests
+- ✅ `tests/test_m45_runtime_contracts.py` — 10 Python contract tests
+- ✅ `make runtime-check`, `operational-persistence-check`, `integration-replay-check` added to Makefile
+- ✅ `docs/adr/ADR-0034-continuous-scheduler-and-runtime-hardening.md`
+- ✅ `docs/checkpoints/45_continuous_scheduler.md`
 
-- Dependency preflight (Python, Node, npm, SQLite, Make, Bash, disk, permissions, ports)
-- Safe bootstrap wrapper (`.venv`, locked Python deps, `npm ci`/`pnpm install --frozen-lockfile`, no secrets)
-- Operator CLI: `scripts/fdbtrade` with `init`, `start`, `stop`, `status`, `check`, `recover`
-- Loopback-only binding (127.0.0.1)
-- Fixture/offline mode, paper-only authority
-- Behavior tests, operator docs, checkpoint, ADR, changelog, recovery, inventory
+### M44 also verified (prior milestone)
 
-## M44 delivered (verify, then trust)
-
-- ✅ `scripts/fdbtrade` operator CLI (`preflight`, `init`, `start`, `stop`, `status`, `check`, `recover`, plus `preflight --json` and `init --dry-run`)
-- ✅ `scripts/bootstrap.sh` reproducible bootstrap (`--dry-run`, idempotent, no secrets)
-- ✅ `make bootstrap` and `make preflight`
-- ✅ `make operational-packaging-check`, `private-beta-check`, `dashboard-check`, `security-check`, `phase2-check`, `handoff-check`, `format-check`
-- ✅ `requirements.txt` declared (stdlib-only policy; zero third-party pins)
-- ✅ `docs/OPERATOR_GUIDE.md`, `docs/checkpoints/43_private_beta.md`
+- ✅ `scripts/fdbtrade` operator CLI, `scripts/bootstrap.sh`, `requirements.txt`
+- ✅ `make bootstrap`, `make preflight`, all M44 gates exit 0
 - ✅ `docs/adr/ADR-0033-reproducible-bootstrap-and-beta-onboarding.md`
-- ✅ `tests/test_m44_bootstrap_contracts.py` (35 behavior tests)
-- ✅ `artifacts/private-beta/acceptance.json` is now committable (`.gitignore` re-includes `artifacts/private-beta/`)
+- ✅ `tests/test_m44_bootstrap_contracts.py` (35 tests)
 
-Known M44 limitations (honest, do not paper over):
+Known limitations (honest, do not paper over):
 
 - SQLite is **not** the runtime store yet; PostgreSQL via Docker remains authoritative.
-  `make preflight` reports SQLite availability only.
-- `pnpm install --frozen-lockfile` is used where the blueprint says `npm ci`; recorded in
-  ADR-0033 because this repository's approved dependency manager is pnpm.
-- The `sqlite3` CLI binary is absent on this host; the Python stdlib module is used and
-  the condition is reported as a warning, not an error.
+- `pnpm install --frozen-lockfile` used where blueprint says `npm ci` (ADR-0033).
+- The `sqlite3` CLI binary is absent; Python stdlib module works; warning only.
+- Frontend vitest fork workers occasionally time out on NTFS/fuseblk filesystem (all 44 tests pass; error is worker spawn timing, pre-existing).
 
 ## Environment Verification
 
@@ -97,14 +99,17 @@ Before any edit:
 - [ ] No secrets in source, fixtures, logs
 - [ ] Loopback-only binding (127.0.0.1)
 - [ ] Paper-only broker adapter
+- [ ] Continuous scheduler disabled by default
 
-## After M44 Completion
+## After M46 Completion
 
-M44 acceptance gates (run all of them; they must exit 0):
+M46 acceptance gates (run all; must exit 0):
 
 ```bash
-make bootstrap
+make runtime-check
+make operational-persistence-check
 make operational-packaging-check
+make integration-replay-check
 make private-beta-check
 make dashboard-check
 make security-check
@@ -114,17 +119,15 @@ make handoff-check
 
 Then update:
 
-- `PHASE2_PROGRESS_MANIFEST.json` → `currentMilestone=44`
-- `artifacts/private-beta/acceptance.json` → M44 evidence
-- `docs/checkpoints/44_bootstrap.md` (new checkpoint)
-- this handoff file (point it at M45)
+- `PHASE2_PROGRESS_MANIFEST.json` → `currentMilestone=46`
+- `docs/checkpoints/46_historical_research.md` (new checkpoint)
+- this handoff file (point it at M47)
 
 ## Stop rule
 
-Run **only** M44. Commit only M44 changes. Do **not** begin M45 (continuous
-scheduler and runtime hardening) in the same agent run.
+Run **only** M46. Commit only M46 changes. Do **not** begin M47 (seven-major
+runtime coverage) in the same agent run.
 
 ---
 
-*Baseline generated at the M43 handoff; updated for the M44 implementation. Use
-exactly as written for fresh chat resumption.*
+*Updated at M45 completion. Use exactly as written for fresh chat resumption.*

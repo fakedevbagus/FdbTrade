@@ -1,7 +1,7 @@
 # FdbTrade root task runner (M44-extended)
 # Deterministic entry points. All internal timestamps are UTC; no secrets in output.
 
-.PHONY: help install lint typecheck test build start check db-up db-down db-migrate db-status bootstrap preflight operational-packaging-check private-beta-check dashboard-check security-check phase2-check handoff-check format-check
+.PHONY: help install lint typecheck test build start check db-up db-down db-migrate db-status bootstrap preflight operational-packaging-check private-beta-check dashboard-check security-check phase2-check handoff-check format-check runtime-check operational-persistence-check integration-replay-check
 
 help:
 	@echo "FdbTrade workspace task runner"
@@ -27,8 +27,11 @@ help:
 	@echo "  make phase2-check (M44)"
 	@echo "  make handoff-check (M44)"
 	@echo "  make format-check (M44)"
+	@echo "  make runtime-check (M45)"
+	@echo "  make operational-persistence-check (M45)"
+	@echo "  make integration-replay-check (M45)"
 	@echo ""
-	@echo "Operator guide: docs/OPERATOR_GUIDE.md | Checkpoint: docs/checkpoints/44_bootstrap.md"
+	@echo "Operator guide: docs/OPERATOR_GUIDE.md | Checkpoints: docs/checkpoints/"
 	@echo ""
 	@echo "Live execution OFF | Provider order transport OFF | Loopback-only"
 
@@ -175,3 +178,25 @@ format-check:
 	@if grep -qE "^''" requirements.txt; then echo "FAIL: requirements.txt contains a placeholder line"; exit 1; else echo "OK: requirements.txt has no placeholder lines"; fi
 	@python3 -c "import pathlib,re,sys; bad=[p.name for p in pathlib.Path('scripts').glob('*') if p.is_file() and not re.match(r'^[A-Za-z0-9._-]+$$', p.name)]; sys.exit('FAIL: non-portable script filenames: %s' % bad if bad else 0)" && echo "OK: script filenames portable" || (echo "FAIL: script filenames not portable" && exit 1)
 	@echo "[format-check] PASS"
+
+# M45 — Continuous scheduler and runtime hardening
+
+runtime-check:
+	@echo "[runtime-check] Verifying continuous scheduler and runtime hardening (M45)..."
+	@pnpm --filter @fdbtrade/backend test src/runtime/__tests__/runtime.test.ts
+	@python3 -m unittest tests.test_m45_runtime_contracts
+	@echo "[runtime-check] PASS"
+
+operational-persistence-check:
+	@echo "[operational-persistence-check] Verifying operational persistence and schema migrations (M45)..."
+	@python3 -m unittest tests.test_db_foundation_contracts
+	@test -d backend/db/migrations && echo "OK: migrations directory exists" || (echo "FAIL: migrations dir missing" && exit 1)
+	@test -f backend/db/migrations/0001_foundation.sql && echo "OK: foundation migration exists" || (echo "FAIL: foundation migration missing" && exit 1)
+	@test -f backend/db/migrations/0002_auth_foundation.sql && echo "OK: auth foundation migration exists" || (echo "FAIL: auth migration missing" && exit 1)
+	@echo "[operational-persistence-check] PASS"
+
+integration-replay-check:
+	@echo "[integration-replay-check] Verifying offline fixture replay and backtest engine (M45)..."
+	@pnpm --filter @fdbtrade/backend test src/backtest/__tests__ src/data/providers/__tests__
+	@echo "[integration-replay-check] PASS"
+

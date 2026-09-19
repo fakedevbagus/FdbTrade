@@ -1,81 +1,97 @@
 # Completion Report
 
-Prompt ID: M44 — Reproducible bootstrap and beta onboarding
+Prompt ID: M45 — Continuous scheduler and runtime hardening
 Phase: Phase 2 — Operational Private Beta 2.1
-Date/time UTC: 2026-09-19T09:20:00Z
-Branch/commit: main (M44 implementation commit; authority pin follow-up)
-Baseline commit: f284c2f42f69abc2cf4ffd69de7f6e036f33d626 (M43 state)
+Date/time UTC: 2026-09-19T22:30:00Z
+Branch/commit: main (M45 implementation commit)
+Baseline commit: 9daced3 (M44 authority pin commit)
 
 ## What changed
 
-M44 makes a clean Linux installation reproducible and makes the private beta
-usable by an operator who does not know the repository internals. Trading
-authority is unchanged: live execution OFF, provider order transport OFF,
-loopback-only binding, paper-only broker.
+M45 turns the deterministic runtime into a continuously running local process with
+safe scheduling, process mutual exclusion, cycle lease tracking, durable checkpoints,
+restart-neutral recovery, deduplication across 5 domains, controlled degradation under
+system pressure, and correlated bounded logging.
 
-- `scripts/bootstrap.sh` — reproducible bootstrap with `--dry-run`, idempotent,
-  never requests or generates a secret, fails closed on a missing lockfile.
-- `scripts/fdbtrade` — operator CLI (`preflight`, `init`, `start`, `stop`,
-  `status`, `check`, `recover`) plus `preflight --json` and `init --dry-run`.
-- `requirements.txt` — declared Python dependency surface (stdlib-only policy,
-  zero third-party pins; verified no third-party imports under `quant/`,
-  `tests/`, `scripts/`).
-- `Makefile` — `bootstrap`, `preflight`, and the seven M44 acceptance gates,
-  strengthened to behavior-level checks (real dry-run diffing, real CLI
-  invocation, real `preflight --json` key assertions).
-- `tests/test_m44_bootstrap_contracts.py` — 35 new behavior tests.
-- Documentation: `docs/OPERATOR_GUIDE.md`, `docs/checkpoints/43_private_beta.md`,
-  `docs/checkpoints/44_bootstrap.md`, ADR-0033, updated handoff, updated Phase 2
-  authority docs. `.gitignore` now allows `artifacts/private-beta/` to be versioned.
+Trading authority is strictly preserved: live execution OFF (`LIVE_EXECUTION_ENABLED=false`),
+provider order transport OFF (`PROVIDER_ORDER_TRANSPORT_ENABLED=false`), loopback-only binding,
+and the continuous scheduler is disabled by default (`FDB_CONTINUOUS_SCHEDULER_ENABLED=false`)
+with observation-only stage handlers and zero automated order capability.
 
-Detailed report: `02_REPORTS/M44_COMPLETION_REPORT.md`.
+- `backend/src/runtime/clock.ts` — explicit `ClockSource` interface (`SystemClock`, `ManualClock`).
+- `backend/src/runtime/lock.ts` — single-process lock per database id with heartbeat and PostgreSQL advisory adapter.
+- `backend/src/runtime/lease.ts` — cycle lease finite-state machine with timeouts, attempt budgeting, and drain.
+- `backend/src/runtime/dedupe.ts` — universal deduplication ledger across 5 domains (`cycle`, `job`, `outbox_event`, `paper_order`, `fill`).
+- `backend/src/runtime/checkpoints.ts` — hash-chained stage checkpoints and first-write-wins completion ledger.
+- `backend/src/runtime/degradation.ts` — 4-level controlled degradation based on queue, heap, disk, and staleness.
+- `backend/src/runtime/health.ts` — runtime health projection across 6 subsystems (never claims live trading).
+- `backend/src/runtime/retention.ts` — structured cycle-correlated ring log with strict capacity bounds.
+- `backend/src/runtime/scheduler.ts` — continuous scheduler engine coordinating lock, lease, stages, checkpoints, and drain.
+- `backend/src/runtime/observation.ts` — observation-only default stage handlers without order authority.
+- `backend/src/runtime/startup.ts` — process entry point hook with fail-closed opt-in flag.
+- `backend/src/runtime/soak.ts` — multi-checkpoint kill and restart soak harness verifying outcome hash invariance.
+- `backend/src/runtime/__tests__/runtime.test.ts` — 56 Vitest unit and soak tests.
+- `tests/test_m45_runtime_contracts.py` — 10 Python contract tests.
+- `Makefile` — added `runtime-check`, `operational-persistence-check`, and `integration-replay-check`.
+- Documentation: `docs/adr/ADR-0034-continuous-scheduler-and-runtime-hardening.md`, `docs/checkpoints/45_continuous_scheduler.md`.
+
+Detailed report: `02_REPORTS/M45_COMPLETION_REPORT.md`.
 
 ## Files changed
 
-- `scripts/bootstrap.sh`, `scripts/fdbtrade`, `requirements.txt`, `Makefile`
-- `tests/test_m44_bootstrap_contracts.py`, `tests/test_ci_contracts.py`
-- `.gitignore`, `docs/OPERATOR_GUIDE.md`, `docs/adr/ADR-0033-*.md`,
-  `docs/adr/README.md`, `docs/checkpoints/*`, `docs/handoff/*`
-- `PHASE2_PROGRESS_MANIFEST.json`, `artifacts/private-beta/acceptance.json`,
-  `phase2/*`, `RECOVERY.md`, `COMPLETION_REPORT.md`
+- `backend/src/runtime/` (12 modules + tests)
+- `tests/test_m45_runtime_contracts.py`, `tests/test_ci_contracts.py`
+- `Makefile`
+- `docs/adr/ADR-0034-continuous-scheduler-and-runtime-hardening.md`, `docs/adr/README.md`
+- `docs/checkpoints/45_continuous_scheduler.md`
+- `02_REPORTS/M45_COMPLETION_REPORT.md`, `COMPLETION_REPORT.md`
+- `04_CLINE_CONTROL/CURRENT_STATE.md`, `PHASE2_PROGRESS_MANIFEST.json`
 
 ## Tests executed
 
-- `make bootstrap` — exit 0 (`.venv` created; locked install up to date in 746 ms).
-- `make check` — exit 0. Python `Ran 511 tests ... OK`; TypeScript contracts 631,
-  backend 597, frontend 92 tests passed. Total 1831 tests green.
-- Seven M44 gates + `make preflight` + `make format-check` — all exit 0.
+- `make runtime-check` — exit 0 (56 Vitest + 10 Python contract tests)
+- `make operational-persistence-check` — exit 0 (17 Python DB foundation tests)
+- `make integration-replay-check` — exit 0 (64 Vitest backtest/fixture tests)
+- `make operational-packaging-check` — exit 0
+- `make private-beta-check` — exit 0 (live=false, transport=false)
+- `make dashboard-check` — exit 0
+- `make security-check` — exit 0
+- `make phase2-check` — exit 0
+- `make handoff-check` — exit 0
+- `make format-check` — exit 0
+- `pnpm --filter @fdbtrade/backend test src/runtime/__tests__/runtime.test.ts` — 56/56 passed
+- `python3 -m unittest tests.test_m45_runtime_contracts` — 10/10 passed
 
 ## Acceptance criteria
 
-- [x] Preflight reports Python, Node, npm, SQLite, Make, Bash, disk, permissions, ports.
-- [x] Safe bootstrap creates/validates `.venv`, installs only locked deps, no secrets.
-- [x] `init`, `start`, `stop`, `status`, `check`, and recovery guidance available.
-- [x] Loopback-only binding preserved; `stop` never matches unrelated servers by name.
-- [x] Clean temporary checkout exercised without mutation.
-- [x] Operator docs and handoff updated after tests passed.
-- [x] All seven blueprint acceptance gates pass.
+- [x] One process lock per runtime database.
+- [x] Bounded scheduler interval and explicit clock source.
+- [x] Cycle lease, heartbeat, timeout, retry, and shutdown states.
+- [x] Recovery from interrupted cycles using durable checkpoints.
+- [x] No duplicate cycle, job, outbox event, paper order, or fill.
+- [x] Health projections for scheduler, queue, database, source, analysis, and paper broker.
+- [x] Controlled degradation under queue, memory, disk, or stale-data pressure.
+- [x] Operational log correlation and bounded retention.
+- [x] Multi-hour fixture soak converges clean and killed runs to identical outcome hash.
+- [x] All required blueprint acceptance gates pass.
 
 ## Known limitations / blockers
 
-- SQLite is not the runtime store; PostgreSQL via Docker remains authoritative.
-- `sqlite3` CLI binary absent on this host (stdlib module 3.45.1 is used; warning only).
-- `pnpm install --frozen-lockfile` substitutes for the blueprint's `npm ci`
-  (approved dependency manager is pnpm); recorded in ADR-0033.
-- Dashboard reachability verified structurally; no end-to-end browser session claimed.
-- No process lock or continuous scheduler yet — that is M45.
+- Continuous scheduler is disabled by default; requires explicit `FDB_CONTINUOUS_SCHEDULER_ENABLED=true`.
+- Default stage handlers are observation-only; no automated paper order generation.
+- Historical dataset CSV import and user-facing research workflow is deferred to M46.
 
 ## Follow-up required before next prompt
 
-- None for M44. M45 (continuous scheduler and runtime hardening) is authorized and
-  **not started**. Do not begin M45 in the same agent run.
+- None for M45. M46 (user-facing historical research workflow) is authorized and
+  **not started**. Do not begin M46 in the same agent run.
 
 ## Risk notes
 
 - Trading safety: no live route, provider order credential, public ingress, or
-  automatic paper execution added. `make private-beta-check` asserts
-  false/false/loopback-only directly from the CLI.
-- Quant integrity: no strategy, backtest, or research logic touched; no parameter
-  optimization; candle-close semantics and cost models unchanged.
-- Security: no secrets introduced; `.env` stays ignored and untracked; bootstrap
-  only copies the committed placeholder template.
+  automatic paper execution added. Scheduler default observation handler emits
+  no orders.
+- Quant integrity: cycle checkpoints, dedupe ledgers, and soak harnesses ensure
+  replay determinism and zero duplicate side effects across process restarts.
+- Security: no secrets introduced; runtime process lock uses local advisory/in-memory
+  coordination; live execution remains false.
