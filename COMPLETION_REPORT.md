@@ -1,59 +1,81 @@
 # Completion Report
 
-Prompt ID: P18_Advanced_Alpha (P18-01 through P18-06 complete)
-Phase: P18 Advanced Alpha
-Date/time UTC: 2026-09-13T00:55:00Z
-Branch/commit: main (uncommitted working tree; commit deferred to owner)
+Prompt ID: M44 — Reproducible bootstrap and beta onboarding
+Phase: Phase 2 — Operational Private Beta 2.1
+Date/time UTC: 2026-09-19T09:20:00Z
+Branch/commit: main (M44 implementation commit; authority pin follow-up)
+Baseline commit: f284c2f42f69abc2cf4ffd69de7f6e036f33d626 (M43 state)
 
 ## What changed
 
-Phase 18 Advanced Alpha is complete (see `02_REPORTS/P18_COMPLETION_REPORT.md` and the six per-prompt reports). Six new pure, zod-validated, deterministic contract modules in `contracts/src/advancedAlpha/`:
+M44 makes a clean Linux installation reproducible and makes the private beta
+usable by an operator who does not know the repository internals. Trading
+authority is unchanged: live execution OFF, provider order transport OFF,
+loopback-only binding, paper-only broker.
 
-- **P18-01**: meta-labeling pipeline (cost-aware labels, at-signal-time leakage gate, OOS confusion summary with P09 provenance, accept/abstain decisions; base history untouched).
-- **P18-02**: ML challenger framework (feature-schema binding, training manifest, time-aware/calibration/drift evidence, champion/challenger comparator, six-check production gate; ML OFF by default).
-- **P18-03**: multi-provider comparison (pairwise spread/candle pip deltas, coverage gaps, timestamp-consistency findings; no provider ground truth).
-- **P18-04**: portfolio intelligence (hard filters + greedy expected-edge-minus-correlation selection within frozen caps; explained rejections; subordinate to P11).
-- **P18-05**: adaptive research (versioned weights, append-only events, idempotent replay, research|paper only — live absent from the schema, promotion gate-linked).
-- **P18-06**: feature sandbox (five families, mandatory source/licensing provenance, hypotheses, feature lineage, computed beat-baseline, licensed-only alternative data).
+- `scripts/bootstrap.sh` — reproducible bootstrap with `--dry-run`, idempotent,
+  never requests or generates a secret, fails closed on a missing lockfile.
+- `scripts/fdbtrade` — operator CLI (`preflight`, `init`, `start`, `stop`,
+  `status`, `check`, `recover`) plus `preflight --json` and `init --dry-run`.
+- `requirements.txt` — declared Python dependency surface (stdlib-only policy,
+  zero third-party pins; verified no third-party imports under `quant/`,
+  `tests/`, `scripts/`).
+- `Makefile` — `bootstrap`, `preflight`, and the seven M44 acceptance gates,
+  strengthened to behavior-level checks (real dry-run diffing, real CLI
+  invocation, real `preflight --json` key assertions).
+- `tests/test_m44_bootstrap_contracts.py` — 35 new behavior tests.
+- Documentation: `docs/OPERATOR_GUIDE.md`, `docs/checkpoints/43_private_beta.md`,
+  `docs/checkpoints/44_bootstrap.md`, ADR-0033, updated handoff, updated Phase 2
+  authority docs. `.gitignore` now allows `artifacts/private-beta/` to be versioned.
 
-ADR-0032 adopted; ADR index and CI registry updated.
+Detailed report: `02_REPORTS/M44_COMPLETION_REPORT.md`.
 
 ## Files changed
 
-- `contracts/src/advancedAlpha/` (7 new modules + barrel) and `contracts/src/index.ts`
-- `contracts/src/__tests__/advanced-alpha.test.ts` (new, 20 tests)
-- `docs/adr/ADR-0032-advanced-alpha-research-layer.md`, `docs/adr/README.md`
-- `tests/test_ci_contracts.py`
-- `02_REPORTS/P18-01..P18-06_COMPLETION_REPORT.md`, `02_REPORTS/P18_COMPLETION_REPORT.md`
+- `scripts/bootstrap.sh`, `scripts/fdbtrade`, `requirements.txt`, `Makefile`
+- `tests/test_m44_bootstrap_contracts.py`, `tests/test_ci_contracts.py`
+- `.gitignore`, `docs/OPERATOR_GUIDE.md`, `docs/adr/ADR-0033-*.md`,
+  `docs/adr/README.md`, `docs/checkpoints/*`, `docs/handoff/*`
+- `PHASE2_PROGRESS_MANIFEST.json`, `artifacts/private-beta/acceptance.json`,
+  `phase2/*`, `RECOVERY.md`, `COMPLETION_REPORT.md`
 
 ## Tests executed
 
-- `pnpm --filter @fdbtrade/contracts exec vitest run` — 43 files / 631 tests green.
-- `pnpm --filter @fdbtrade/contracts exec tsc --noEmit` — 0 errors.
-- `pnpm --filter @fdbtrade/contracts exec eslint src/advancedAlpha src/__tests__/advanced-alpha.test.ts` — exit 0.
-- `python3 -m unittest tests.test_ci_contracts` — 18/18 green.
-- `python3 -m unittest discover tests` — 476/476 green.
+- `make bootstrap` — exit 0 (`.venv` created; locked install up to date in 746 ms).
+- `make check` — exit 0. Python `Ran 511 tests ... OK`; TypeScript contracts 631,
+  backend 597, frontend 92 tests passed. Total 1831 tests green.
+- Seven M44 gates + `make preflight` + `make format-check` — all exit 0.
 
 ## Acceptance criteria
 
-- [x] Meta-label evaluated OOS with abstain/accept; base history unaltered.
-- [x] ML challengers gated (all evidence + passing checks required; OFF by default).
-- [x] Multi-provider differences measurable/visible; no ground truth.
-- [x] Portfolio intelligence subordinate to risk with explained rejections.
-- [x] Adaptive research versioned/replayable; never silently live.
-- [x] Feature sandbox records source/licensing, hypothesis, features, period, OOS result.
+- [x] Preflight reports Python, Node, npm, SQLite, Make, Bash, disk, permissions, ports.
+- [x] Safe bootstrap creates/validates `.venv`, installs only locked deps, no secrets.
+- [x] `init`, `start`, `stop`, `status`, `check`, and recovery guidance available.
+- [x] Loopback-only binding preserved; `stop` never matches unrelated servers by name.
+- [x] Clean temporary checkout exercised without mutation.
+- [x] Operator docs and handoff updated after tests passed.
+- [x] All seven blueprint acceptance gates pass.
 
 ## Known limitations / blockers
 
-- Contract-layer only (no training/hosting/fetching); callers supply inputs at the boundary.
-- Python mirrors, backend wiring and persistence are follow-up work beyond this phase's acceptance criteria.
+- SQLite is not the runtime store; PostgreSQL via Docker remains authoritative.
+- `sqlite3` CLI binary absent on this host (stdlib module 3.45.1 is used; warning only).
+- `pnpm install --frozen-lockfile` substitutes for the blueprint's `npm ci`
+  (approved dependency manager is pnpm); recorded in ADR-0033.
+- Dashboard reachability verified structurally; no end-to-end browser session claimed.
+- No process lock or continuous scheduler yet — that is M45.
 
 ## Follow-up required before next prompt
 
-- None: P18 is the final RUN_ORDER phase; the blueprint P0-P18 roadmap is complete. Owner decides follow-up packs.
+- None for M44. M45 (continuous scheduler and runtime hardening) is authorized and
+  **not started**. Do not begin M45 in the same agent run.
 
 ## Risk notes
 
-- Trading safety: no broker access; ML production OFF behind the six-check gate; adaptive research refuses live mode at the schema; portfolio selection advisory and subordinate to P11.
-- Quant integrity: leakage-safe labels; P09-provenance OOS; ties never promote; replayable content-addressed artifacts; no win-probability or profit-guarantee claims.
-- Security: no secrets anywhere in the layer.
+- Trading safety: no live route, provider order credential, public ingress, or
+  automatic paper execution added. `make private-beta-check` asserts
+  false/false/loopback-only directly from the CLI.
+- Quant integrity: no strategy, backtest, or research logic touched; no parameter
+  optimization; candle-close semantics and cost models unchanged.
+- Security: no secrets introduced; `.env` stays ignored and untracked; bootstrap
+  only copies the committed placeholder template.

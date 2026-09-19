@@ -1,0 +1,25 @@
+{
+  "version": "2.0.0-private-beta",
+  "currentMilestone": 44,
+  "nextPendingMilestone": 45,
+  "targetRelease": "2.0.0-private-beta",
+  "runtimeAuthority": [
+    "fixture/offline",
+    "historical",
+    "mock/read-only shadow",
+    "explicit paper operations"
+  ],
+  "LIVE_EXECUTION_ENABLED": false,
+  "PROVIDER_ORDER_TRANSPORT_ENABLED": false,
+  "completedMilestones": [
+    "M30", "M31", "M32", "M33", "M34", "M35", "M36", "M37", "M38", "M39",
+    "M40", "M41", "M42", "M43", "M44"
+  ],
+  "legacyMilestones": [
+    "M00", "M01", "M02", "M03", "M04", "M05", "M06", "M07", "M08", "M09",
+    "M10", "M11", "M12", "M13", "M14", "M15", "M16", "M17", "M18", "M19",
+    "M20", "M21", "M22", "M23", "M24", "M25", "M26", "M27", "M28", "M29"
+  ],
+  "lastUpdated": "2026-09-19T09:20:00Z",
+  "notes": "M44 reproducible bootstrap and beta onboarding complete: scripts/bootstrap.sh, scripts/fdbtrade operator CLI, make bootstrap/preflight and all seven M44 acceptance gates pass; 511 Python tests and 1320 TypeScript tests pass via make check. M45 continuous scheduler and runtime hardening authorized next and not started. SQLite is not the runtime store yet; PostgreSQL via Docker remains authoritative. Live execution OFF, provider order transport OFF, loopback-only."
+}

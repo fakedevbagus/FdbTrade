@@ -1,0 +1,59 @@
+{
+  "milestone": "M44",
+  "status": "complete",
+  "targetRelease": "2.0.0-private-beta",
+  "currentMilestone": 44,
+  "nextPendingMilestone": 45,
+  "verifiedAt": "2026-09-19T09:20:00Z",
+  "acceptance": {
+    "privateBetaReady": true,
+    "dashboardReady": true,
+    "securityReady": true,
+    "phase2Ready": true,
+    "handoffReady": true,
+    "operationalPackagingReady": true,
+    "bootstrapReady": true,
+    "preflightReady": true,
+    "operatorCliReady": true,
+    "formatReady": true
+  },
+  "gates": {
+    "make bootstrap": "pass",
+    "make operational-packaging-check": "pass",
+    "make private-beta-check": "pass",
+    "make dashboard-check": "pass",
+    "make security-check": "pass",
+    "make phase2-check": "pass",
+    "make handoff-check": "pass",
+    "make preflight": "pass",
+    "make format-check": "pass",
+    "make check": "pass"
+  },
+  "tests": {
+    "pythonContracts": 511,
+    "typescriptContracts": 1320,
+    "typescriptBreakdown": {
+      "contracts": 631,
+      "backend": 597,
+      "frontend": 92
+    },
+    "m44BehaviorTests": 35,
+    "total": 1831,
+    "status": "pass"
+  },
+  "safety": {
+    "liveExecutionEnabled": false,
+    "providerOrderTransportEnabled": false,
+    "loopbackOnly": true,
+    "paperOnly": true,
+    "fixtureDefault": true
+  },
+  "knownLimitations": [
+    "SQLite is not the runtime store; M44 reports SQLite availability only and PostgreSQL via Docker remains authoritative",
+    "sqlite3 CLI binary absent on the development host; the Python stdlib sqlite3 module (3.45.1) is used and the condition is reported as a warning",
+    "pnpm install --frozen-lockfile is used where the blueprint says npm ci; recorded in ADR-0033",
+    "dashboard reachability verified structurally (routes expose GET, pages exist); no end-to-end browser session claimed",
+    "no process lock or continuous scheduler; that is M45",
+    "make bootstrap needs network only when the pnpm store is cold"
+  ]
+}

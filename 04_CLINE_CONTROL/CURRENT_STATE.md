@@ -1,16 +1,22 @@
 # Current Project State
 
 ## Last verified task
-P00-04 — Establish CI baseline and ADR system
+M44 — Reproducible bootstrap and beta onboarding
 
 ## Evidence
-See `COMPLETION_REPORT.md` for the P00-04 results (`make check` green; 65 tests
-OK). CI: `ci/run-local.sh` (local deterministic runner) and
-`.github/workflows/ci.yml` (four required blocking jobs). ADR system:
-`docs/adr/README.md`, `02_TEMPLATES/ADR_TEMPLATE.md`, ADR-0003..0006.
+See `COMPLETION_REPORT.md` and `02_REPORTS/M44_COMPLETION_REPORT.md`.
+`make bootstrap` exit 0 (`.venv` created, locked install up to date); all seven M44
+acceptance gates exit 0; `make check` exit 0 (Python 511 tests OK, TypeScript 1320
+tests passed, 1831 total).
+Checkpoints: `docs/checkpoints/43_private_beta.md`, `docs/checkpoints/44_bootstrap.md`.
+ADR: `docs/adr/ADR-0033-reproducible-bootstrap-and-beta-onboarding.md`.
+Operator guide: `docs/OPERATOR_GUIDE.md`. Entry points: `make bootstrap`,
+`make preflight`, `scripts/fdbtrade`.
+Safety: live execution OFF, provider order transport OFF, loopback-only, paper-only.
 
 ## Verified next task
-P01-01 — Build web application shell
+M45 — Continuous scheduler and runtime hardening (authorized; NOT started — do not
+begin in the same agent run)
 
 ## Environment facts
 - Linux Mint 22.3 / Ubuntu noble base
