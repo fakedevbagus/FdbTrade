@@ -59,6 +59,20 @@ KNOWN_ADRS = {
     18: "ensemble-decision-contract-and-evidence-preservation",
     19: "event-driven-backtest-engine",
     20: "research-lab-validation-gates",
+    21: "paper-broker-and-reconciliation",
+    22: "independent-risk-engine",
+    23: "analytics-layer",
+    24: "structured-logging-and-tracing",
+    25: "append-only-audit-log",
+    26: "versioned-strategy-model-registry",
+    27: "health-states-and-fail-safe-behavior",
+    28: "operational-controls-rbac",
+    29: "broker-read-only-adapter-contract",
+    30: "demo-execution-and-environment-guards",
+    31: "live-gate-preflight-approval-pilot-controls",
+    32: "advanced-alpha-research-layer",
+
+
 }
 
 

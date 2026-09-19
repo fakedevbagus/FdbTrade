@@ -12,9 +12,12 @@ export const API_ERROR_CODES = [
   "UNSUPPORTED_MEDIA_TYPE",
   "PAYLOAD_TOO_LARGE",
   "UNAUTHORIZED",
+  "FORBIDDEN",
   "NOT_FOUND",
   "METHOD_NOT_ALLOWED",
   "INTERNAL_ERROR",
+  "RATE_LIMITED",
+  "REPLAY_DETECTED",
 ] as const;
 
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];
@@ -25,10 +28,14 @@ export const STATUS_BY_CODE: Readonly<Record<ApiErrorCode, number>> = {
   UNSUPPORTED_MEDIA_TYPE: 415,
   PAYLOAD_TOO_LARGE: 413,
   UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
   NOT_FOUND: 404,
   METHOD_NOT_ALLOWED: 405,
   INTERNAL_ERROR: 500,
+  RATE_LIMITED: 429,
+  REPLAY_DETECTED: 409,
 };
+
 
 export interface ApiErrorDetails {
   /** Machine-readable details (e.g. zod issue list, allowed methods). */
@@ -93,6 +100,12 @@ export class ApiError extends Error {
     return new ApiError("UNAUTHORIZED", message);
   }
 
+  static forbidden(
+    message = "You are not authorized to perform this action.",
+  ): ApiError {
+    return new ApiError("FORBIDDEN", message);
+  }
+
   static methodNotAllowed(
     allowed: readonly string[],
     message = "HTTP method not allowed for this resource.",
@@ -107,5 +120,17 @@ export class ApiError extends Error {
     message = "Internal server error.",
   ): ApiError {
     return new ApiError("INTERNAL_ERROR", message);
+  }
+
+  static rateLimited(
+    message = "Too many requests. Please try again later.",
+  ): ApiError {
+    return new ApiError("RATE_LIMITED", message, { status: 429 });
+  }
+
+  static replayDetected(
+    message = "Duplicate request detected. Please retry with a new request ID.",
+  ): ApiError {
+    return new ApiError("REPLAY_DETECTED", message, { status: 409 });
   }
 }

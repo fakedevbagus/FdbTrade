@@ -81,3 +81,17 @@ not used.
 | [ADR-0018](ADR-0018-ensemble-decision-contract-and-evidence-preservation.md) | Ensemble decision contract and auditable evidence preservation | Accepted |
 | [ADR-0019](ADR-0019-event-driven-backtest-engine.md) | Event-driven backtest engine and run-result contract | Accepted |
 | [ADR-0020](ADR-0020-research-lab-validation-gates.md) | Research-lab validation gates and promotion registry | Accepted |
+| [ADR-0021](ADR-0021-paper-broker-and-reconciliation.md) | Paper broker state machine, deterministic fill simulation, ledger and reconciliation | Accepted |
+| [ADR-0022](ADR-0022-independent-risk-engine.md) | Independent risk engine with hard limits, portfolio controls and kill switch | Accepted |
+| [ADR-0023](ADR-0023-analytics-layer.md) | Analytics layer for trade outcomes, calibration, MAE/MFE and attribution | Accepted |
+| [ADR-0024](ADR-0024-structured-logging-and-tracing.md) | Structured logging, correlation and end-to-end tracing | Accepted |
+| [ADR-0025](ADR-0025-append-only-audit-log.md) | Append-only audit log for privileged changes | Accepted |
+| [ADR-0026](ADR-0026-versioned-strategy-model-registry.md) | Versioned strategy/model registry with research-run linkage | Accepted |
+| [ADR-0027](ADR-0027-health-states-and-fail-safe-behavior.md) | Health states with explicit fail-safe behavior | Accepted |
+| [ADR-0028](ADR-0028-operational-controls-rbac.md) | Operational controls with RBAC, locked live-execution flag and audited workflow | Accepted |
+| [ADR-0029](ADR-0029-broker-read-only-adapter-contract.md) | Provider-neutral broker read-only adapter contract and execution exclusion | Accepted |
+| [ADR-0030](ADR-0030-demo-execution-and-environment-guards.md) | Demo execution adapter and environment guards | Accepted |
+| [ADR-0031](ADR-0031-live-gate-preflight-approval-pilot-controls.md) | Live gate preflight, approval, pilot controls and circuit breakers | Accepted |
+| [ADR-0032](ADR-0032-advanced-alpha-research-layer.md) | Advanced-alpha research layer (meta-labeling, ML challengers, provider comparison, portfolio intelligence, adaptive research, feature sandbox) | Accepted |
+
+

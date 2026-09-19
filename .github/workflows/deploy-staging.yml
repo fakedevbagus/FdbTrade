@@ -1,0 +1,43 @@
+# FdbTrade Staging Deployment & Environment Promotion (P14-04).
+#
+# Runs on push to main or manual promotion (workflow_dispatch).
+# Enforces:
+# 1. CI check gate (lint, typecheck, test, build).
+# 2. Migration status checks.
+# 3. Separate live-execution gate (auto-trading forbidden).
+# 4. Clean deployment artifact generation.
+name: Deploy Staging
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Reason for manual staging promotion"
+        required: false
+        default: "Manual verification"
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: verify-and-gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "pnpm"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pnpm install --frozen-lockfile
+      - name: Staging deployment pipeline
+        run: ./scripts/deploy-staging.sh

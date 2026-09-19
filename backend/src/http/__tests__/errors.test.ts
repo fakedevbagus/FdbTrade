@@ -30,9 +30,12 @@ describe("ApiError", () => {
       UNSUPPORTED_MEDIA_TYPE: 415,
       PAYLOAD_TOO_LARGE: 413,
       UNAUTHORIZED: 401,
+      FORBIDDEN: 403,
       NOT_FOUND: 404,
       METHOD_NOT_ALLOWED: 405,
       INTERNAL_ERROR: 500,
+      RATE_LIMITED: 429,
+      REPLAY_DETECTED: 409,
     };
     expect([...API_ERROR_CODES].sort()).toEqual(Object.keys(expected).sort());
     for (const code of API_ERROR_CODES) {
@@ -45,6 +48,13 @@ describe("ApiError", () => {
     expect(error.status).toBe(400);
     expect(error.code).toBe("VALIDATION_ERROR");
     expect(error.details).toEqual([{ path: "message" }]);
+  });
+
+  it("forbidden() maps to 403 FORBIDDEN (P13-05 RBAC)", () => {
+    const error = ApiError.forbidden("role viewer may not perform engage_kill");
+    expect(error.status).toBe(403);
+    expect(error.code).toBe("FORBIDDEN");
+    expect(error.details).toBeUndefined();
   });
 
   it("methodNotAllowed() carries allowed methods in details and allow header", () => {
@@ -77,5 +87,21 @@ describe("ApiError", () => {
       "Request body exceeds the maximum accepted size.",
     );
     expect(ApiError.notFound().message).toBe("Resource not found.");
+    expect(ApiError.rateLimited().message).toBe(
+      "Too many requests. Please try again later.",
+    );
+    expect(ApiError.replayDetected().message).toBe(
+      "Duplicate request detected. Please retry with a new request ID.",
+    );
+  });
+
+  it("supports rate-limited and replay-detected helpers with correct statuses", () => {
+    const limited = ApiError.rateLimited();
+    expect(limited.code).toBe("RATE_LIMITED");
+    expect(limited.status).toBe(429);
+
+    const replayed = ApiError.replayDetected();
+    expect(replayed.code).toBe("REPLAY_DETECTED");
+    expect(replayed.status).toBe(409);
   });
 });
