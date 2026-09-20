@@ -11,6 +11,7 @@ This document provides recovery procedures for the FdbTrade private beta. All pr
 | Port conflict | `scripts/fdbtrade stop` then check `ss -tlnp` | < 1 min | 0 |
 | Corrupt venv | `rm -rf .venv && make bootstrap` | < 5 min | 0 |
 | Missing .env | `cp infra/.env.example .env && make db-up` | < 2 min | 0 |
+| Historical dataset corruption | Restore `artifacts/historical-datasets/` from private backup; never edit canonical files | < 15 min | last backup |
 | Git working tree dirty | `git status && git stash` | < 30 sec | 0 |
 
 ## 1. Database Recovery

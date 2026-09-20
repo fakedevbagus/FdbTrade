@@ -1,12 +1,12 @@
-# FdbTrade — Fresh Chat Resume Prompt (M45 → M46)
+# FdbTrade — Fresh Chat Resume Prompt (M46 → M47)
 
 Use this prompt when starting a new agent session to resume work on FdbTrade.
 
 ## Repository State
 
 - **Baseline milestone:** M43 (private-beta handoff complete and certified)
-- **Current milestone:** M45 — Continuous scheduler and runtime hardening (**complete, all acceptance gates passing**)
-- **Next authorized milestone:** M46 — User-facing historical research workflow (**not started; do not begin in the same run**)
+- **Current milestone:** M46 — User-facing historical research workflow (**complete, acceptance evidence recorded**)
+- **Next authorized milestone:** M47 — Seven-major runtime coverage (**not started; do not begin in the same run**)
 - **Git HEAD (M43 baseline):** `f284c2f` (P18 complete, legacy roadmap)
 - **Branch:** `main`
 - **Execution authority:** live execution OFF, provider order transport OFF, loopback-only, paper-only.
@@ -43,7 +43,7 @@ FdbTrade is a private, single-user trading intelligence OS. The legacy P0-P18 ro
    make handoff-check
    make private-beta-check
    ```
-4. **Execute only M46** — do not begin M47.
+4. **Execute only M47** — do not begin M48.
 
 ## M45 delivered (verified, all gates pass)
 
@@ -101,9 +101,17 @@ Before any edit:
 - [ ] Paper-only broker adapter
 - [ ] Continuous scheduler disabled by default
 
-## After M46 Completion
+## M46 delivered
 
-M46 acceptance gates (run all; must exit 0):
+- Authenticated preview/confirmation/list/replay routes for immutable user-owned CSV datasets.
+- `/research/datasets` operator page and navigation entry; historical mode is explicit.
+- Fail-closed CSV validation for malformed, ambiguous, duplicate, gapped, quarantined, and oversized input.
+- Historical backtest dataset checksum provenance and reproducible run identity.
+- `make historical-research-check` covers import, reopen, replay, divergence, oversize rejection, and provenance.
+
+## M46 acceptance evidence
+
+M46 gates completed before authority pin:
 
 ```bash
 make runtime-check
@@ -117,17 +125,16 @@ make phase2-check
 make handoff-check
 ```
 
-Then update:
+Authority pinned:
 
-- `PHASE2_PROGRESS_MANIFEST.json` → `currentMilestone=46`
-- `docs/checkpoints/46_historical_research.md` (new checkpoint)
-- this handoff file (point it at M47)
+- `PHASE2_PROGRESS_MANIFEST.json` has `currentMilestone=46` and `nextPendingMilestone=47`.
+- `docs/checkpoints/46_historical_research.md` records M46 behavior and recovery.
+- This handoff points to M47.
 
 ## Stop rule
 
-Run **only** M46. Commit only M46 changes. Do **not** begin M47 (seven-major
-runtime coverage) in the same agent run.
+Run **only** M47. Commit only M47 changes. Do **not** begin M48 (credentialed read-only provider shadow) in the same agent run.
 
 ---
 
-*Updated at M45 completion. Use exactly as written for fresh chat resumption.*
+*Updated at M46 completion. Use exactly as written for fresh chat resumption.*

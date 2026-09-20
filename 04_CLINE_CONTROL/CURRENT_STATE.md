@@ -1,29 +1,21 @@
 # Current Project State
 
 ## Last verified task
-M45 — Continuous scheduler and runtime hardening
+M46 — User-facing historical research workflow
 
 ## Evidence
-See `COMPLETION_REPORT.md` and `02_REPORTS/M45_COMPLETION_REPORT.md`.
-All M45 acceptance gates exit 0:
-- `make runtime-check` exit 0 (56 Vitest + 10 Python contract tests)
-- `make operational-persistence-check` exit 0 (17 Python DB foundation tests)
-- `make integration-replay-check` exit 0 (64 Vitest backtest/fixture tests)
-- `make operational-packaging-check` exit 0
-- `make private-beta-check` exit 0 (live=false, transport=false)
-- `make dashboard-check` exit 0
-- `make security-check` exit 0
-- `make phase2-check` exit 0
-- `make handoff-check` exit 0
-- `make format-check` exit 0
-Checkpoint: `docs/checkpoints/45_continuous_scheduler.md`.
-ADR: `docs/adr/ADR-0034-continuous-scheduler-and-runtime-hardening.md`.
+See `COMPLETION_REPORT.md` and `02_REPORTS/M46_COMPLETION_REPORT.md`.
+Focused M46 gates exit 0:
+- `make historical-research-check` — historical import, immutable registry, replay, and backtest provenance
+- `make runtime-check`, `make operational-persistence-check`, `make integration-replay-check`
+- `make operational-packaging-check`, `make private-beta-check`, `make dashboard-check`, `make security-check`, `make phase2-check`, `make handoff-check`
+Checkpoint: `docs/checkpoints/46_historical_research.md`.
+ADR: `docs/adr/ADR-0035-user-facing-historical-research-workflow.md`.
 Safety: live execution OFF, provider order transport OFF, loopback-only, paper-only.
-Continuous scheduler disabled by default; opt-in via `FDB_CONTINUOUS_SCHEDULER_ENABLED=true`.
+Historical CSV datasets are immutable, operator-owned, and never silently fall back to fixtures.
 
 ## Verified next task
-M46 — User-facing historical research workflow (authorized; NOT started — do not
-begin in the same agent run)
+M47 — Seven-major runtime coverage (authorized; NOT started — do not begin in the same agent run)
 
 ## Environment facts
 - Linux Mint 22.3 / Ubuntu noble base
