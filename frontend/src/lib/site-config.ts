@@ -43,6 +43,8 @@ const rawSiteConfig = {
     { label: "Command Center", href: "/dashboard" },
     { label: "Scanner", href: "/scanner" },
     { label: "Alert center", href: "/alerts" },
+    { label: "Research datasets", href: "/research/datasets" },
+    { label: "Historical datasets", href: "/research/datasets" },
   ],
 } as const;
 

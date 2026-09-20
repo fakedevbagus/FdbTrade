@@ -25,6 +25,9 @@ venv/
 .env.*
 !.env.example
 
+# Local historical datasets (operator-owned input, never commit)
+backend/.fdbtrade/
+
 # Logs, artifacts, scratch
 logs/
 *.log

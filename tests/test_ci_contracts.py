@@ -73,6 +73,7 @@ KNOWN_ADRS = {
     32: "advanced-alpha-research-layer",
     33: "reproducible-bootstrap-and-beta-onboarding",
     34: "continuous-scheduler-and-runtime-hardening",
+    35: "user-facing-historical-research-workflow",
 }
 
 

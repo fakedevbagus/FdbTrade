@@ -26,7 +26,7 @@
   "periodStartUtc": "2026-09-08T06:00:00.000Z",
   "datasetDigest": "a4e18d395f25041013b4d16d5bb8f828072d4e7bc9e0700f70a63e627cf7c886",
   "zeroCost": {
-    "runId": "btrun_a71b56f23608a63b",
+    "runId": "btrun_ac2fa447562bd20f",
     "finalState": {
       "equity": 9980,
       "realizedPnl": -20,
@@ -61,7 +61,7 @@
     }
   },
   "realistic": {
-    "runId": "btrun_558d3640afe30a90",
+    "runId": "btrun_0c845c0b69b7a79f",
     "finalState": {
       "equity": 9976.8,
       "realizedPnl": -23.2,

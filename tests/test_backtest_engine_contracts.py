@@ -214,6 +214,16 @@ class EngineContracts(unittest.TestCase):
         b = run_backtest(make_candles(), make_config(), subject_returning({2: long_intent_at_bar2()}))
         self.assertEqual(json.dumps(a, sort_keys=True), json.dumps(b, sort_keys=True))
 
+    def test_run_id_is_domain_separated_by_canonical_dataset_digest(self):
+        base = make_candles()
+        changed = [dict(c) for c in base]
+        changed[-1]["close"] = 1.10095
+        changed[-1]["high"] = 1.10115
+        first = run_backtest(base, make_config(), subject_returning({}))
+        second = run_backtest(changed, make_config(), subject_returning({}))
+        self.assertNotEqual(first["dataset"]["digest"], second["dataset"]["digest"])
+        self.assertNotEqual(first["runId"], second["runId"])
+
     def test_fail_closed_paths(self):
         with self.assertRaises(BacktestEngineError):
             run_backtest([], make_config(), subject_returning({}))

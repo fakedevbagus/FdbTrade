@@ -129,9 +129,10 @@ function validateCandles(
 }
 
 /** Deterministic run id: first 16 hex of sha256(config canonical form). */
-function runIdFor(config: BacktestRunConfig): string {
-  // sha256 helper injected at module level (node:crypto — backend only).
-  return `btrun_${sha256Hex(serializeBacktestConfigCanonical(config)).slice(0, 16)}`;
+function runIdFor(config: BacktestRunConfig, datasetDigest?: string): string {
+  // Dataset digest domain-separates distinct immutable inputs under same config.
+  const identity = `${serializeBacktestConfigCanonical(config)}|${datasetDigest ?? "inline"}`;
+  return `btrun_${sha256Hex(identity).slice(0, 16)}`;
 }
 
 /** Dataset digest over the canonical candle serialization (sha256). */
@@ -187,6 +188,7 @@ export function runBacktest(
   candles: readonly Candle[],
   configInput: BacktestRunConfig,
   subject: BacktestSubject,
+  datasetReference?: BacktestDatasetRef,
 ): BacktestResult {
   const config = assertRunConfig(configInput);
   validateCandles(candles, config);
@@ -487,7 +489,7 @@ export function runBacktest(
         : 1,
   );
 
-  const dataset: BacktestDatasetRef = {
+  const computedDataset: BacktestDatasetRef = {
     datasetId: [
       "dataset",
       "backtest-inline",
@@ -498,6 +500,10 @@ export function runBacktest(
     ].join("|"),
     digest: datasetDigest(candles),
   };
+  if (datasetReference && datasetReference.digest !== computedDataset.digest) {
+    throw new BacktestEngineError("dataset reference digest differs from supplied candles");
+  }
+  const dataset = datasetReference ?? computedDataset;
 
   const finalState: BacktestFinalState = {
     equity: Number((config.initialEquity + realized).toFixed(6)),
@@ -509,7 +515,7 @@ export function runBacktest(
   };
 
   const result: BacktestResult = {
-    runId: runIdFor(config),
+    runId: runIdFor(config, dataset.digest),
     engineId: BACKTEST_ENGINE_ID,
     engineVersion: BACKTEST_ENGINE_VERSION,
     config,

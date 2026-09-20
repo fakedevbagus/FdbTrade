@@ -1,7 +1,7 @@
 # FdbTrade root task runner (M44-extended)
 # Deterministic entry points. All internal timestamps are UTC; no secrets in output.
 
-.PHONY: help install lint typecheck test build start check db-up db-down db-migrate db-status bootstrap preflight operational-packaging-check private-beta-check dashboard-check security-check phase2-check handoff-check format-check runtime-check operational-persistence-check integration-replay-check
+.PHONY: help install lint typecheck test build start check db-up db-down db-migrate db-status bootstrap preflight operational-packaging-check private-beta-check dashboard-check security-check phase2-check handoff-check format-check runtime-check operational-persistence-check integration-replay-check historical-research-check
 
 help:
 	@echo "FdbTrade workspace task runner"
@@ -30,6 +30,7 @@ help:
 	@echo "  make runtime-check (M45)"
 	@echo "  make operational-persistence-check (M45)"
 	@echo "  make integration-replay-check (M45)"
+	@echo "  make historical-research-check (M46)"
 	@echo ""
 	@echo "Operator guide: docs/OPERATOR_GUIDE.md | Checkpoints: docs/checkpoints/"
 	@echo ""
@@ -199,4 +200,11 @@ integration-replay-check:
 	@echo "[integration-replay-check] Verifying offline fixture replay and backtest engine (M45)..."
 	@pnpm --filter @fdbtrade/backend test src/backtest/__tests__ src/data/providers/__tests__
 	@echo "[integration-replay-check] PASS"
+
+# M46 — User-facing historical research workflow
+historical-research-check:
+	@echo "[historical-research-check] Verifying immutable user-owned CSV workflow (M46)..."
+	@pnpm --filter @fdbtrade/backend test src/data/historical/__tests__/historical.test.ts src/backtest/__tests__/api.test.ts
+	@python3 -m unittest tests.test_m46_historical_contracts
+	@echo "[historical-research-check] PASS"
 

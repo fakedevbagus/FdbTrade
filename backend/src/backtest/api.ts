@@ -21,6 +21,8 @@ import {
 } from "@fdbtrade/contracts";
 
 import { FixtureProvider } from "@/data/providers/fixture";
+import { loadHistoricalReplay } from "@/data/historical/replayLoader";
+import { HISTORICAL_DATASET_DIR } from "@/data/historical/storeDir";
 
 import { runBacktest, type BacktestSubject } from "@/backtest/engine";
 import { computeBacktestMetrics } from "@/backtest/metrics";
@@ -52,6 +54,8 @@ export interface BacktestRunRequest {
   subject: "noop";
   /** Explicit manifest timestamp (UTC) — no wall clock anywhere. */
   createdAtUtc: string;
+  /** Immutable operator-owned historical dataset. Omitted is explicit fixture mode. */
+  datasetId?: string;
 }
 
 const NOOP_SUBJECT: BacktestSubject = Object.freeze({
@@ -91,16 +95,33 @@ export interface BacktestRunResponse {
 export async function executeAndStoreRun(
   request: BacktestRunRequest,
   storeDirectory: string,
+  historicalDatasetDirectory = HISTORICAL_DATASET_DIR,
 ): Promise<BacktestRunResponse> {
   const config = toRunConfig(request);
-  const provider = new FixtureProvider();
-  const candles = await provider.getHistoricalCandles({
-    instrument: config.instrument,
-    timeframe: config.timeframe,
-    startUtc: config.periodStartUtc,
-    endUtc: config.periodEndUtc,
-  });
-  const result = runBacktest(candles, config, NOOP_SUBJECT);
+  const replay = request.datasetId
+    ? loadHistoricalReplay(historicalDatasetDirectory, request.datasetId)
+    : null;
+  if (replay && !replay.ok) throw new Error(`Historical replay rejected: ${replay.reason}`);
+  if (replay && (replay.datasetId !== request.datasetId || replay.mode !== "historical")) {
+    throw new Error("Historical replay rejected: requested dataset is not historical");
+  }
+  const candles = replay
+    ? replay.candles
+    : await new FixtureProvider().getHistoricalCandles({
+        instrument: config.instrument,
+        timeframe: config.timeframe,
+        startUtc: config.periodStartUtc,
+        endUtc: config.periodEndUtc,
+      });
+  if (candles[0]?.instrument !== config.instrument || candles[0]?.timeframe !== config.timeframe) {
+    throw new Error("Backtest rejected: dataset instrument/timeframe differs from request");
+  }
+  const result = runBacktest(
+    candles,
+    config,
+    NOOP_SUBJECT,
+    replay ? { datasetId: replay.datasetId, digest: replay.digest } : undefined,
+  );
   const manifest = saveRun(storeDirectory, result, request.createdAtUtc);
   return {
     apiId: BACKTEST_API_ID,

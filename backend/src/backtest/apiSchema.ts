@@ -28,6 +28,8 @@ export const backtestRunRequestSchema = z
     subject: z.literal("noop"),
     /** Explicit manifest timestamp (UTC) — no wall clock anywhere. */
     createdAtUtc: z.iso.datetime({ offset: false, precision: 3 }),
+    /** Optional immutable historical dataset; absent means explicit fixture mode. */
+    datasetId: z.string().min(1).max(128).optional(),
   })
   .strict();
 

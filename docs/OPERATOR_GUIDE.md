@@ -51,7 +51,19 @@ Safe preview — changes nothing:
 bash scripts/bootstrap.sh --dry-run
 ```
 
-## 3. Database
+## 3. Historical research (M46)
+
+Open `/research/datasets` after signing in. Paste only user-owned canonical CSV with exact header:
+
+```text
+timestamp,open,high,low,close,volume
+```
+
+Use UTC timestamps with millisecond precision. Preview before approval. Approval writes immutable local research artifacts to `artifacts/historical-datasets/`; keep this directory in private backups and never edit files inside it. Duplicate or malformed rows are reported; malformed, ambiguous, or oversized input is rejected. Historical mode is shown separately from fixture and future shadow modes.
+
+For reproducible backtest, select approved dataset ID. Stored report export is `GET /api/backtest/runs/{runId}` while authenticated. Same dataset checksum, code/config, strategy version, and seed reproduce same report identity. FdbTrade never replaces a requested historical dataset with fixture data.
+
+## 4. Database
 
 ```bash
 make db-up        # start local PostgreSQL (Docker) and migrate from zero

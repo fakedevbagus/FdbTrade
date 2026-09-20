@@ -362,9 +362,10 @@ def run_backtest(
         "digest": digest,
     }
 
-    run_id = "btrun_" + hashlib.sha256(
-        serialize_config_canonical(config).encode("utf-8")
-    ).hexdigest()[:16]
+    # Match TypeScript runId domain separation: same config over a different
+    # immutable candle sequence must never reuse a report identity.
+    run_identity = serialize_config_canonical(config) + "|" + digest
+    run_id = "btrun_" + hashlib.sha256(run_identity.encode("utf-8")).hexdigest()[:16]
 
     return {
         "runId": run_id,

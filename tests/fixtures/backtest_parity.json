@@ -17,7 +17,7 @@
     "firstOpen": 1.1,
     "wickPips": 2
   },
-  "runId": "btrun_3890ef9d2a2dd259",
+  "runId": "btrun_0fc839632fdadc94",
   "dataset": {
     "datasetId": "dataset|backtest-inline|EURUSD|1h|2026-09-08T00:00:00.000Z|2026-09-08T10:00:00.000Z",
     "digest": "c484dd411e8536c06875941e6758f793c73c7d59b5db4df8ab9bb0bccd8e3452"
@@ -44,7 +44,7 @@
       "maxFillFraction": 0.5,
       "exitPriority": "stop-first"
     },
-    "runId": "btrun_44556572278a2c5b",
+    "runId": "btrun_7270a85eb0015487",
     "finalState": {
       "equity": 10049,
       "realizedPnl": 49,
