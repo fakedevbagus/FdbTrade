@@ -1,7 +1,7 @@
 # FdbTrade root task runner (M44-extended)
 # Deterministic entry points. All internal timestamps are UTC; no secrets in output.
 
-.PHONY: help install lint typecheck test build start check db-up db-down db-migrate db-status bootstrap preflight operational-packaging-check private-beta-check dashboard-check security-check phase2-check handoff-check format-check runtime-check operational-persistence-check integration-replay-check historical-research-check
+.PHONY: help install lint typecheck test build start check db-up db-down db-migrate db-status bootstrap preflight operational-packaging-check private-beta-check dashboard-check security-check phase2-check handoff-check format-check runtime-check operational-persistence-check integration-replay-check historical-research-check seven-majors-check
 
 help:
 	@echo "FdbTrade workspace task runner"
@@ -31,6 +31,7 @@ help:
 	@echo "  make operational-persistence-check (M45)"
 	@echo "  make integration-replay-check (M45)"
 	@echo "  make historical-research-check (M46)"
+	@echo "  make seven-majors-check (M47)"
 	@echo ""
 	@echo "Operator guide: docs/OPERATOR_GUIDE.md | Checkpoints: docs/checkpoints/"
 	@echo ""
@@ -207,4 +208,13 @@ historical-research-check:
 	@pnpm --filter @fdbtrade/backend test src/data/historical/__tests__/historical.test.ts src/backtest/__tests__/api.test.ts
 	@python3 -m unittest tests.test_m46_historical_contracts
 	@echo "[historical-research-check] PASS"
+
+# M47 — Seven-major runtime coverage
+
+seven-majors-check:
+	@echo "[seven-majors-check] Verifying seven-major runtime coverage (M47)..."
+	@pnpm --filter @fdbtrade/backend test src/runtime/__tests__/sevenMajors.test.ts src/signals/__tests__/pipeline.test.ts src/app/api/dashboard/__tests__/route.test.ts
+	@pnpm --filter @fdbtrade/frontend test src/lib/__tests__/dashboard.test.ts src/components/dashboard/__tests__/DashboardContent.test.tsx
+	@python3 -m unittest tests.test_m47_seven_major_contracts
+	@echo "[seven-majors-check] PASS"
 

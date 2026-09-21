@@ -29,7 +29,7 @@ import {
   type JobClock,
   type RetryPolicy,
 } from "./jobs";
-import { validateCandleSeries } from "@/data/quality/validator";
+import { validateCandleSeries, type CandleSeriesReport } from "@/data/quality/validator";
 
 /** Result of one ingestion run (job-level outcome). */
 export interface IngestionResult {
@@ -40,6 +40,12 @@ export interface IngestionResult {
   candles: readonly Candle[];
   /** P02-03 series validation gap report for the accepted series. */
   gaps: { expectedOpenUtc: string; afterIndex: number }[];
+  /**
+   * Rows quarantined by the P02-03 quality gate (duplicates/order/OHLC) for
+   * this run. Measured by the validator — never an invented count; empty when
+   * no work was executed (dedup hit, in-flight duplicate, terminal failure).
+   */
+  quarantined: CandleSeriesReport["quarantined"];
 }
 
 /** Rate-limit gate: return true to allow the provider call. */
@@ -140,12 +146,12 @@ export class IngestionWorker {
 
     if (job.status === "succeeded") {
       const cached = this.cache.get<readonly Candle[]>(dedupKey) ?? [];
-      return { job, executed: false, candles: cached, gaps: [] };
+      return { job, executed: false, candles: cached, gaps: [], quarantined: [] };
     }
     if (job.status === "running" || job.status === "failed") {
       // In-flight duplicates observe the existing job; terminal failures
       // stay failed for the same event (bounded retries already spent).
-      return { job, executed: false, candles: [], gaps: [] };
+      return { job, executed: false, candles: [], gaps: [], quarantined: [] };
     }
 
     let running = this.jobs.markRunning(job);
@@ -168,6 +174,7 @@ export class IngestionWorker {
           executed: true,
           candles: acceptedCandles,
           gaps: report.gaps,
+          quarantined: report.quarantined,
         };
       } catch (error) {
         if (error instanceof ProviderError) {
@@ -175,7 +182,7 @@ export class IngestionWorker {
           lastReason = `${error.code}: ${error.detail}`;
           this.recordFailure();
           running = this.jobs.markFailed(running, lastReason);
-          return { job: running, executed: true, candles: [], gaps: [] };
+          return { job: running, executed: true, candles: [], gaps: [], quarantined: [] };
         }
         lastReason = `PROVIDER_FAILURE: ${(error as Error).message}`;
         this.recordFailure();
@@ -187,7 +194,7 @@ export class IngestionWorker {
     }
 
     running = this.jobs.markFailed(running, lastReason);
-    return { job: running, executed: true, candles: [], gaps: [] };
+    return { job: running, executed: true, candles: [], gaps: [], quarantined: [] };
   }
 
   /** Exposed for tests: reset failure tracking (new provider episode). */

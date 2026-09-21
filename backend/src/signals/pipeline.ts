@@ -33,12 +33,12 @@ import {
   type Timeframe,
   getInstrument,
   getSchedule,
-  INSTRUMENTS,
   utcInstantSchema,
 } from "@fdbtrade/contracts";
 import rawFixtureAnchors from "@fdbtrade/contracts/src/data/fixtureProvider.json";
 
 import { FixtureProvider } from "@/data/providers/fixture";
+import { SEVEN_MAJOR_CONFIG, type SevenMajorPair } from "@/runtime/sevenMajors";
 import {
   DEFAULT_CALIBRATION_CONFIG,
   stampCalibration,
@@ -126,6 +126,10 @@ export interface InstrumentOverviewRow {
   regimeConfidence: number;
   /** True when the resolved regime entry is degraded (stale/missing). */
   regimeDegraded: boolean;
+  /** Explicit configured pair name at the provider boundary, e.g. EUR_USD. */
+  configuredPair: SevenMajorPair;
+  /** This M47 snapshot is offline deterministic fixture data. */
+  provenance: "fixture";
   /** True when the instrument's last closed bar is behind asOfUtc. */
   stale: boolean;
   /** Whole 1h bars the last closed bar is behind asOfUtc (0 = current). */
@@ -354,6 +358,12 @@ async function evaluateInstrument(
   asOfUtc: string,
 ): Promise<InstrumentResult> {
   const meta = getInstrument(instrumentId);
+  const configuredPair = SEVEN_MAJOR_CONFIG.find(
+    (entry) => entry.canonicalInstrument === instrumentId,
+  )?.pair;
+  if (!configuredPair) {
+    throw new Error(`instrument is outside the configured seven-major runtime: ${instrumentId}`);
+  }
 
   const closed = await latestClosedBar(provider, instrumentId, asOfUtc);
   const quoteResp = await provider
@@ -377,6 +387,8 @@ async function evaluateInstrument(
       regimeState: "unknown",
       regimeConfidence: 0,
       regimeDegraded: true,
+      configuredPair,
+      provenance: "fixture",
       stale: true,
       barsBehind,
     },
@@ -515,6 +527,8 @@ async function evaluateInstrument(
       regimeState: resolved.state,
       regimeConfidence: resolved.confidence,
       regimeDegraded: resolved.degraded,
+      configuredPair,
+      provenance: "fixture",
       stale: barsBehind > 0,
       barsBehind,
     },
@@ -530,7 +544,7 @@ export async function buildDashboardSnapshot(
   request: SignalPipelineRequest,
 ): Promise<DashboardSnapshot> {
   assertAsOf(request.asOfUtc);
-  const instruments = request.instruments ?? [...INSTRUMENTS.keys()];
+  const instruments = request.instruments ?? SEVEN_MAJOR_CONFIG.map((entry) => entry.canonicalInstrument);
   const provider = new FixtureProvider();
 
   const results = await Promise.all(
@@ -769,7 +783,7 @@ export async function buildSignalDetail(
   decisionId: string,
 ): Promise<SignalDetailView | null> {
   assertAsOf(request.asOfUtc);
-  const instruments = request.instruments ?? [...INSTRUMENTS.keys()];
+  const instruments = request.instruments ?? SEVEN_MAJOR_CONFIG.map((entry) => entry.canonicalInstrument);
   const provider = new FixtureProvider();
 
   const results = await Promise.all(
@@ -918,7 +932,7 @@ export async function buildSignalChart(
 ): Promise<SignalChartView | null> {
   assertAsOf(request.asOfUtc);
   const provider = new FixtureProvider();
-  const instruments = request.instruments ?? [...INSTRUMENTS.keys()];
+  const instruments = request.instruments ?? SEVEN_MAJOR_CONFIG.map((entry) => entry.canonicalInstrument);
 
   for (const instrumentId of instruments) {
     const closed = await latestClosedBar(provider, instrumentId, request.asOfUtc);

@@ -33,6 +33,8 @@ const snapshot: DashboardSnapshotView = {
       regimeState: "trend",
       regimeConfidence: 0.8,
       regimeDegraded: false,
+      configuredPair: "EUR_USD",
+      provenance: "fixture",
       stale: false,
       barsBehind: 0,
     },
@@ -44,6 +46,8 @@ const snapshot: DashboardSnapshotView = {
       regimeState: "unknown",
       regimeConfidence: 0,
       regimeDegraded: true,
+      configuredPair: "USD_JPY",
+      provenance: "fixture",
       stale: true,
       barsBehind: 2,
     },
@@ -106,11 +110,20 @@ describe("DashboardContent", () => {
     }
   });
 
-  it("renders instrument rows with fixture-labeled mids", () => {
+  it("renders instrument rows with pair-level provenance", () => {
     render(<DashboardContent snapshot={snapshot} />);
-    expect(screen.getAllByText("EURUSD").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("USDJPY").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/EUR_USD \/ EURUSD/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/USD_JPY \/ USDJPY/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/1.10440/).length).toBeGreaterThan(0);
+    // One provenance cell per pair row — pair-level, never a blanket claim.
+    expect(screen.getAllByText("fixture").length).toBe(snapshot.overview.length);
+  });
+
+  it("labels fixture provenance for the configured pairs", () => {
+    render(<DashboardContent snapshot={snapshot} />);
+    expect(
+      screen.getByText(/every row carries its configured provider pair and fixture provenance/i),
+    ).toBeDefined();
   });
 
   it("marks stale rows visibly", () => {

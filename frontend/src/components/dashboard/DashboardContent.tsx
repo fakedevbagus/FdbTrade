@@ -50,10 +50,11 @@ export function OverviewTable({ rows }: { rows: readonly OverviewRowView[] }): J
     <table className="fdb-table">
       <thead>
         <tr>
-          <th scope="col">Instrument</th>
+          <th scope="col">Pair / canonical instrument</th>
           <th scope="col">Mid (fixture)</th>
           <th scope="col">1h change</th>
           <th scope="col">Regime</th>
+          <th scope="col">Provenance</th>
           <th scope="col">Freshness</th>
         </tr>
       </thead>
@@ -62,7 +63,7 @@ export function OverviewTable({ rows }: { rows: readonly OverviewRowView[] }): J
           const mid = row.quote !== null ? (row.quote.bid + row.quote.ask) / 2 : null;
           return (
             <tr key={row.instrument} className={row.stale ? "fdb-row--stale" : undefined}>
-              <td>{row.instrument}</td>
+              <td>{row.configuredPair} / {row.instrument}</td>
               <td>
                 {fmtPrice(mid)}
                 {row.quote?.isSynthetic ? " (synthetic)" : ""}
@@ -72,6 +73,7 @@ export function OverviewTable({ rows }: { rows: readonly OverviewRowView[] }): J
                 {REGIME_LABELS[row.regimeState] ?? row.regimeState}
                 {row.regimeDegraded ? " — degraded" : ""}
               </td>
+              <td>{row.provenance}</td>
               <td>
                 <FreshnessBadge stale={row.stale} barsBehind={row.barsBehind} />
               </td>
@@ -187,7 +189,9 @@ export function DashboardContent({
       <p className="fdb-page__lead">
         Read-only intelligence snapshot evaluated from the closed{" "}
         {snapshot.asOfUtc} bar (UTC). Data source: deterministic fixture
-        provider ({snapshot.providerId}). Live execution is OFF.
+        provider ({snapshot.providerId}); every row carries its configured
+        provider pair and fixture provenance, and no pair state is invented in
+        the UI. Live execution is OFF.
       </p>
       <div className="fdb-grid">
         <section className="fdb-card" aria-labelledby="cc-market">

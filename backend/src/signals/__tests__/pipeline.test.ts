@@ -14,8 +14,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { INSTRUMENTS } from "@fdbtrade/contracts";
-
+import { SEVEN_MAJOR_CONFIG, SEVEN_MAJOR_PAIRS } from "@/runtime/sevenMajors";
 import { DASHBOARD_WEIGHT_TABLE } from "@/signals/weights";
 import {
   buildDashboardSnapshot,
@@ -30,14 +29,18 @@ const MIDWEEK = "2026-09-09T10:00:00.000Z";
 const WEEKEND = "2026-09-12T20:00:00.000Z";
 
 describe("buildDashboardSnapshot", () => {
-  it("happy path: full-universe fixture data, deterministic", async () => {
+  it("happy path: full seven-major fixture universe, deterministic", async () => {
     const snap = await buildDashboardSnapshot({ asOfUtc: MIDWEEK });
-    const universeSize = [...INSTRUMENTS.keys()].length;
+    const universeSize = SEVEN_MAJOR_CONFIG.length;
 
     expect(snap.asOfUtc).toBe(MIDWEEK);
     expect(snap.pipelineId).toBe(SIGNAL_PIPELINE_ID);
     expect(snap.generatedFrom).toBe("fixture");
     expect(snap.overview).toHaveLength(universeSize);
+    // M47 pair-level provenance: the default slice is exactly the configured
+    // seven majors, every row labeled with pair + fixture provenance.
+    expect(snap.overview.map((row) => row.configuredPair)).toEqual([...SEVEN_MAJOR_PAIRS]);
+    expect(snap.overview.every((row) => row.provenance === "fixture")).toBe(true);
     expect(snap.freshness.totalInstruments).toBe(universeSize);
     expect(snap.freshness.freshInstruments + snap.freshness.staleInstruments).toBe(
       universeSize,
@@ -102,9 +105,7 @@ describe("buildDashboardSnapshot", () => {
     const snap = await buildDashboardSnapshot({ asOfUtc: WEEKEND });
     expect(snap.freshness.asOfUtc).toBe(WEEKEND);
     for (const row of snap.overview) {
-      if (row.instrument !== "XAUUSD") {
-        expect(row.stale).toBe(true);
-      }
+      expect(row.stale).toBe(true);
     }
     for (const row of snap.topOpportunities) {
       const overview = snap.overview.find((o) => o.instrument === row.instrument);
@@ -130,6 +131,12 @@ describe("buildDashboardSnapshot", () => {
     await expect(
       buildDashboardSnapshot({ asOfUtc: MIDWEEK, instruments: ["NOTREAL"] }),
     ).rejects.toThrow();
+  });
+
+  it("M47 boundary: instrument outside the configured seven majors rejects", async () => {
+    await expect(
+      buildDashboardSnapshot({ asOfUtc: MIDWEEK, instruments: ["XAUUSD"] }),
+    ).rejects.toThrow(/seven-major/);
   });
 
   it("empty subset: valid empty snapshot, not an error", async () => {
@@ -177,11 +184,11 @@ describe("buildDashboardSnapshot", () => {
   it("idempotency: repeated builds of the same request are equal", async () => {
     const a = await buildDashboardSnapshot({
       asOfUtc: MIDWEEK,
-      instruments: ["EURUSD", "XAUUSD"],
+      instruments: ["EURUSD", "USDJPY"],
     });
     const b = await buildDashboardSnapshot({
       asOfUtc: MIDWEEK,
-      instruments: ["EURUSD", "XAUUSD"],
+      instruments: ["EURUSD", "USDJPY"],
     });
     expect(a).toEqual(b);
   });

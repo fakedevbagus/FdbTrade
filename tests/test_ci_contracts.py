@@ -74,6 +74,7 @@ KNOWN_ADRS = {
     33: "reproducible-bootstrap-and-beta-onboarding",
     34: "continuous-scheduler-and-runtime-hardening",
     35: "user-facing-historical-research-workflow",
+    36: "seven-major-runtime-coverage",
 }
 
 

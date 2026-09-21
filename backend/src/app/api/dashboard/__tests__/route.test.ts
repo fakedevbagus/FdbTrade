@@ -100,6 +100,65 @@ describe("GET /api/dashboard", () => {
     expect(response.status).toBe(400);
   });
 
+  it("pairs filter: single configured pair narrows the snapshot", async () => {
+    const response = await GET(request(`/api/dashboard?asOfUtc=${MIDWEEK}&pairs=EUR_USD`));
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      data: { overview: { instrument: string; configuredPair: string; provenance: string }[] };
+    };
+    expect(body.data.overview).toHaveLength(1);
+    expect(body.data.overview[0]).toMatchObject({
+      instrument: "EURUSD",
+      configuredPair: "EUR_USD",
+      provenance: "fixture",
+    });
+  });
+
+  it("pairs filter: multiple pairs keep configured order, not request order", async () => {
+    const response = await GET(
+      request(`/api/dashboard?asOfUtc=${MIDWEEK}&pairs=USD_JPY,EUR_USD`),
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      data: { overview: { configuredPair: string }[] };
+    };
+    expect(body.data.overview.map((row) => row.configuredPair)).toEqual([
+      "EUR_USD",
+      "USD_JPY",
+    ]);
+  });
+
+  it("default universe is exactly the configured seven majors", async () => {
+    const response = await GET(request(`/api/dashboard?asOfUtc=${MIDWEEK}`));
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      data: { overview: { configuredPair: string }[] };
+    };
+    expect(body.data.overview.map((row) => row.configuredPair)).toEqual([
+      "EUR_USD",
+      "GBP_USD",
+      "USD_JPY",
+      "USD_CHF",
+      "AUD_USD",
+      "USD_CAD",
+      "NZD_USD",
+    ]);
+  });
+
+  it("pairs filter: unknown pair -> 400 VALIDATION_ERROR (fail closed)", async () => {
+    const response = await GET(request(`/api/dashboard?asOfUtc=${MIDWEEK}&pairs=XAU_USD`));
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as { error: { code: string } };
+    expect(body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("pairs filter: repeated pair -> 400", async () => {
+    const response = await GET(
+      request(`/api/dashboard?asOfUtc=${MIDWEEK}&pairs=EUR_USD,EUR_USD`),
+    );
+    expect(response.status).toBe(400);
+  });
+
   it("unknown query param rejected (strict schema)", async () => {
     const response = await GET(
       request(`/api/dashboard?asOfUtc=${MIDWEEK}&extra=1`),

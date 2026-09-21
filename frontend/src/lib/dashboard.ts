@@ -16,6 +16,18 @@ const instrumentId = z.string().regex(/^[A-Z0-9]+$/);
 const utcInstant = z.string();
 const reasonCodes = z.array(z.string());
 
+/**
+ * Configured seven-major provider pairs (M47). The UI never hard-codes
+ * operational pair STATE: this list only mirrors the contract enum so filter
+ * chips and validation share one source. Pair rows carry their provider pair
+ * plus fixture provenance from the backend snapshot.
+ */
+export const configuredPairSchema = z.enum([
+  "EUR_USD", "GBP_USD", "USD_JPY", "USD_CHF", "AUD_USD", "USD_CAD", "NZD_USD",
+]);
+export type ConfiguredPair = z.infer<typeof configuredPairSchema>;
+export const CONFIGURED_PAIRS: readonly ConfiguredPair[] = configuredPairSchema.options;
+
 export const overviewRowSchema = z.object({
   instrument: instrumentId,
   eventTimeUtc: z.string(),
@@ -32,6 +44,8 @@ export const overviewRowSchema = z.object({
   regimeState: z.string(),
   regimeConfidence: z.number().min(0).max(1),
   regimeDegraded: z.boolean(),
+  configuredPair: configuredPairSchema,
+  provenance: z.literal("fixture"),
   stale: z.boolean(),
   barsBehind: z.number().int(),
 });
@@ -101,17 +115,20 @@ export type DashboardResult =
   | { ok: false; error: string };
 
 /**
- * Fetch the command-center snapshot for an explicit closed bar. Fail
+ * Fetch the command-center snapshot for an explicit closed bar, optionally
+ * narrowed to one configured seven-major pair (pair-level filter, M47). Fail
  * closed: non-200, unreachable backend or malformed body all return
  * `{ ok: false }` with a safe message (no internals leaked).
  */
 export async function fetchDashboardSnapshot(
   asOfUtc: string,
   cookie?: string,
+  pair?: ConfiguredPair,
 ): Promise<DashboardResult> {
   try {
+    const pairQuery = pair ? `&pairs=${encodeURIComponent(pair)}` : "";
     const response = await fetch(
-      `${BFF_API_URL}/api/dashboard?asOfUtc=${encodeURIComponent(asOfUtc)}`,
+      `${BFF_API_URL}/api/dashboard?asOfUtc=${encodeURIComponent(asOfUtc)}${pairQuery}`,
       {
         headers: cookie ? { cookie } : {},
         cache: "no-store",
@@ -142,13 +159,15 @@ export function defaultAsOfUtc(referenceMs: number): string {
 }
 
 /**
- * Fetch the snapshot for the latest closed 1h bar as of the wall clock.
- * Async (not a render-time impurity): the clock read happens inside this
- * function, called from server components during data loading.
+ * Fetch the snapshot for the latest closed 1h bar as of the wall clock,
+ * optionally narrowed to one configured seven-major pair. Async (not a
+ * render-time impurity): the clock read happens inside this function, called
+ * from server components during data loading.
  */
 export async function fetchLatestDashboardSnapshot(
   cookie?: string,
+  pair?: ConfiguredPair,
 ): Promise<{ result: DashboardResult; asOfUtc: string }> {
   const asOfUtc = defaultAsOfUtc(Date.now());
-  return { result: await fetchDashboardSnapshot(asOfUtc, cookie), asOfUtc };
+  return { result: await fetchDashboardSnapshot(asOfUtc, cookie, pair), asOfUtc };
 }

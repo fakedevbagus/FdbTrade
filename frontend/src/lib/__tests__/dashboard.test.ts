@@ -35,6 +35,8 @@ const validSnapshot = {
       regimeState: "trend",
       regimeConfidence: 0.8,
       regimeDegraded: false,
+      configuredPair: "EUR_USD",
+      provenance: "fixture",
       stale: false,
       barsBehind: 0,
     },
@@ -89,6 +91,18 @@ describe("dashboardSnapshotSchema", () => {
   it("boundary: confidence outside [0,1] rejects", () => {
     const bad = JSON.parse(JSON.stringify(validSnapshot));
     bad.overview[0].regimeConfidence = 1.5;
+    expect(dashboardSnapshotSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("malformed input: unknown configured pair rejects", () => {
+    const bad = JSON.parse(JSON.stringify(validSnapshot));
+    bad.overview[0].configuredPair = "XAU_USD";
+    expect(dashboardSnapshotSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("missing input: absent pair provenance rejects", () => {
+    const bad = JSON.parse(JSON.stringify(validSnapshot));
+    delete bad.overview[0].provenance;
     expect(dashboardSnapshotSchema.safeParse(bad).success).toBe(false);
   });
 });
@@ -146,6 +160,43 @@ describe("fetchDashboardSnapshot", () => {
     );
     const result = await fetchDashboardSnapshot("2026-09-09T10:00:00.000Z");
     expect(result.ok).toBe(false);
+  });
+
+  it("pair filter: appends pairs=<configured pair> to the request URL", async () => {
+    const seenUrls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        seenUrls.push(String(input));
+        return new Response(
+          JSON.stringify({ ok: true, data: validSnapshot, requestId: "r1", timestamp: "2026-09-09T10:00:01.000Z" }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }),
+    );
+    const result = await fetchDashboardSnapshot(
+      "2026-09-09T10:00:00.000Z",
+      undefined,
+      "USD_JPY",
+    );
+    expect(result.ok).toBe(true);
+    expect(seenUrls[0]).toContain("pairs=USD_JPY");
+  });
+
+  it("pair filter: omitted when no pair is selected (all seven majors)", async () => {
+    const seenUrls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        seenUrls.push(String(input));
+        return new Response(
+          JSON.stringify({ ok: true, data: validSnapshot, requestId: "r1", timestamp: "2026-09-09T10:00:01.000Z" }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }),
+    );
+    await fetchDashboardSnapshot("2026-09-09T10:00:00.000Z");
+    expect(seenUrls[0]).not.toContain("pairs=");
   });
 });
 
