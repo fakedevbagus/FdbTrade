@@ -13,12 +13,15 @@ import os
 import pathlib
 import re
 import signal
+import socket
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+TOOLCHAIN = REPO_ROOT / "scripts" / "rebuild_toolchain.py"
 
 REQUIRED_DIRS = (
     "frontend",
@@ -161,7 +164,7 @@ class WorkspaceContractTests(unittest.TestCase):
 
 
 class EntryPointExecutionTests(unittest.TestCase):
-    """Leaf make targets exit zero on placeholders."""
+    """Root entry points dispatch to bounded, executable commands."""
 
     def _run_make(self, target: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
@@ -179,15 +182,36 @@ class EntryPointExecutionTests(unittest.TestCase):
         self.assertIn("Available targets", result.stdout)
         self.assertIn("make check", result.stdout)
 
-    def test_leaf_lifecycle_targets_exit_zero(self):
-        bootstrap = self._run_make("install")
-        self.assertEqual(bootstrap.returncode, 0, msg=bootstrap.stdout + bootstrap.stderr)
-        # P01-01: `start` is now a real blocking dev-server target and is
-        # covered separately by test_make_start_serves_when_production_build_exists.
-        for target in ("lint", "typecheck", "build"):
+    def test_leaf_lifecycle_targets_have_a_bounded_plan(self):
+        # The outer R0.3 gate executes these stages for real. Re-running them
+        # recursively from the Python test stage duplicates lint/typecheck/build
+        # and makes the gate depend on nested 180-second subprocesses.
+        commands = {
+            "install": ("install",),
+            "lint": ("stage", "lint"),
+            "typecheck": ("stage", "typecheck"),
+            "build": ("stage", "build"),
+        }
+        for target, command in commands.items():
             with self.subTest(target=target):
-                result = self._run_make(target)
-                self.assertEqual(result.returncode,  0, msg=f"make {target} failed:\n{result.stdout}{result.stderr}")
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        str(TOOLCHAIN),
+                        "--dry-run",
+                        "--json",
+                        *command,
+                    ],
+                    cwd=REPO_ROOT,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+                payload = json.loads(result.stdout)
+                self.assertEqual(payload["status"], "planned")
+                self.assertTrue(all(item["timeoutSeconds"] > 0 for item in payload["results"]))
 
     def test_make_start_serves_when_production_build_exists(self):
         """`make start` launches the real frontend server (P01-01).
@@ -203,9 +227,16 @@ class EntryPointExecutionTests(unittest.TestCase):
             self.skipTest(
                 "no frontend production build; make start serving behaviour not asserted"
             )
+        # A fixed port makes this toolchain contract depend on unrelated host
+        # processes. Reserve an available loopback port, then pass it to Next.
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+            listener.bind(("127.0.0.1", 0))
+            frontend_port = listener.getsockname()[1]
+        env = {**os.environ, "PORT": str(frontend_port)}
         proc = subprocess.Popen(
             ["make", "start"],
             cwd=REPO_ROOT,
+            env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -230,6 +261,8 @@ class EntryPointExecutionTests(unittest.TestCase):
             except (ProcessLookupError, subprocess.TimeoutExpired):
                 with contextlib.suppress(ProcessLookupError):
                     os.killpg(proc.pid, signal.SIGKILL)
+            if proc.stdout is not None:
+                proc.stdout.close()
         self.assertTrue(
             ready,
             msg="make start did not report ready:\n" + "".join(output),

@@ -2,6 +2,7 @@
   "name": "@fdbtrade/backend",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "FdbTrade BFF/API — Next.js typed API foundation (P01-02): validation, structured errors, request IDs, health endpoint.",
   "scripts": {
     "dev": "next dev -p 3100",

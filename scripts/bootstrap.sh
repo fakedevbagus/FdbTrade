@@ -70,13 +70,13 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
 fi
 
 # 0. Required tools must be present before anything is mutated.
-for tool in python3 pnpm; do
+for tool in python3 node corepack; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         log "ERROR: required tool '$tool' not found on PATH"
         exit 1
     fi
 done
-log "Prerequisites present: python3 $(python3 --version 2>&1 | awk '{print $2}'), pnpm $(pnpm --version)"
+log "Prerequisites present: python3 $(python3 --version 2>&1 | awk '{print $2}'), node $(node --version), corepack $(corepack --version)"
 
 # 1. Create or validate the Python virtual environment.
 if [[ -d "$VENV_DIR" ]]; then
@@ -115,8 +115,8 @@ fi
 if [[ "$DRY_RUN" -eq 1 ]]; then
     log "PLAN: pnpm install --frozen-lockfile"
 else
-    log "Installing locked Node dependencies (pnpm install --frozen-lockfile)"
-    pnpm install --frozen-lockfile
+    log "Installing locked Node dependencies through the bounded R0.3 toolchain"
+    python3 "$REPO_ROOT/scripts/rebuild_toolchain.py" install
     log "Node dependencies installed"
 fi
 

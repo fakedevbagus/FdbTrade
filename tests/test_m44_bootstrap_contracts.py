@@ -18,6 +18,7 @@ from __future__ import annotations
 import importlib.machinery
 import importlib.util
 import json
+import os
 import pathlib
 import re
 import shutil
@@ -66,7 +67,15 @@ REQUIRED_PREFLIGHT_KEYS = (
     "ports",
 )
 
-SCAN_EXCLUDED_DIRS = {"node_modules", ".git", ".next", ".venv", "venv", "__pycache__"}
+SCAN_EXCLUDED_DIRS = {
+    "node_modules",
+    ".git",
+    ".next",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "artifacts",
+}
 SCAN_SUFFIXES = {".ts", ".tsx", ".js", ".json", ".py", ".md", ".yaml", ".yml", ".sh"}
 
 
@@ -91,12 +100,13 @@ def load_cli_module():
 
 
 def iter_scanned_sources():
-    for path in REPO_ROOT.rglob("*"):
-        if not path.is_file() or path.suffix not in SCAN_SUFFIXES:
-            continue
-        if SCAN_EXCLUDED_DIRS.intersection(path.parts):
-            continue
-        yield path
+    for directory, names, files in os.walk(REPO_ROOT, topdown=True):
+        names[:] = [name for name in names if name not in SCAN_EXCLUDED_DIRS]
+        root = pathlib.Path(directory)
+        for name in files:
+            path = root / name
+            if path.suffix in SCAN_SUFFIXES:
+                yield path
 
 
 class BootstrapScriptContractTests(unittest.TestCase):

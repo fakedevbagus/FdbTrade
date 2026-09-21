@@ -203,6 +203,10 @@ class LiveDatabaseLifecycleTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        if os.environ.get("FDB_TOOLCHAIN_EXTERNAL_STATE") == "disabled":
+            raise unittest.SkipTest(
+                "external database mutation disabled by the R0.3 toolchain"
+            )
         if not (REPO_ROOT / ".env").exists():
             raise unittest.SkipTest("no .env; run `make db-up` for live checks")
         if run(["docker", "inspect", "fdbtrade-postgres"]).returncode != 0:

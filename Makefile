@@ -1,7 +1,10 @@
 # FdbTrade root task runner (M44-extended)
 # Deterministic entry points. All internal timestamps are UTC; no secrets in output.
 
-.PHONY: help install lint typecheck test build start check db-up db-down db-migrate db-status bootstrap preflight operational-packaging-check private-beta-check dashboard-check security-check phase2-check handoff-check format-check runtime-check operational-persistence-check integration-replay-check historical-research-check seven-majors-check
+.PHONY: help install lint typecheck test build start check toolchain-gate db-up db-down db-migrate db-status bootstrap preflight operational-packaging-check private-beta-check dashboard-check security-check phase2-check handoff-check format-check runtime-check operational-persistence-check integration-replay-check historical-research-check seven-majors-check
+
+TOOLCHAIN := python3 scripts/rebuild_toolchain.py
+TOOLCHAIN_REPORT_DIR := artifacts/toolchain
 
 help:
 	@echo "FdbTrade workspace task runner"
@@ -14,6 +17,7 @@ help:
 	@echo "  make build       Build all packages"
 	@echo "  make start       Start local dev servers"
 	@echo "  make check       Aggregate local gate: lint + typecheck + test + build"
+	@echo "  make toolchain-gate  Frozen install + complete bounded R0.3 gate"
 	@echo "  make db-up       Start local postgres (Docker) and migrate from zero"
 	@echo "  make db-down     Stop local postgres (data volume preserved)"
 	@echo "  make db-migrate  Apply pending migrations (requires running postgres)"
@@ -38,26 +42,28 @@ help:
 	@echo "Live execution OFF | Provider order transport OFF | Loopback-only"
 
 install:
-	pnpm install
+	$(TOOLCHAIN) --output $(TOOLCHAIN_REPORT_DIR)/install.json install
 
 lint:
-	pnpm -r --if-present run lint
+	$(TOOLCHAIN) --output $(TOOLCHAIN_REPORT_DIR)/lint.json stage lint
 
 typecheck:
-	pnpm -r --if-present run typecheck
+	$(TOOLCHAIN) --output $(TOOLCHAIN_REPORT_DIR)/typecheck.json stage typecheck
 
 test:
-	pnpm -r --if-present run test
-	python3 -m unittest discover -s tests -p "test_*.py" -v
+	$(TOOLCHAIN) --output $(TOOLCHAIN_REPORT_DIR)/test.json stage test
 
 build:
-	pnpm -r --if-present run build
+	$(TOOLCHAIN) --output $(TOOLCHAIN_REPORT_DIR)/build.json stage build
 
 start:
 	pnpm -r --if-present run start
 
-check: lint typecheck test build
-	@echo "All workspace checks passed."
+check:
+	$(TOOLCHAIN) --output $(TOOLCHAIN_REPORT_DIR)/check.json check
+
+toolchain-gate:
+	$(TOOLCHAIN) --output $(TOOLCHAIN_REPORT_DIR)/gate.json gate
 
 db-up:
 	bash scripts/db-bootstrap.sh up
@@ -111,13 +117,13 @@ private-beta-check:
 	@# while every production source, config, and doc stays in scope.
 	@if grep -rEl "LIVE_EXECUTION_ENABLED[[:space:]]*=[[:space:]]*true|LIVE_EXECUTION_ENABLED[[:space:]]*=[[:space:]]*\"true\"|liveExecutionEnabled[[:space:]]*:[[:space:]]*true" . \
 		--include="*.ts" --include="*.tsx" --include="*.js" --include="*.json" --include="*.py" --include="*.md" --include="*.yaml" --include="*.yml" --include="*.sh" \
-		--exclude="*.test.ts" --exclude="*.test.tsx" --exclude="*.test.js" --exclude="*.spec.ts" --exclude="*.spec.tsx" \
+		--exclude="*.test.ts" --exclude="*.test.tsx" --exclude="*.test.js" --exclude="*.spec.ts" --exclude="*.spec.tsx" --exclude-dir=artifacts \
 		--exclude-dir=node_modules --exclude-dir=.git --exclude-dir=.next --exclude-dir=.venv --exclude-dir=venv --exclude-dir=__pycache__ --exclude-dir=__tests__ --exclude-dir=__mocks__ 2>/dev/null; then \
 		echo "FAIL: live execution enabled somewhere"; exit 1; \
 	else echo "OK: live execution is never enabled in production sources"; fi
 	@if grep -rEl "PROVIDER_ORDER_TRANSPORT_ENABLED[[:space:]]*=[[:space:]]*true|PROVIDER_ORDER_TRANSPORT_ENABLED[[:space:]]*=[[:space:]]*\"true\"|providerOrderTransportEnabled[[:space:]]*:[[:space:]]*true" . \
 		--include="*.ts" --include="*.tsx" --include="*.js" --include="*.json" --include="*.py" --include="*.md" --include="*.yaml" --include="*.yml" --include="*.sh" \
-		--exclude="*.test.ts" --exclude="*.test.tsx" --exclude="*.test.js" --exclude="*.spec.ts" --exclude="*.spec.tsx" \
+		--exclude="*.test.ts" --exclude="*.test.tsx" --exclude="*.test.js" --exclude="*.spec.ts" --exclude="*.spec.tsx" --exclude-dir=artifacts \
 		--exclude-dir=node_modules --exclude-dir=.git --exclude-dir=.next --exclude-dir=.venv --exclude-dir=venv --exclude-dir=__pycache__ --exclude-dir=__tests__ --exclude-dir=__mocks__ 2>/dev/null; then \
 		echo "FAIL: provider order transport enabled somewhere"; exit 1; \
 	else echo "OK: provider order transport is never enabled in production sources"; fi
@@ -217,4 +223,3 @@ seven-majors-check:
 	@pnpm --filter @fdbtrade/frontend test src/lib/__tests__/dashboard.test.ts src/components/dashboard/__tests__/DashboardContent.test.tsx
 	@python3 -m unittest tests.test_m47_seven_major_contracts
 	@echo "[seven-majors-check] PASS"
-

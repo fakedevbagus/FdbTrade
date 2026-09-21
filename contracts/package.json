@@ -2,6 +2,7 @@
   "name": "@fdbtrade/contracts",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "FdbTrade shared typed contracts — canonical market-data model (P02-01): instrument, quote, candle, spread and session schemas; versioned symbol mapping.",
   "main": "./src/index.ts",
   "types": "./src/index.ts",

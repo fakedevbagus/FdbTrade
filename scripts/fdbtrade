@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 VENV_DIR = REPO_ROOT / ".venv"
 STATE_FILE = REPO_ROOT / ".fdbtrade" / "state.json"
+TOOLCHAIN = REPO_ROOT / "scripts" / "rebuild_toolchain.py"
+PROBE_TIMEOUT_SECONDS = 10
 
 
 def utc_now_iso():
@@ -20,6 +22,18 @@ def utc_now_iso():
 def log(msg):
     """Human-readable diagnostics go to stderr so stdout stays machine-parseable."""
     print(f"[{utc_now_iso()}] {msg}", file=sys.stderr)
+
+
+def _version(command):
+    """Run a bounded version probe and return its first output line."""
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=PROBE_TIMEOUT_SECONDS,
+    )
+    return result.stdout.strip().splitlines()[0]
 
 
 def preflight(as_json=False):
@@ -34,40 +48,48 @@ def preflight(as_json=False):
 
     # Node
     try:
-        result = subprocess.run(["node", "--version"], capture_output=True, text=True, check=True)
-        checks["node"] = result.stdout.strip()
-        log(f"Node: {result.stdout.strip()}")
+        checks["node"] = _version(["node", "--version"])
+        log(f"Node: {checks['node']}")
     except Exception as e:
         errors.append(f"Node not found: {e}")
 
     # npm
     try:
-        result = subprocess.run(["npm", "--version"], capture_output=True, text=True, check=True)
-        checks["npm"] = result.stdout.strip()
-        log(f"npm: {result.stdout.strip()}")
+        checks["npm"] = _version(["npm", "--version"])
+        log(f"npm: {checks['npm']}")
     except Exception as e:
         warnings.append(f"npm not found: {e}")
 
-    # pnpm
+    # pnpm — resolve the packageManager-pinned version through the same
+    # isolated Corepack cache as every R0.3 install. This never depends on or
+    # writes to the operator's home directory.
     try:
-        result = subprocess.run(["pnpm", "--version"], capture_output=True, text=True, check=True)
-        checks["pnpm"] = result.stdout.strip()
-        log(f"pnpm: {result.stdout.strip()}")
+        result = subprocess.run(
+            [sys.executable, str(TOOLCHAIN), "--json", "manager-version"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=70,
+        )
+        report = json.loads(result.stdout)
+        manager_result = report["results"][0]
+        if result.returncode != 0 or manager_result["status"] != "pass":
+            raise RuntimeError(manager_result.get("firstActionableFailure") or "manager probe failed")
+        checks["pnpm"] = manager_result["stdoutTail"].strip().splitlines()[0]
+        log(f"pnpm: {checks['pnpm']} (isolated Corepack)")
     except Exception as e:
         warnings.append(f"pnpm not found: {e}")
 
     # Make
     try:
-        result = subprocess.run(["make", "--version"], capture_output=True, text=True, check=True)
-        checks["make"] = result.stdout.split("\n")[0]
+        checks["make"] = _version(["make", "--version"])
         log(f"Make: {checks['make']}")
     except Exception as e:
         errors.append(f"Make not found: {e}")
 
     # Bash
     try:
-        result = subprocess.run(["bash", "--version"], capture_output=True, text=True, check=True)
-        checks["bash"] = result.stdout.split("\n")[0]
+        checks["bash"] = _version(["bash", "--version"])
         log(f"Bash: {checks['bash']}")
     except Exception as e:
         errors.append(f"Bash not found: {e}")
@@ -76,8 +98,7 @@ def preflight(as_json=False):
     # the private beta Python side is stdlib-driven and the host binary may be
     # absent. Availability is reported honestly; it is never assumed.
     try:
-        result = subprocess.run(["sqlite3", "--version"], capture_output=True, text=True, check=True)
-        checks["sqlite3"] = result.stdout.strip()
+        checks["sqlite3"] = _version(["sqlite3", "--version"])
         log(f"SQLite: {checks['sqlite3']}")
     except Exception:
         checks["sqlite3"] = "not found"
@@ -108,16 +129,25 @@ def preflight(as_json=False):
 
     # Ports (loopback only — the private beta never binds a public interface)
     port_state = {}
+    socket_probe_warning = False
     for port in (3000, 3100, 15432):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(1)
-        result = sock.connect_ex(("127.0.0.1", port))
-        sock.close()
-        if result == 0:
-            port_state[str(port)] = "in_use"
-            warnings.append(f"Port {port} in use on 127.0.0.1")
-        else:
-            port_state[str(port)] = "available"
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.settimeout(1)
+                result = sock.connect_ex(("127.0.0.1", port))
+            if result == 0:
+                port_state[str(port)] = "in_use"
+                warnings.append(f"Port {port} in use on 127.0.0.1")
+            else:
+                port_state[str(port)] = "available"
+        except OSError as error:
+            port_state[str(port)] = "probe_unavailable"
+            if not socket_probe_warning:
+                warnings.append(
+                    f"Loopback socket probe unavailable in this environment: "
+                    f"{error.__class__.__name__}: {error}"
+                )
+                socket_probe_warning = True
     checks["ports"] = port_state
 
     log("Ports checked on loopback: 3000, 3100, 15432")
@@ -213,9 +243,9 @@ def init(dry_run=False):
         log("Dry run complete: no changes were made")
         return 0
 
-    log("Installing Node deps (frozen lockfile)...")
+    log("Installing Node deps through the bounded R0.3 toolchain...")
     try:
-        subprocess.run(["pnpm", "install", "--frozen-lockfile"], check=True, cwd=str(REPO_ROOT))
+        subprocess.run([sys.executable, str(TOOLCHAIN), "install"], check=True, cwd=str(REPO_ROOT))
         log("Node deps installed")
     except Exception as e:
         log(f"ERROR: Node deps failed: {e}")

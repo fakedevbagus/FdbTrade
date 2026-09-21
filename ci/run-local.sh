@@ -18,7 +18,7 @@
 #   --src DIR          source tree to copy (default: repository root)
 #   --work DIR         destination workspace (default: fresh temp dir)
 #   --jobs a,b,c       comma-separated make targets (default: lint,typecheck,test,build)
-#   --skip-install     do not run `pnpm install` before the jobs
+#   --skip-install     do not run `make install` before the jobs
 #   --help             show this help and exit
 set -euo pipefail
 
@@ -39,7 +39,7 @@ Options:
   --src DIR         source tree to copy (default: repo root)
   --work DIR        destination workspace (default: temp dir)
   --jobs a,b,c      make targets to run (default: lint,typecheck,test,build)
-  --skip-install    do not run 'pnpm install' before the jobs
+  --skip-install    do not run 'make install' before the jobs
   --help            show this help
 EOF
 }
@@ -89,8 +89,8 @@ tar -C "$SRC" \
 cd "$WORK"
 
 if [[ "$SKIP_INSTALL" -eq 0 ]]; then
-  echo "[ci] installing dependencies (frozen lockfile)"
-  pnpm install --frozen-lockfile
+  echo "[ci] installing dependencies through the R0.3 toolchain"
+  make install
 fi
 
 run_job() {

@@ -1,0 +1,201 @@
+{
+  "schemaVersion": 1,
+  "workUnit": "R0.3",
+  "status": "complete_with_declared_blocker",
+  "recordedOn": "2026-09-22",
+  "repository": {
+    "branch": "rebuild/r0-preserve-current-state",
+    "baselineCommit": "be223a339b2786bde51fcfc2deb7af460c407a98"
+  },
+  "toolchain": {
+    "entryPoint": "scripts/rebuild_toolchain.py",
+    "packageManager": "pnpm@11.22.0",
+    "cacheRoot": "artifacts/toolchain/cache",
+    "dependsOnOperatorHome": false,
+    "frozenInstall": true,
+    "stages": [
+      "lint",
+      "typecheck",
+      "test",
+      "build"
+    ],
+    "reportPath": "artifacts/toolchain/gate.json",
+    "ciEntryPoint": "make toolchain-gate"
+  },
+  "finalGate": {
+    "command": "make toolchain-gate",
+    "startedAtUtc": "2026-09-21T18:26:23.023Z",
+    "finishedAtUtc": "2026-09-21T18:32:02.333Z",
+    "durationMs": 339310,
+    "exitCode": 2,
+    "status": "fail",
+    "classification": "blocked_by_declared_external_state_skip",
+    "summary": {
+      "total": 15,
+      "pass": 14,
+      "fail": 0,
+      "timeout": 0,
+      "environmentBlocked": 0,
+      "skipped": 1,
+      "planned": 0
+    },
+    "firstActionableFailure": {
+      "name": "python-unittest",
+      "status": "skipped",
+      "detail": "command completed with 2 skipped test(s); skipped is not pass"
+    },
+    "results": [
+      {
+        "name": "pnpm-version",
+        "status": "pass",
+        "exitCode": 0,
+        "durationMs": 541,
+        "timeoutSeconds": 60
+      },
+      {
+        "name": "pnpm-frozen-install",
+        "status": "pass",
+        "exitCode": 0,
+        "durationMs": 579,
+        "timeoutSeconds": 600
+      },
+      {
+        "name": "contracts-lint",
+        "status": "pass",
+        "exitCode": 0,
+        "durationMs": 36737,
+        "timeoutSeconds": 240
+      },
+      {
+        "name": "backend-lint",
+        "status": "pass",
+        "exitCode": 0,
+        "durationMs": 32662,
+        "timeoutSeconds": 240
+      },
+      {
+        "name": "frontend-lint",
+        "status": "pass",
+        "exitCode": 0,
+        "durationMs": 5846,
+        "timeoutSeconds": 240
+      },
+      {
+        "name": "contracts-typecheck",
+        "status": "pass",
+        "exitCode": 0,
+        "durationMs": 8966,
+        "timeoutSeconds": 240
+      },
+      {
+        "name": "backend-typecheck",
+        "status": "pass",
+        "exitCode": 0,
+        "durationMs": 10909,
+        "timeoutSeconds": 240
+      },
+      {
+        "name": "frontend-typecheck",
+        "status": "pass",
+        "exitCode": 0,
+        "durationMs": 4312,
+        "timeoutSeconds": 240
+      },
+      {
+        "name": "contracts-test",
+        "status": "pass",
+        "exitCode": 0,
+        "durationMs": 27616,
+        "timeoutSeconds": 600,
+        "testSummary": "43 files, 631 tests passed"
+      },
+      {
+        "name": "backend-test",
+        "status": "pass",
+        "exitCode": 0,
+        "durationMs": 46131,
+        "timeoutSeconds": 600,
+        "testSummary": "71 files, 676 tests passed"
+      },
+      {
+        "name": "frontend-test",
+        "status": "pass",
+        "exitCode": 0,
+        "durationMs": 43352,
+        "timeoutSeconds": 600,
+        "testSummary": "12 files, 97 tests passed"
+      },
+      {
+        "name": "python-unittest",
+        "status": "skipped",
+        "exitCode": 0,
+        "durationMs": 23251,
+        "timeoutSeconds": 600,
+        "testSummary": "539 tests ran; two class-level PostgreSQL lifecycle skips were reported",
+        "firstActionableFailure": "command completed with 2 skipped test(s); skipped is not pass"
+      },
+      {
+        "name": "contracts-build",
+        "status": "pass",
+        "exitCode": 0,
+        "durationMs": 4462,
+        "timeoutSeconds": 600
+      },
+      {
+        "name": "backend-build",
+        "status": "pass",
+        "exitCode": 0,
+        "durationMs": 69995,
+        "timeoutSeconds": 600
+      },
+      {
+        "name": "frontend-build",
+        "status": "pass",
+        "exitCode": 0,
+        "durationMs": 23946,
+        "timeoutSeconds": 600
+      }
+    ]
+  },
+  "preflight": {
+    "command": "python3 scripts/fdbtrade preflight --json",
+    "exitCode": 0,
+    "status": "warn",
+    "machineReadable": true,
+    "pnpmVersion": "11.22.0",
+    "socketRestrictionContractTest": "pass",
+    "warnings": [
+      "sqlite3 CLI is absent; Python sqlite3 3.45.1 is available",
+      "port state is reported without allowing socket restrictions to crash JSON output"
+    ]
+  },
+  "declaredBlockers": [
+    {
+      "id": "legacy_postgresql_lifecycle_not_run",
+      "status": "skipped",
+      "reason": "R0.3 forbids external database mutation; legacy PostgreSQL migration and auth lifecycle classes are disabled by the toolchain environment",
+      "targetWorkUnit": "R0.4"
+    }
+  ],
+  "diagnosticIncident": {
+    "occurred": true,
+    "description": "Before the external-state guard was added, one exploratory full Python run detected the already-running fdbtrade-postgres container and executed the legacy migration/auth lifecycle tests.",
+    "observedEffects": [
+      "the migration test rolled back and re-applied 0002_auth_foundation, ending with both legacy migrations applied",
+      "the auth test performed an idempotent test-user upsert and session lifecycle"
+    ],
+    "remediation": "The final runner exports FDB_TOOLCHAIN_EXTERNAL_STATE=disabled; both lifecycle classes now skip before inspecting or mutating Docker/database state, and the runner classifies those skips as non-PASS.",
+    "recoveryActionTaken": "none; no destructive cleanup was attempted because the exact pre-run external database contents were not known"
+  },
+  "preservation": {
+    "m48FileCount": 10,
+    "m48HashVerification": "pass",
+    "m48RuntimeAuthority": false,
+    "productionSourceChanged": false
+  },
+  "safety": {
+    "liveExecutionEnabled": false,
+    "providerOrderTransportEnabled": false,
+    "finalGateExternalStateMutationEnabled": false
+  }
+}

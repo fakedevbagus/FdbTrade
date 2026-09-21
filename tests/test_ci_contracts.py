@@ -1,7 +1,7 @@
 """P00-04 CI baseline and ADR system contract tests.
 
 Covers: ADR numbering/sections contract, ADR template contract, ADR index/format
-doc, CI workflow contract (four required blocking jobs, no continue-on-error, no
+doc, CI workflow contract (one bounded blocking gate, no continue-on-error, no
 secrets), and the local CI runner (syntax, --help, unknown-option, happy path,
 failing-job blocking, source purity, and .env exclusion).
 
@@ -147,7 +147,7 @@ class AdrContractTests(unittest.TestCase):
                        "ADR_TEMPLATE.md", "Numbering", "Index"):
             self.assertIn(needle, text, f"ADR README must document {needle!r}")
 class WorkflowContractTests(unittest.TestCase):
-    """The declarative CI defines four required, blocking jobs reusing make."""
+    """The declarative CI uses the single bounded R0.3 toolchain gate."""
 
     def setUp(self):
         self.text = WORKFLOW.read_text(encoding="utf-8")
@@ -156,20 +156,22 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("on:", self.text)
         self.assertIn("pull_request", self.text)
 
-    def test_each_required_job_calls_its_make_target(self):
-        for target in REQUIRED_JOBS:
-            with self.subTest(target=target):
-                self.assertIn(f"make {target}", self.text,
-                              f"workflow must run `make {target}`")
+    def test_workflow_calls_the_complete_toolchain_gate(self):
+        self.assertIn("make toolchain-gate", self.text)
 
     def test_no_job_allows_continue_on_error(self):
         self.assertNotIn("continue-on-error", self.text,
                          "required jobs must block; continue-on-error must not appear")
 
-    def test_workflow_contains_required_job_names(self):
-        for name in ("lint", "typecheck", "unit-tests", "build"):
-            with self.subTest(name=name):
-                self.assertIn(name, self.text, f"workflow missing job {name!r}")
+    def test_workflow_has_one_bounded_required_job(self):
+        self.assertIn("toolchain:", self.text)
+        self.assertIn("reproducible-toolchain", self.text)
+        self.assertRegex(self.text, r"timeout-minutes:\s*[1-9][0-9]*")
+
+    def test_workflow_preserves_diagnostics_even_when_the_gate_blocks(self):
+        self.assertIn("if: always()", self.text)
+        self.assertIn("actions/upload-artifact@v4", self.text)
+        self.assertIn("artifacts/toolchain/gate.json", self.text)
 
     def test_workflow_has_no_secret_markers(self):
         lowered = self.text.lower()

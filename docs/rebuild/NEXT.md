@@ -1,41 +1,41 @@
 # FdbTrade Rebuild — Next Work Unit
 
-Current completed unit: **R0.2 — Capability audit**
+Current completed unit: **R0.3 — Reproducible toolchain**
 
-Next authorized unit: **R0.3 — Reproducible toolchain**
+Next authorized unit: **R0.4 — Authority reset and SQLite foundation**
 
 ## Resume context
 
-1. Read `artifacts/rebuild/r0.2/capability-audit.json` and
-   `docs/rebuild/checkpoints/R0.2_CAPABILITY_AUDIT.md`.
-2. Keep the R0.2 classifications and safety findings as the current rebuild
-   authority; legacy milestone/completion claims are evidence only.
-3. Establish one deterministic, bounded install/lint/typecheck/test/build path.
-4. Make Corepack/pnpm cache and store locations explicit and writable without
-   depending on the operator's home directory.
-5. Ensure every diagnostic records exit code, duration, timeout/skip state and
-   first actionable failure; timeout, skip and environment-blocked are not PASS.
-6. Make preflight return machine-readable failure JSON even when socket probes
-   are forbidden by the environment.
-7. Do not begin SQLite, runtime, product, UI, M48 or other repairs during R0.3.
+1. Read `artifacts/rebuild/r0.3/toolchain.json` and
+   `docs/rebuild/checkpoints/R0.3_REPRODUCIBLE_TOOLCHAIN.md`.
+2. Keep `scripts/rebuild_toolchain.py` and `make toolchain-gate` as the only
+   install/lint/typecheck/test/build authority.
+3. Define one canonical local data root and SQLite connection authority.
+4. Add deterministic SQLite schema migrations, transaction boundaries, and
+   clean-database lifecycle tests without Docker or external state.
+5. Replace PostgreSQL auth/session authority and establish durable audit
+   authority before broader runtime work.
+6. Retire PostgreSQL/Redis/Docker assumptions only after parity evidence and a
+   documented migration decision exist.
+7. Do not begin application/runtime lifecycle, market-data authority, UI,
+   credentialed provider, or M48 work during R0.4.
 
-## R0.3 environment blockers
+## R0.4 entry conditions and blockers
 
-- `pnpm --version` currently fails with `EROFS` while Corepack tries to create
-  `/home/fakedevbagus/.cache/node/corepack/...`.
-- Direct backend, frontend and contracts typechecks each exceeded the R0.2
-  45-second diagnostic timeout without producing a diagnostic.
-- Full backend, frontend, contracts and Python suites each exceeded the R0.2
-  60-second timeout; their partial results are not full-suite passes.
-- `scripts/fdbtrade preflight --json` currently raises `PermissionError` while
-  creating an AF_INET socket in the sandbox and emits a traceback instead of
-  JSON.
-- Live PostgreSQL auth/database tests are skipped while the container is down;
-  R0.3 must report that state honestly and must not start or migrate databases.
-- Vitest reports that its TypeScript configs use ESM syntax while being loaded
-  as CommonJS by the current config loader.
+- The final R0.3 gate is intentionally non-PASS: its Python result reports two
+  skipped legacy PostgreSQL lifecycle classes. Skip is not PASS.
+- `FDB_TOOLCHAIN_EXTERNAL_STATE=disabled` must remain enforced; R0.4 must not
+  make the gate depend on Docker or an operator database.
+- An exploratory R0.3 diagnostic touched the already-running legacy PostgreSQL
+  lifecycle before the guard was added. Read the incident record before any
+  database action; do not attempt cleanup without resolving ownership/state.
+- The sqlite3 CLI is absent, but Python sqlite3 3.45.1 and Node SQLite APIs are
+  available. Select one explicit application authority and record the decision.
+- Existing PostgreSQL migrations/auth/session code is evidence, not target
+  authority. Replacement requires parity tests and a migration/retirement plan.
+- Contracts ESLint and frontend middleware warnings remain non-blocking.
 
 Safety invariants remain unchanged: live execution is off, provider-order
 transport is off, fixture fallback may never impersonate current provider data,
-and the quarantined M48 code is not authorized for runtime use. R0.3 is the only
+and the quarantined M48 code is not authorized for runtime use. R0.4 is the only
 authorized next unit.

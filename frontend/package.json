@@ -2,6 +2,7 @@
   "name": "@fdbtrade/frontend",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "FdbTrade web frontend — Next.js application shell (P01-01).",
   "scripts": {
     "dev": "next dev",

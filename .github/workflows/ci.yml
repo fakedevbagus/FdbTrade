@@ -1,8 +1,7 @@
-# FdbTrade CI (P00-04).
-# Four required, blocking jobs reusing the repository Makefile gate:
-#   lint, typecheck, unit tests (test), build.
-# A failing required job fails the workflow (blocks merge); none may be tolerated
-# as optional. Deterministic for deterministic inputs; no secrets used.
+# FdbTrade rebuild CI (R0.3).
+# One required, blocking entry point performs the frozen install and every
+# bounded verification stage. The runner emits honest pass/fail/timeout/skip
+# evidence and never treats a partial diagnostic as a pass.
 name: CI
 
 on:
@@ -15,66 +14,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  lint:
-    name: lint
+  toolchain:
+    name: reproducible-toolchain
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11.22.0
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-          cache: "pnpm"
-      - run: pnpm install --frozen-lockfile
-      - name: Lint
-        run: make lint
-
-  typecheck:
-    name: typecheck
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - name: Frozen install and bounded verification
+        run: make toolchain-gate
+      - name: Preserve machine-readable diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          version: 11.22.0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: "pnpm"
-      - run: pnpm install --frozen-lockfile
-      - name: Typecheck
-        run: make typecheck
-
-  test:
-    name: unit-tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11.22.0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: "pnpm"
-      - run: pnpm install --frozen-lockfile
-      - name: Unit tests
-        run: make test
-
-  build:
-    name: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11.22.0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: "pnpm"
-      - run: pnpm install --frozen-lockfile
-      - name: Build
-        run: make build
+          name: reproducible-toolchain-report
+          path: artifacts/toolchain/gate.json
+          if-no-files-found: error

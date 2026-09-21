@@ -2,6 +2,7 @@
   "name": "fdbtrade",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "description": "FdbTrade Private Trading Intelligence OS — monorepo root (P00-02 skeleton; no business logic).",
   "packageManager": "pnpm@11.22.0",
   "engines": {
@@ -9,11 +10,13 @@
     "pnpm": ">=11.0.0"
   },
   "scripts": {
-    "lint": "pnpm -r --if-present run lint",
-    "typecheck": "pnpm -r --if-present run typecheck",
-    "test": "pnpm -r --if-present run test && python3 -m unittest discover -s tests -p 'test_*.py' -v",
-    "build": "pnpm -r --if-present run build",
+    "install:locked": "python3 scripts/rebuild_toolchain.py install",
+    "lint": "python3 scripts/rebuild_toolchain.py stage lint",
+    "typecheck": "python3 scripts/rebuild_toolchain.py stage typecheck",
+    "test": "python3 scripts/rebuild_toolchain.py stage test",
+    "build": "python3 scripts/rebuild_toolchain.py stage build",
     "start": "pnpm -r --if-present run start",
-    "check": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build"
+    "check": "python3 scripts/rebuild_toolchain.py check",
+    "toolchain:gate": "python3 scripts/rebuild_toolchain.py gate"
   }
 }
