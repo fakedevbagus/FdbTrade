@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "workUnit": "R0.1",
+  "status": "preserved",
+  "recordedOn": "2026-09-21",
+  "repository": {
+    "baselineBranch": "main",
+    "quarantineBranch": "rebuild/r0-preserve-current-state",
+    "head": "7a90738094be44b1b061059b9d9b6f8623d15c7e",
+    "originMainAheadBy": 7,
+    "originMainBehindBy": 0,
+    "trackedTreeIndexDigest": "8c32b2dff49ade5d4e4d20947cc2b9384f9c439be18e9aca1b5911a63f0d7541",
+    "trackedDiffDigestBeforePreservation": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "trackedChangesBeforePreservation": []
+  },
+  "environment": {
+    "platform": "Linux 7.0.0-31-generic x86_64",
+    "node": "v24.19.0",
+    "corepack": "0.35.0",
+    "python": "3.12.3",
+    "git": "2.43.0",
+    "make": "4.3",
+    "sqliteCli": null,
+    "nodeSqliteExports": [
+      "DatabaseSync",
+      "Session",
+      "StatementSync",
+      "backup",
+      "constants"
+    ]
+  },
+  "quarantinedWork": {
+    "label": "M48 credentialed read-only provider shadow WIP",
+    "directory": "backend/src/data/providers/shadow",
+    "classification": "unreviewed_not_authoritative",
+    "fileCount": 10,
+    "lineCount": 1603,
+    "aggregateDigest": "f7dc5aacade5078cf934be760651c2e59d9e340c7a096a25629006d8f8555fe6",
+    "files": [
+      {
+        "path": "backend/src/data/providers/shadow/allowlist.ts",
+        "bytes": 6151,
+        "sha256": "c625ad9300284b0d3614986dda6c4ce2f6183b955023c1bf6f428659bf97ca72"
+      },
+      {
+        "path": "backend/src/data/providers/shadow/audit.ts",
+        "bytes": 7349,
+        "sha256": "d49eb535b1c5404b81eb9e2658d2942cd1bfe0972ae8900430ea51af255ddac6"
+      },
+      {
+        "path": "backend/src/data/providers/shadow/fsPort.ts",
+        "bytes": 2951,
+        "sha256": "9cb9a41244fc3e5b681059052f51c8009363c5e7c1e3b486e7523feb09083f04"
+      },
+      {
+        "path": "backend/src/data/providers/shadow/gate.ts",
+        "bytes": 8273,
+        "sha256": "1627274bc0e0ab790137f6f6b951f70b207b7f64e0ea26abe48a5bdefb662d62"
+      },
+      {
+        "path": "backend/src/data/providers/shadow/mockTransport.ts",
+        "bytes": 4684,
+        "sha256": "18dc83c51a24003901d9de830665d5223fde7f93db31bd68b38ea8d34dcdbe22"
+      },
+      {
+        "path": "backend/src/data/providers/shadow/provider.ts",
+        "bytes": 5405,
+        "sha256": "216015fd4b07100555e8ad9830391d82b5bf9e6a6627f4940a8de8400310a918"
+      },
+      {
+        "path": "backend/src/data/providers/shadow/sanitize.ts",
+        "bytes": 1682,
+        "sha256": "b5eb42291c48d09be667de2e34f9cbfa40662190a58497005ed0bb1a6d1d5c11"
+      },
+      {
+        "path": "backend/src/data/providers/shadow/secrets.ts",
+        "bytes": 4466,
+        "sha256": "9d2d46384950665969bd9b53e9e6b00d1b79ca1a53a8f22bbdff9704ea03cbb4"
+      },
+      {
+        "path": "backend/src/data/providers/shadow/spec.ts",
+        "bytes": 10144,
+        "sha256": "a406c52dc92f3e747fe857d7191472d8965d8e9df6834f04ba4210c0b5b25e43"
+      },
+      {
+        "path": "backend/src/data/providers/shadow/transport.ts",
+        "bytes": 4836,
+        "sha256": "3921a5be798f7c39e6b7952f5209f8d1464b33d4ceb1d0ffb83052cf8afacf26"
+      }
+    ],
+    "knownAuditMarkers": [
+      "backend/src/data/providers/shadow/audit.ts contains the marker __PART2__",
+      "the directory had no committed tests or production wiring at capture time",
+      "no provider credentials or operator configuration were captured"
+    ]
+  },
+  "baselineVerification": {
+    "status": "environment_blocked",
+    "observations": [
+      "pnpm through Corepack failed because its home cache was read-only",
+      "direct cached pnpm 11.18.0 failed to open its store database",
+      "workspace TypeScript checks exceeded a 90 second diagnostic timeout",
+      "focused ESLint for the quarantined shadow directory exceeded a 60 second diagnostic timeout",
+      "these results are evidence for R0.3 and are not attributed to the quarantined M48 code"
+    ]
+  },
+  "safety": {
+    "liveExecutionEnabled": false,
+    "providerOrderTransportEnabled": false,
+    "quarantinedCodeAuthorizedForRuntime": false,
+    "nextWorkUnit": "R0.2"
+  }
+}

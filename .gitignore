@@ -37,6 +37,8 @@ logs/
 # below can re-include the subdirectory.
 artifacts/*
 !artifacts/private-beta/
+# Rebuild checkpoints are reviewable repository evidence, not runtime output.
+!artifacts/rebuild/
 .tmp/
 
 # OS / editor
