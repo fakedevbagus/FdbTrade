@@ -1,12 +1,12 @@
-# FdbTrade — Fresh Chat Resume Prompt (M46 → M47)
+# FdbTrade — Fresh Chat Resume Prompt (M47 → M48)
 
 Use this prompt when starting a new agent session to resume work on FdbTrade.
 
 ## Repository State
 
 - **Baseline milestone:** M43 (private-beta handoff complete and certified)
-- **Current milestone:** M46 — User-facing historical research workflow (**complete, acceptance evidence recorded**)
-- **Next authorized milestone:** M47 — Seven-major runtime coverage (**not started; do not begin in the same run**)
+- **Current milestone:** M47 — Seven-major runtime coverage (**complete, acceptance evidence recorded**)
+- **Next authorized milestone:** M48 — Credentialed read-only provider shadow (**not started; do not begin in the same run**)
 - **Git HEAD (M43 baseline):** `f284c2f` (P18 complete, legacy roadmap)
 - **Branch:** `main`
 - **Execution authority:** live execution OFF, provider order transport OFF, loopback-only, paper-only.
@@ -43,7 +43,7 @@ FdbTrade is a private, single-user trading intelligence OS. The legacy P0-P18 ro
    make handoff-check
    make private-beta-check
    ```
-4. **Execute only M47** — do not begin M48.
+4. **Execute only M48** — do not begin M49.
 
 ## M45 delivered (verified, all gates pass)
 
@@ -131,10 +131,38 @@ Authority pinned:
 - `docs/checkpoints/46_historical_research.md` records M46 behavior and recovery.
 - This handoff points to M47.
 
+## M47 delivered
+
+- `backend/src/runtime/sevenMajors.ts` — configured seven-major runtime authority (`EUR_USD`, `GBP_USD`, `USD_JPY`, `USD_CHF`, `AUD_USD`, `USD_CAD`, `NZD_USD`) mapping provider pairs to canonical instruments with base/quote currencies and currency clusters.
+- Per-pair isolation: one worker, job store and bounded cache per pair (`SEVEN_MAJOR_CACHED_RANGES_PER_PAIR`); a failed pair cannot invent data or disturb unrelated pairs.
+- Measured pair evidence: `acceptedCandles`, `quarantinedRows` (from the P02-03 gate via the additive `IngestionResult.quarantined`), `gaps`, `retries`, explicit `state`, `provenance: "fixture"`.
+- Bounded load shedding via M45 `evaluateDegradation` + `admitCycle`; the effective level is the more severe of measured pressure and any explicit level. Shed pairs are `unavailable` with `cycle_not_admitted:suspended` / `load_shed:observation_only` and zero candles.
+- Read-only pipeline slice defaults to the seven configured majors and fails closed outside it; overview rows carry `configuredPair` + `provenance`.
+- Dashboard pair filter `GET /api/dashboard?pairs=...` (configured order preserved; unknown/repeated pairs `400`) plus UI filter chips and a per-pair provenance column derived from one contract list.
+- `make seven-majors-check` added (backend runtime/pipeline/dashboard-route suites, frontend dashboard suites, Python M47 contracts).
+
+### M47 acceptance evidence
+
+All gates exit 0 (2026-09-21): `make seven-majors-check`, `runtime-check`,
+`operational-persistence-check`, `integration-replay-check`,
+`historical-research-check`, `lint`, `typecheck`, `format-check`, `test`, `build`,
+`operational-packaging-check`, `private-beta-check`, `dashboard-check`,
+`security-check`, `phase2-check`, `handoff-check`.
+
+`make test` totals: backend 676 tests / 71 files, frontend 97 tests / 12 files,
+contracts 631 tests / 43 files, Python 535 tests.
+
+Authority pinned:
+
+- `PHASE2_PROGRESS_MANIFEST.json` has `currentMilestone=47` and `nextPendingMilestone=48`.
+- `docs/checkpoints/47_seven_major_runtime.md` records M47 behavior and recovery.
+- `docs/adr/ADR-0036-seven-major-runtime-coverage.md` is the decision record.
+- This handoff points to M48.
+
 ## Stop rule
 
-Run **only** M47. Commit only M47 changes. Do **not** begin M48 (credentialed read-only provider shadow) in the same agent run.
+Run **only** M48. Commit only M48 changes. Do **not** begin M49 (real-time paper operations hardening) in the same agent run. M48 must run the complete mock shadow gate first and may only run credentialed shadow when the user explicitly supplies an approved local environment outside the repository; fixture mode stays the default network-free regression path.
 
 ---
 
-*Updated at M46 completion. Use exactly as written for fresh chat resumption.*
+*Updated at M47 completion. Use exactly as written for fresh chat resumption.*

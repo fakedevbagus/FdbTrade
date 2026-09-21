@@ -1,4 +1,4 @@
-# FdbTrade Recovery Procedures (M43/M44/M45)
+# FdbTrade Recovery Procedures (M43/M44/M45/M47)
 
 This document provides recovery procedures for the FdbTrade private beta. All procedures assume the standard Linux environment documented in `ENVIRONMENT.md`.
 
@@ -12,6 +12,7 @@ This document provides recovery procedures for the FdbTrade private beta. All pr
 | Corrupt venv | `rm -rf .venv && make bootstrap` | < 5 min | 0 |
 | Missing .env | `cp infra/.env.example .env && make db-up` | < 2 min | 0 |
 | Historical dataset corruption | Restore `artifacts/historical-datasets/` from private backup; never edit canonical files | < 15 min | last backup |
+| Seven-major pair unavailable / shed | Re-request the same closed range; read the pair's reported reason (`failureReason`, `fault_injected_pair_unavailable`, `cycle_not_admitted:suspended`, `load_shed:observation_only`); never substitute another pair's or fixture bars | < 5 min | 0 |
 | Git working tree dirty | `git status && git stash` | < 30 sec | 0 |
 
 ## 1. Database Recovery
@@ -152,3 +153,4 @@ curl -s http://127.0.0.1:3100/api/health | jq .
 
 ---
 *Generated from M43 private-beta state. Updated for M44 bootstrap implementation.*
+*Updated for M47: the seven-major runtime slice holds no durable state — recovery is a deterministic re-request of the same closed range, and a shed or failed pair is always reported explicitly (never silently substituted).*

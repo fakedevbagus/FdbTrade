@@ -1,21 +1,22 @@
 # Current Project State
 
 ## Last verified task
-M46 — User-facing historical research workflow
+M47 — Seven-major runtime coverage
 
 ## Evidence
-See `COMPLETION_REPORT.md` and `02_REPORTS/M46_COMPLETION_REPORT.md`.
-Focused M46 gates exit 0:
-- `make historical-research-check` — historical import, immutable registry, replay, and backtest provenance
-- `make runtime-check`, `make operational-persistence-check`, `make integration-replay-check`
+See `COMPLETION_REPORT.md` and `02_REPORTS/M47_COMPLETION_REPORT.md`.
+All gates exit 0 on 2026-09-21:
+- `make seven-majors-check` — seven-major runtime isolation, bounded shedding, measured quarantine, dashboard pair filter
+- `make runtime-check`, `make operational-persistence-check`, `make integration-replay-check`, `make historical-research-check`
+- `make lint`, `make typecheck`, `make format-check`, `make test`, `make build`
 - `make operational-packaging-check`, `make private-beta-check`, `make dashboard-check`, `make security-check`, `make phase2-check`, `make handoff-check`
-Checkpoint: `docs/checkpoints/46_historical_research.md`.
-ADR: `docs/adr/ADR-0035-user-facing-historical-research-workflow.md`.
+Checkpoint: `docs/checkpoints/47_seven_major_runtime.md`.
+ADR: `docs/adr/ADR-0036-seven-major-runtime-coverage.md`.
 Safety: live execution OFF, provider order transport OFF, loopback-only, paper-only.
-Historical CSV datasets are immutable, operator-owned, and never silently fall back to fixtures.
+The operational slice is exactly the seven configured majors with fixture provenance; M47 adds no durable state (restart = re-derivation).
 
 ## Verified next task
-M47 — Seven-major runtime coverage (authorized; NOT started — do not begin in the same agent run)
+M48 — Credentialed read-only provider shadow (authorized; NOT started — do not begin in the same agent run)
 
 ## Environment facts
 - Linux Mint 22.3 / Ubuntu noble base

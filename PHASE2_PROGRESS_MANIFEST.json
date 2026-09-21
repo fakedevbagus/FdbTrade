@@ -1,7 +1,7 @@
 {
   "version": "2.0.0-private-beta",
-  "currentMilestone": 46,
-  "nextPendingMilestone": 47,
+  "currentMilestone": 47,
+  "nextPendingMilestone": 48,
   "targetRelease": "2.0.0-private-beta",
   "runtimeAuthority": [
     "fixture/offline",
@@ -13,13 +13,13 @@
   "PROVIDER_ORDER_TRANSPORT_ENABLED": false,
   "completedMilestones": [
     "M30", "M31", "M32", "M33", "M34", "M35", "M36", "M37", "M38", "M39",
-    "M40", "M41", "M42", "M43", "M44", "M45", "M46"
+    "M40", "M41", "M42", "M43", "M44", "M45", "M46", "M47"
   ],
   "legacyMilestones": [
     "M00", "M01", "M02", "M03", "M04", "M05", "M06", "M07", "M08", "M09",
     "M10", "M11", "M12", "M13", "M14", "M15", "M16", "M17", "M18", "M19",
     "M20", "M21", "M22", "M23", "M24", "M25", "M26", "M27", "M28", "M29"
   ],
-  "lastUpdated": "2026-09-20T19:00:00Z",
-  "notes": "M46 user-facing historical research workflow complete: immutable local CSV registry, checksum/version provenance, quality/quarantine/gap evidence, authenticated preview/approval/list/replay routes, research dashboard, and checksum-bound historical backtests/export. Focused historical, runtime, and replay gates pass. M47 seven-major runtime coverage authorized next and not started. Live execution OFF, provider order transport OFF, loopback-only."
+  "lastUpdated": "2026-09-21T00:00:00Z",
+  "notes": "M47 seven-major runtime coverage complete: configured seven-major runtime authority with per-pair isolation, bounded caches, measured quarantine/quota-free counters, M45-based bounded load shedding, fail-closed pipeline slice, dashboard pair filter with per-pair provenance. All gates exit 0 (backend 676, frontend 97, contracts 631 Vitest + 535 Python tests). M48 credentialed read-only provider shadow authorized next and not started. Live execution OFF, provider order transport OFF, loopback-only."
 }
