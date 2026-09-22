@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "workUnit": "R0.6",
+  "status": "complete",
+  "recordedOn": "2026-09-22",
+  "repository": {
+    "branch": "rebuild/r0-preserve-current-state",
+    "baselineCommit": "b00f8bf2a33441d125bd513033f6541045d03b09"
+  },
+  "authority": {
+    "metadataEngine": "SQLite via Node 24 node:sqlite",
+    "migration": "0005_market_data_artifacts",
+    "migrationCount": 5,
+    "tables": [
+      "market_data_artifacts",
+      "market_data_datasets",
+      "market_data_ingestion_jobs"
+    ],
+    "artifactRoot": "<data-root>/artifacts/market-data",
+    "artifactAddressing": "sha256",
+    "artifactMediaType": "application/vnd.fdbtrade.candles",
+    "fileRegistryAuthoritative": false
+  },
+  "scope": {
+    "instruments": [
+      "EURUSD",
+      "GBPUSD",
+      "USDJPY",
+      "USDCHF",
+      "AUDUSD",
+      "USDCAD",
+      "NZDUSD"
+    ],
+    "timeframes": ["15m", "1h", "4h"],
+    "sourceModes": ["fixture", "historical"],
+    "credentialedProviderSelected": false
+  },
+  "behavior": {
+    "contentAddressedImmutableArtifacts": "pass",
+    "atomicFileBeforeMetadataPublication": "pass",
+    "transactionalSqliteMetadata": "pass",
+    "datasetIdempotency": "pass",
+    "divergentLogicalDatasetRejection": "pass",
+    "explicitQualityState": "pass",
+    "explicitFreshnessState": "pass",
+    "artifactTamperDetection": "pass",
+    "crashRecovery": "pass",
+    "ingestionResumeAcrossReopen": "pass",
+    "terminalJobImmutability": "pass"
+  },
+  "finalGate": {
+    "command": "make toolchain-gate",
+    "reportPath": "artifacts/toolchain/gate.json",
+    "startedAtUtc": "2026-09-22T14:06:01.223Z",
+    "finishedAtUtc": "2026-09-22T14:10:00.726Z",
+    "durationMs": 239503,
+    "exitCode": 0,
+    "status": "pass",
+    "summary": {
+      "total": 15,
+      "pass": 15,
+      "fail": 0,
+      "timeout": 0,
+      "environmentBlocked": 0,
+      "skipped": 0,
+      "planned": 0
+    },
+    "tests": {
+      "contracts": "43 files, 631 passed",
+      "backend": "73 files, 687 passed",
+      "frontend": "12 files, 97 passed",
+      "python": "550 passed, 0 skipped"
+    },
+    "firstActionableFailure": null
+  },
+  "preservation": {
+    "m48FileCount": 10,
+    "m48Bytes": 55941,
+    "m48AggregateManifestDigest": "f7dc5aacade5078cf934be760651c2e59d9e340c7a096a25629006d8f8555fe6",
+    "m48HashVerification": "pass",
+    "m48RuntimeAuthority": false
+  },
+  "safety": {
+    "liveExecutionEnabled": false,
+    "providerOrderTransportEnabled": false,
+    "externalProviderNetworkCallsEnabled": false,
+    "externalStateMutationEnabled": false
+  },
+  "nextWorkUnit": "R0.7 — Signal intelligence authority (not yet authorized)"
+}

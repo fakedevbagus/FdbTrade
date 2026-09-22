@@ -14,6 +14,7 @@ import {
   type StoredDataset,
   type DataSourceMode,
 } from "./datasetRegistry";
+import type { MarketDataAuthority } from "@/data/marketAuthority";
 
 export interface ReplayLoadResult {
   ok: true;
@@ -34,10 +35,10 @@ export interface ReplayLoadError {
  * Fails closed if dataset not found, corrupt, or fixture-sourced.
  */
 export function loadHistoricalReplay(
-  datasetDirectory: string,
+  authority: MarketDataAuthority,
   datasetId: string,
 ): ReplayLoadResult | ReplayLoadError {
-  const dataset = loadDataset(datasetDirectory, datasetId);
+  const dataset = loadDataset(authority, datasetId);
   if (!dataset) {
     return { ok: false, reason: `Dataset ${datasetId} not found` };
   }
@@ -74,10 +75,10 @@ export function loadHistoricalReplay(
  * backtest/research. Still verifies integrity.
  */
 export function loadDatasetForBacktest(
-  datasetDirectory: string,
+  authority: MarketDataAuthority,
   datasetId: string,
 ): ReplayLoadResult | ReplayLoadError {
-  const dataset = loadDataset(datasetDirectory, datasetId);
+  const dataset = loadDataset(authority, datasetId);
   if (!dataset) {
     return { ok: false, reason: `Dataset ${datasetId} not found` };
   }

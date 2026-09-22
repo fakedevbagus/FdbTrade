@@ -77,6 +77,7 @@ KNOWN_ADRS = {
     36: "seven-major-runtime-coverage",
     37: "local-sqlite-authority",
     38: "local-application-and-runtime-lifecycle",
+    39: "market-data-and-artifact-authority",
 }
 
 

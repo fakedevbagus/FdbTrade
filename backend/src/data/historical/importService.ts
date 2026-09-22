@@ -167,7 +167,10 @@ export function previewImport(request: ImportRequest): ImportPreview {
   };
 }
 
-export function confirmImport(datasetDirectory: string, preview: ImportPreview): StoredDataset {
+export function confirmImport(
+  authority: import("@/data/marketAuthority").MarketDataAuthority,
+  preview: ImportPreview,
+): StoredDataset {
   const qualitySummary: DatasetQualitySummary = {
     accepted: preview.summary.accepted,
     quarantined: preview.summary.quarantined,
@@ -175,6 +178,11 @@ export function confirmImport(datasetDirectory: string, preview: ImportPreview):
     duplicates: preview.quality.quarantined.filter((q) => q.reason === "DUPLICATE_TIMESTAMP").length,
     mode: "historical",
   };
-  return registerDataset(datasetDirectory, preview.manifest, preview.candles, qualitySummary);
+  return registerDataset(
+    authority,
+    preview.manifest,
+    preview.candles,
+    qualitySummary,
+    preview.manifest.createdAtUtc,
+  );
 }
-

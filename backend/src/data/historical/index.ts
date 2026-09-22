@@ -23,4 +23,4 @@ export type { ImportRequest, ImportPreview, ImportSummary } from "./importServic
 
 export { loadHistoricalReplay, loadDatasetForBacktest } from "./replayLoader";
 export type { ReplayLoadResult, ReplayLoadError } from "./replayLoader";
-export { HISTORICAL_DATASET_DIR } from "./storeDir";
+export { HISTORICAL_DATASET_DIR, MARKET_DATA_ARTIFACT_ROOT, marketDataAuthority } from "./storeDir";

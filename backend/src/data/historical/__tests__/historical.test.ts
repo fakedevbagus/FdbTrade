@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import type { DatabaseSync } from "node:sqlite";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { confirmImport, previewImport } from "@/data/historical/importService";
@@ -8,14 +9,26 @@ import { listDatasets, loadDataset } from "@/data/historical/datasetRegistry";
 import { loadHistoricalReplay } from "@/data/historical/replayLoader";
 import { MAX_IMPORT_ROWS } from "@/data/historical/csvParser";
 import { executeAndStoreRun } from "@/backtest/api";
+import { openMigratedDatabase } from "@/db/sqlite.mjs";
+import { MarketDataAuthority } from "@/data/marketAuthority";
 
 const dirs: string[] = [];
+const databases: DatabaseSync[] = [];
 function freshDir(): string {
   const dir = mkdtempSync(path.join(tmpdir(), "fdb-historical-"));
   dirs.push(dir);
   return dir;
 }
-afterAll(() => dirs.forEach((dir) => rmSync(dir, { recursive: true, force: true })));
+function freshAuthority(): MarketDataAuthority {
+  const root = freshDir();
+  const database = openMigratedDatabase(path.join(root, "fdbtrade.sqlite3"));
+  databases.push(database);
+  return new MarketDataAuthority(database, path.join(root, "artifacts", "market-data"));
+}
+afterAll(() => {
+  databases.forEach((database) => database.close());
+  dirs.forEach((dir) => rmSync(dir, { recursive: true, force: true }));
+});
 
 const header = "timestamp,open,high,low,close,volume";
 const validCsv = [
@@ -38,18 +51,18 @@ function request(csvText = validCsv) {
 
 describe("M46 historical research workflow", () => {
   it("previews, confirms, reopens immutable historical CSV with checksum provenance", () => {
-    const directory = freshDir();
+    const authority = freshAuthority();
     const preview = previewImport(request());
     expect(preview.summary.accepted).toBe(3);
     expect(preview.summary.quarantined).toBe(0);
     expect(preview.manifest.checksum.digest).toMatch(/^[a-f0-9]{64}$/);
 
-    const stored = confirmImport(directory, preview);
-    expect(confirmImport(directory, preview).manifest.checksum.digest).toBe(stored.manifest.checksum.digest);
-    expect(loadDataset(directory, stored.manifest.datasetId)?.manifest).toEqual(stored.manifest);
-    expect(listDatasets(directory)).toEqual([expect.objectContaining({ mode: "historical", recordCount: 3 })]);
+    const stored = confirmImport(authority, preview);
+    expect(confirmImport(authority, preview).manifest.checksum.digest).toBe(stored.manifest.checksum.digest);
+    expect(loadDataset(authority, stored.manifest.datasetId)?.manifest).toEqual(stored.manifest);
+    expect(listDatasets(authority)).toEqual([expect.objectContaining({ mode: "historical", recordCount: 3 })]);
 
-    const replay = loadHistoricalReplay(directory, stored.manifest.datasetId);
+    const replay = loadHistoricalReplay(authority, stored.manifest.datasetId);
     expect(replay).toEqual(expect.objectContaining({ ok: true, mode: "historical", recordCount: 3, digest: stored.manifest.checksum.digest }));
   });
 
@@ -73,11 +86,11 @@ describe("M46 historical research workflow", () => {
   });
 
   it("fails closed when same logical dataset id has divergent content", () => {
-    const directory = freshDir();
+    const authority = freshAuthority();
     const first = previewImport(request());
-    confirmImport(directory, first);
+    confirmImport(authority, first);
     const divergent = previewImport(request(validCsv.replace("1.1025", "1.1026")));
-    expect(() => confirmImport(directory, divergent)).toThrow("different content");
+    expect(() => confirmImport(authority, divergent)).toThrow("different content");
   });
 
   it("rejects oversized input rather than truncating it", () => {
@@ -88,9 +101,9 @@ describe("M46 historical research workflow", () => {
   });
 
   it("backtests confirmed historical candles with exact dataset checksum provenance", async () => {
-    const datasetDirectory = freshDir();
+    const authority = freshAuthority();
     const runDirectory = freshDir();
-    const stored = confirmImport(datasetDirectory, previewImport(request()));
+    const stored = confirmImport(authority, previewImport(request()));
     const response = await executeAndStoreRun({
       instrument: "EURUSD", timeframe: "1h",
       periodStartUtc: "2026-09-07T00:00:00.000Z", periodEndUtc: "2026-09-07T03:00:00.000Z",
@@ -98,7 +111,7 @@ describe("M46 historical research workflow", () => {
       fillPolicy: { policyId: "next-bar-open", latencyBars: 1, spreadPips: 0, slippagePips: 0, commissionPips: 0, maxFillFraction: 1, exitPriority: "stop-first" },
       seed: "m46-historical", subject: "noop", createdAtUtc: "2026-09-10T12:00:00.000Z",
       datasetId: stored.manifest.datasetId,
-    }, runDirectory, datasetDirectory);
+    }, runDirectory, authority);
     expect(response.manifest.dataset).toEqual({ datasetId: stored.manifest.datasetId, digest: stored.manifest.checksum.digest });
     expect(response.manifest.metrics.bars).toBe(3);
   });

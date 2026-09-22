@@ -46,7 +46,7 @@ frontend shell uses). Default port: **3100**.
 - No secrets in source, logs, or responses; no `NEXT_PUBLIC_*` variables.
 - All internal timestamps are UTC (ADR-0004).
 
-## Database and runtime lifecycle (R0.5)
+## Database, runtime and market-data authority (R0.6)
 
 SQLite is the only active durable-state authority. The default database is
 `.fdbtrade/fdbtrade.sqlite3`; set `FDB_DATA_ROOT` to an absolute directory to
@@ -78,6 +78,12 @@ binding — see `docs/adr/ADR-0007-sql-migrations-and-database-foundation.md`:
 - Runtime locks, leases, checkpoint chains, completions and dedupe are in the
   same SQLite database. The optional observation scheduler is wired by the
   Node instrumentation hook and remains off by default; see ADR-0038.
+- Market-data dataset/artifact metadata and ingestion jobs are also in SQLite.
+  Canonical candle bytes are immutable SHA-256-addressed files below
+  `<data-root>/artifacts/market-data`; publication is file-atomic before its
+  transactional metadata becomes visible. R0.6 accepts only the seven majors
+  on 15m/1h/4h and only fixture or operator-owned historical sources. See
+  ADR-0039.
 
 ## Commands
 

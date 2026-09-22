@@ -1,8 +1,9 @@
 import { z } from "zod";
 
 import { requireSession } from "@/auth/guard";
+import { getDatabase } from "@/db/client";
 import { confirmImport, previewImport } from "@/data/historical/importService";
-import { HISTORICAL_DATASET_DIR } from "@/data/historical/storeDir";
+import { marketDataAuthority } from "@/data/historical/storeDir";
 import { listDatasets } from "@/data/historical/datasetRegistry";
 import { withApi } from "@/http/handler";
 import { ApiError } from "@/http/errors";
@@ -28,7 +29,7 @@ export const POST = withApi(async (request, { requestId }) => {
         preview: { manifest: preview.manifest, summary: preview.summary, parseErrors: preview.parseErrors, quality: preview.quality },
       }, { requestId });
     }
-    const stored = confirmImport(HISTORICAL_DATASET_DIR, preview);
+    const stored = confirmImport(marketDataAuthority(getDatabase()), preview);
     return jsonOk({ approved: true, manifest: stored.manifest, quality: stored.quality, mode: "historical" }, { requestId });
   } catch (error) {
     if (error instanceof ApiError) throw error;
@@ -37,7 +38,7 @@ export const POST = withApi(async (request, { requestId }) => {
 });
 export const GET = withApi(async (request, { requestId }) => {
   await requireSession(request);
-  return jsonOk({ datasets: listDatasets(HISTORICAL_DATASET_DIR), mode: "historical" }, { requestId });
+  return jsonOk({ datasets: listDatasets(marketDataAuthority(getDatabase())), mode: "historical" }, { requestId });
 });
 const denied = withApi(async () => { throw ApiError.methodNotAllowed(["GET", "POST"]); });
 export const PUT = denied;

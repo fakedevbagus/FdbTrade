@@ -22,7 +22,9 @@ import {
 
 import { FixtureProvider } from "@/data/providers/fixture";
 import { loadHistoricalReplay } from "@/data/historical/replayLoader";
-import { HISTORICAL_DATASET_DIR } from "@/data/historical/storeDir";
+import { marketDataAuthority } from "@/data/historical/storeDir";
+import { getDatabase } from "@/db/client";
+import type { MarketDataAuthority } from "@/data/marketAuthority";
 
 import { runBacktest, type BacktestSubject } from "@/backtest/engine";
 import { computeBacktestMetrics } from "@/backtest/metrics";
@@ -95,11 +97,14 @@ export interface BacktestRunResponse {
 export async function executeAndStoreRun(
   request: BacktestRunRequest,
   storeDirectory: string,
-  historicalDatasetDirectory = HISTORICAL_DATASET_DIR,
+  historicalAuthority?: MarketDataAuthority,
 ): Promise<BacktestRunResponse> {
   const config = toRunConfig(request);
   const replay = request.datasetId
-    ? loadHistoricalReplay(historicalDatasetDirectory, request.datasetId)
+    ? loadHistoricalReplay(
+        historicalAuthority ?? marketDataAuthority(getDatabase()),
+        request.datasetId,
+      )
     : null;
   if (replay && !replay.ok) throw new Error(`Historical replay rejected: ${replay.reason}`);
   if (replay && (replay.datasetId !== request.datasetId || replay.mode !== "historical")) {

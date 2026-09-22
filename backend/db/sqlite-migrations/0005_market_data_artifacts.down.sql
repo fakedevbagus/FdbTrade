@@ -1,0 +1,10 @@
+DROP TRIGGER market_data_jobs_no_delete;
+DROP TRIGGER market_data_jobs_terminal_immutable;
+DROP TRIGGER market_data_datasets_no_delete;
+DROP TRIGGER market_data_datasets_no_update;
+DROP TRIGGER market_data_artifacts_no_delete;
+DROP TRIGGER market_data_artifacts_no_update;
+DROP TABLE market_data_ingestion_jobs;
+DROP INDEX market_data_datasets_scope_idx;
+DROP TABLE market_data_datasets;
+DROP TABLE market_data_artifacts;
