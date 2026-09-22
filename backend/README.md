@@ -22,14 +22,13 @@ frontend shell uses). Default port: **3100**.
 - `src/env.ts` — zod-parsed server-side configuration. **Server-only** (see
   `src/server-only.ts`); the only app module that reads `process.env`
   (the standalone migration CLI is the one documented exception); contains
-  no hardcoded secrets — credentials arrive at runtime via `FDB_DB_*`.
-- `src/db/client.ts` — typed, server-only PostgreSQL connection layer
-  (`pg` Pool singleton, sanitized health probe, typed `query` helper).
-  Connection failures are explicit and reduced to stable codes; raw driver
-  messages (which can contain connection details) are never surfaced.
+  no hardcoded database credentials; SQLite uses only `FDB_DATA_ROOT` and a
+  bounded busy timeout.
+- `src/db/client.ts` — typed, server-only SQLite connection authority using
+  Node 24 `node:sqlite`, with a read-only health probe.
 - `src/db/migrate.mjs` — deterministic SQL migration runner
   (`migrate | rollback | status`; ADR-0007): checksummed migrations in
-  `db/migrations/NNNN_name.sql`, ledger in `public.schema_migrations`,
+  `db/sqlite-migrations/NNNN_name.sql`, ledger in `schema_migrations`,
   atomic per-migration transactions, immutable applied migrations.
 - `src/app/api/health/route.ts` — `GET` health endpoint (liveness + identity
   + per-dependency `checks.database`; overall `status: ok | degraded`).
@@ -46,31 +45,35 @@ frontend shell uses). Default port: **3100**.
 - No secrets in source, logs, or responses; no `NEXT_PUBLIC_*` variables.
 - All internal timestamps are UTC (ADR-0004).
 
-## Database (P01-03)
+## Database (R0.4)
 
-PostgreSQL 16 via the isolated `fdbtrade` Docker Compose project
-(`infra/compose.yaml`; port `FDB_DB_PORT`, default 15432 on this host because
-5432 is occupied by unrelated local services).
+SQLite is the only active durable-state authority. The default database is
+`.fdbtrade/fdbtrade.sqlite3`; set `FDB_DATA_ROOT` to an absolute directory to
+place it elsewhere. No Docker, PostgreSQL, Redis, database port, or database
+credential is required.
 
 ```sh
-make db-up        # start postgres + migrate from zero (creates .env if missing)
+make db-up        # compatibility alias: initialize/migrate SQLite
 make db-migrate   # apply pending migrations
 make db-status    # show applied/pending
-make db-down      # stop postgres (data volume preserved)
+make db-rollback  # roll back the most recent migration
+make db-provision # provision or rotate the single local user
+make db-down      # informational no-op; SQLite has no daemon
 ```
 
-Migrations live in `db/migrations/NNNN_name.sql` with optional
+Migrations live in `db/sqlite-migrations/NNNN_name.sql` with optional
 `NNNN_name.down.sql` rollback files. Conventions and the rollback strategy are
 binding — see `docs/adr/ADR-0007-sql-migrations-and-database-foundation.md`:
 
 - Applied migrations are immutable (checksum-verified); fixes come as NEW
   migrations.
 - `db:rollback` reverses the most recent migration via its `.down.sql`
-  (missing file = explicit error); destructive resets use
-  `scripts/db-bootstrap.sh reset --yes` (volume deletion). Production
-  recovery uses backups, not down-migrations.
-- Application objects live under the `fdb` schema; uuid v4 PKs; timestamptz
-  UTC (ADR-0004); idempotency enforced by constraints.
+  (missing file = explicit error). No destructive reset command is exposed.
+- UUIDs are application-generated and UTC instants are canonical ISO-8601
+  text. Auth/session and audit data are durable; audit rows are protected by
+  update/delete triggers.
+- The old PostgreSQL SQL files remain only as inactive historical evidence.
+  See ADR-0037.
 
 ## Commands
 

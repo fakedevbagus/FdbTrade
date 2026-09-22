@@ -21,6 +21,7 @@ import re
 import signal
 import socket
 import subprocess
+import tempfile
 import time
 import unittest
 import urllib.error
@@ -30,13 +31,12 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 BACKEND = REPO_ROOT / "backend"
 SRC = BACKEND / "src"
 
-# Pins must match the frontend (ADR-0001 stack). pg added in P01-03 (ADR-0007);
+# Pins must match the frontend (ADR-0001 stack). SQLite is provided by Node 24;
 # @fdbtrade/contracts workspace dep added in P02-01 (ADR-0009) — workspace
 # packages are pinned by the workspace itself, not by a registry version.
 EXPECTED_DEPS = {
     "@fdbtrade/contracts": "workspace:*",
     "next": "16.3.4",
-    "pg": "8.23.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "zod": "4.5.4",
@@ -300,72 +300,64 @@ class ApiFoundationSafetyContract(unittest.TestCase):
 
 
 class LiveBootSmokeTest(unittest.TestCase):
-    """Boot the production build and exercise the API contract end to end."""
+    """Boot source against temporary SQLite and exercise the API end to end."""
 
     proc: subprocess.Popen | None = None
     port: int = 0
 
     @classmethod
     def setUpClass(cls):
-        build_id = BACKEND / ".next" / "BUILD_ID"
-        build_log = ""
-        for attempt in (1, 2):
-            if build_id.exists():
-                break
-            result = subprocess.run(
-                ["pnpm", "--filter", "@fdbtrade/backend", "run", "build"],
-                cwd=REPO_ROOT,
-                capture_output=True,
-                text=True,
-                timeout=600,
-                check=False,
-            )
-            build_log = result.stdout[-1500:] + result.stderr[-500:]
-            if build_id.exists():
-                break
-            print(
-                f"[P01-02 smoke] build attempt {attempt} did not produce "
-                "BUILD_ID:\n" + build_log,
-                flush=True,
-            )
-        if not build_id.exists():
-            raise unittest.SkipTest(
-                "backend production build did not produce BUILD_ID; live boot "
-                "smoke not asserted (build log printed above)"
-            )
+        cls.temp_dir = tempfile.TemporaryDirectory(prefix="fdbtrade-api-")
+        cls.env = {
+            **os.environ,
+            "FDB_APP_ENV": "testing",
+            "FDB_DATA_ROOT": cls.temp_dir.name,
+        }
+        migrated = subprocess.run(
+            ["corepack", "pnpm", "--filter", "@fdbtrade/backend", "run", "db:migrate"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=180,
+            check=False,
+            env=cls.env,
+        )
+        if migrated.returncode != 0:
+            cls.temp_dir.cleanup()
+            raise RuntimeError(migrated.stdout + migrated.stderr)
         with socket.socket() as sock:
             sock.bind(("127.0.0.1", 0))
             cls.port = sock.getsockname()[1]
         cls.proc = subprocess.Popen(
             [
+                "corepack",
                 "pnpm",
                 "--filter",
                 "@fdbtrade/backend",
                 "exec",
                 "next",
-                "start",
+                "dev",
                 "-p",
                 str(cls.port),
             ],
             cwd=REPO_ROOT,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             start_new_session=True,
+            env=cls.env,
         )
-        deadline = time.monotonic() + 90
-        ready = False
-        assert cls.proc.stdout is not None
+        deadline = time.monotonic() + 120
         while time.monotonic() < deadline:
-            line = cls.proc.stdout.readline()
-            if not line:
+            if cls.proc.poll() is not None:
                 break
-            if "Ready" in line:
-                ready = True
-                break
-        if not ready:
-            cls._shutdown()
-            raise unittest.SkipTest("backend server did not report Ready")
+            try:
+                request_json(f"http://127.0.0.1:{cls.port}/api/health")
+                return
+            except Exception:
+                time.sleep(1)
+        cls._shutdown()
+        cls.temp_dir.cleanup()
+        raise RuntimeError("backend dev server did not become ready")
 
     @classmethod
     def _shutdown(cls):
@@ -377,14 +369,12 @@ class LiveBootSmokeTest(unittest.TestCase):
         except (ProcessLookupError, subprocess.TimeoutExpired):
             with contextlib.suppress(ProcessLookupError):
                 os.killpg(cls.proc.pid, signal.SIGKILL)
-        if cls.proc.stdout is not None:
-            with contextlib.suppress(Exception):
-                cls.proc.stdout.close()
         cls.proc = None
 
     @classmethod
     def tearDownClass(cls):
         cls._shutdown()
+        cls.temp_dir.cleanup()
 
     def base_url(self) -> str:
         return f"http://127.0.0.1:{self.port}"

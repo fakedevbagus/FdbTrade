@@ -12,7 +12,6 @@ from .schema import (
     REDACTED,
     AppConfig,
     BrokerConfig,
-    CacheConfig,
     Config,
     DatabaseConfig,
     Env,
@@ -28,7 +27,6 @@ from .schema import (
 __all__ = [
     "AppConfig",
     "BrokerConfig",
-    "CacheConfig",
     "Config",
     "ConfigError",
     "DatabaseConfig",

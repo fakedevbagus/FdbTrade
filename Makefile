@@ -1,7 +1,7 @@
 # FdbTrade root task runner (M44-extended)
 # Deterministic entry points. All internal timestamps are UTC; no secrets in output.
 
-.PHONY: help install lint typecheck test build start check toolchain-gate db-up db-down db-migrate db-status bootstrap preflight operational-packaging-check private-beta-check dashboard-check security-check phase2-check handoff-check format-check runtime-check operational-persistence-check integration-replay-check historical-research-check seven-majors-check
+.PHONY: help install lint typecheck test build start check toolchain-gate db-up db-down db-migrate db-rollback db-status db-provision bootstrap preflight operational-packaging-check private-beta-check dashboard-check security-check phase2-check handoff-check format-check runtime-check operational-persistence-check integration-replay-check historical-research-check seven-majors-check
 
 TOOLCHAIN := python3 scripts/rebuild_toolchain.py
 TOOLCHAIN_REPORT_DIR := artifacts/toolchain
@@ -18,10 +18,12 @@ help:
 	@echo "  make start       Start local dev servers"
 	@echo "  make check       Aggregate local gate: lint + typecheck + test + build"
 	@echo "  make toolchain-gate  Frozen install + complete bounded R0.3 gate"
-	@echo "  make db-up       Start local postgres (Docker) and migrate from zero"
-	@echo "  make db-down     Stop local postgres (data volume preserved)"
-	@echo "  make db-migrate  Apply pending migrations (requires running postgres)"
+	@echo "  make db-up       Compatibility alias: initialize/migrate local SQLite"
+	@echo "  make db-down     Report that SQLite has no background daemon"
+	@echo "  make db-migrate  Apply pending SQLite migrations"
+	@echo "  make db-rollback Roll back the most recent SQLite migration"
 	@echo "  make db-status   Show migration ledger status"
+	@echo "  make db-provision Provision/rotate the private local user"
 	@echo "  make bootstrap   Reproducible bootstrap (M44): preflight + init"
 	@echo "  make preflight   Dependency preflight (M44)"
 	@echo "  make operational-packaging-check (M44)"
@@ -72,10 +74,16 @@ db-down:
 	bash scripts/db-bootstrap.sh down
 
 db-migrate:
-	pnpm --filter @fdbtrade/backend run db:migrate
+	corepack pnpm --filter @fdbtrade/backend run db:migrate
+
+db-rollback:
+	corepack pnpm --filter @fdbtrade/backend run db:rollback
 
 db-status:
-	pnpm --filter @fdbtrade/backend run db:status
+	corepack pnpm --filter @fdbtrade/backend run db:status
+
+db-provision:
+	corepack pnpm --filter @fdbtrade/backend run db:provision-user
 
 # M44 — Reproducible bootstrap and beta onboarding
 

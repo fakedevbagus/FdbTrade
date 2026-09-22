@@ -11,13 +11,14 @@
 import {
   createHash,
   randomBytes,
+  randomUUID,
   scrypt as scryptCb,
   timingSafeEqual,
   type ScryptOptions,
 } from "node:crypto";
 import { promisify } from "node:util";
 
-import { query } from "@/db/client";
+import { getDatabase } from "@/db/client";
 import { apiEnv } from "@/env";
 import { assertServerOnly } from "@/server-only";
 
@@ -143,35 +144,35 @@ export interface AuthResult {
 export interface AuthUserRow {
   id: string;
   username: string;
-  is_active: boolean;
-  mfa_enabled: boolean;
+  is_active: number;
+  mfa_enabled: number;
 }
 
 function toAuthUser(row: AuthUserRow): AuthUser {
   return {
     id: row.id,
     username: row.username,
-    isActive: row.is_active,
-    mfaEnabled: row.mfa_enabled,
+    isActive: row.is_active === 1,
+    mfaEnabled: row.mfa_enabled === 1,
   };
 }
 
 export async function getUserByUsername(
   username: string,
 ): Promise<AuthUser | null> {
-  const result = await query<AuthUserRow>(
-    "SELECT id, username, is_active, mfa_enabled FROM fdb.users WHERE username = $1",
-    [username],
-  );
-  return result.rows[0] ? toAuthUser(result.rows[0]) : null;
+  const row = getDatabase()
+    .prepare(
+      "SELECT id, username, is_active, mfa_enabled FROM users WHERE username = ?",
+    )
+    .get(username) as unknown as AuthUserRow | undefined;
+  return row ? toAuthUser(row) : null;
 }
 
 export async function getUserById(userId: string): Promise<AuthUser | null> {
-  const result = await query<AuthUserRow>(
-    "SELECT id, username, is_active, mfa_enabled FROM fdb.users WHERE id = $1",
-    [userId],
-  );
-  return result.rows[0] ? toAuthUser(result.rows[0]) : null;
+  const row = getDatabase()
+    .prepare("SELECT id, username, is_active, mfa_enabled FROM users WHERE id = ?")
+    .get(userId) as unknown as AuthUserRow | undefined;
+  return row ? toAuthUser(row) : null;
 }
 
 /**
@@ -186,16 +187,18 @@ export async function login(
   username: string,
   password: string,
 ): Promise<AuthResult & { token: string } | null> {
-  const result = await query<{
+  const row = getDatabase()
+    .prepare(
+      "SELECT id, password_hash, is_active FROM users WHERE username = ?",
+    )
+    .get(username) as unknown as
+    | {
     id: string;
     password_hash: string;
-    is_active: boolean;
-  }>(
-    "SELECT id, password_hash, is_active FROM fdb.users WHERE username = $1",
-    [username],
-  );
-  const row = result.rows[0];
-  if (!row || !row.is_active) {
+    is_active: number;
+  }
+    | undefined;
+  if (!row || row.is_active !== 1) {
     return null;
   }
   const ok = await verifyPassword(password, row.password_hash);
@@ -207,26 +210,31 @@ export async function login(
     return null;
   }
   const token = createSessionToken();
-  const inserted = await query<{
-    id: string;
-    user_id: string;
-    created_at: Date;
-    expires_at: Date;
-  }>(
-    `INSERT INTO fdb.sessions (token_hash, user_id, expires_at)
-     VALUES ($1, $2, now() + ($3 || ' seconds')::interval)
-     RETURNING id, user_id, created_at, expires_at`,
-    [hashSessionToken(token), user.id, String(SESSION_TTL_SECONDS)],
-  );
-  const session = inserted.rows[0];
+  const createdAt = new Date();
+  const expiresAt = new Date(createdAt.getTime() + SESSION_TTL_SECONDS * 1_000);
+  const sessionId = randomUUID();
+  getDatabase()
+    .prepare(
+      `INSERT INTO sessions
+         (id, token_hash, user_id, created_at_utc, expires_at_utc, last_used_at_utc)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      sessionId,
+      hashSessionToken(token),
+      user.id,
+      createdAt.toISOString(),
+      expiresAt.toISOString(),
+      createdAt.toISOString(),
+    );
   return {
     token,
     user,
     session: {
-      id: session.id,
-      userId: session.user_id,
-      createdAt: session.created_at.toISOString(),
-      expiresAt: session.expires_at.toISOString(),
+      id: sessionId,
+      userId: user.id,
+      createdAt: createdAt.toISOString(),
+      expiresAt: expiresAt.toISOString(),
     },
   };
 }
@@ -234,11 +242,11 @@ export async function login(
 interface SessionJoinRow {
   id: string;
   user_id: string;
-  created_at: Date;
-  expires_at: Date;
+  created_at_utc: string;
+  expires_at_utc: string;
   username: string;
-  is_active: boolean;
-  mfa_enabled: boolean;
+  is_active: number;
+  mfa_enabled: number;
 }
 
 /**
@@ -251,42 +259,43 @@ export async function getSessionByToken(
   if (typeof token !== "string" || token.length === 0) {
     return null;
   }
-  const result = await query<SessionJoinRow>(
-    `SELECT s.id, s.user_id, s.created_at, s.expires_at,
+  const database = getDatabase();
+  const row = database.prepare(
+    `SELECT s.id, s.user_id, s.created_at_utc, s.expires_at_utc,
             u.username, u.is_active, u.mfa_enabled
-     FROM fdb.sessions s
-     JOIN fdb.users u ON u.id = s.user_id
-     WHERE s.token_hash = $1 AND s.expires_at > now()`,
-    [hashSessionToken(token)],
-  );
-  const row = result.rows[0];
-  if (!row || !row.is_active) {
+     FROM sessions s
+     JOIN users u ON u.id = s.user_id
+     WHERE s.token_hash = ? AND s.expires_at_utc > ?`,
+  ).get(hashSessionToken(token), new Date().toISOString()) as unknown as
+    | SessionJoinRow
+    | undefined;
+  if (!row || row.is_active !== 1) {
     return null;
   }
-  await query("UPDATE fdb.sessions SET last_used_at = now() WHERE id = $1", [
-    row.id,
-  ]);
+  database
+    .prepare("UPDATE sessions SET last_used_at_utc = ? WHERE id = ?")
+    .run(new Date().toISOString(), row.id);
   return {
     session: {
       id: row.id,
       userId: row.user_id,
-      createdAt: row.created_at.toISOString(),
-      expiresAt: row.expires_at.toISOString(),
+      createdAt: row.created_at_utc,
+      expiresAt: row.expires_at_utc,
     },
     user: {
       id: row.user_id,
       username: row.username,
-      isActive: row.is_active,
-      mfaEnabled: row.mfa_enabled,
+      isActive: row.is_active === 1,
+      mfaEnabled: row.mfa_enabled === 1,
     },
   };
 }
 
 /** Delete a session by its raw token (logout). Missing tokens are a no-op. */
 export async function deleteSessionByToken(token: string): Promise<void> {
-  await query("DELETE FROM fdb.sessions WHERE token_hash = $1", [
-    hashSessionToken(token),
-  ]);
+  getDatabase()
+    .prepare("DELETE FROM sessions WHERE token_hash = ?")
+    .run(hashSessionToken(token));
 }
 
 /** Cookie attributes for the session cookie (httpOnly; Secure in production). */

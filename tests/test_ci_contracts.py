@@ -75,6 +75,7 @@ KNOWN_ADRS = {
     34: "continuous-scheduler-and-runtime-hardening",
     35: "user-facing-historical-research-workflow",
     36: "seven-major-runtime-coverage",
+    37: "local-sqlite-authority",
 }
 
 

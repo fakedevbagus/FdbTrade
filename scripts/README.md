@@ -31,7 +31,7 @@ Operator documentation: `docs/OPERATOR_GUIDE.md`. Recovery procedures: `RECOVERY
 
 | Script | Purpose |
 | --- | --- |
-| `db-bootstrap.sh` | PostgreSQL up/down via Docker + migrations |
+| `db-bootstrap.sh` | SQLite migration/status compatibility wrapper |
 | `backup-db.sh` / `restore-db.sh` | Database backup and verified restore |
 | `deploy-staging.sh` | Staging deployment helper |
 | `smoke-test.sh` | Post-deploy smoke checks |

@@ -1,8 +1,9 @@
-# infra/ — Deployment/dev infrastructure (P00-03)
+# infra/ — Local configuration authority (R0.4)
 
-Docker Compose (postgres:16, redis:7), env templates, and networking land here
-from P00-03 (configuration/environment contract) and P01-03 (PostgreSQL
-initialization).
+R0.4 retired the active PostgreSQL, Redis, and Docker Compose assumptions.
+Durable application state now lives in the canonical SQLite database under
+`FDB_DATA_ROOT` (or repository-local `.fdbtrade` when unset). No database or
+cache daemon is required.
 
 ## Configuration contract (P00-03)
 
@@ -25,5 +26,4 @@ Security boundaries enforced by this contract: secrets are redacted
 `to_public_dict()` output, and broker live execution defaults OFF with the
 adapter locked to `paper`.
 
-Placeholder only — no compose files, no real `.env` yet (do not create real
-`.env` files; use `.env.example` patterns from P00-03).
+There is intentionally no Compose file. Keep real `.env` files untracked.

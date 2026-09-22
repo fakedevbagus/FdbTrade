@@ -22,7 +22,6 @@ explicit operator-confirmed paper operations **only**.
 | GNU Make 4.3 | yes | `make preflight` |
 | Bash 5 | yes | `make preflight` |
 | `sqlite3` CLI binary | optional (warning) | `make preflight` |
-| Docker | only for PostgreSQL (`make db-up`) | `make preflight` |
 
 ## 2. Install (first run)
 
@@ -66,14 +65,17 @@ For reproducible backtest, select approved dataset ID. Stored report export is `
 ## 4. Database
 
 ```bash
-make db-up        # start local PostgreSQL (Docker) and migrate from zero
+make db-up        # compatibility alias: initialize/migrate local SQLite
 make db-status    # migration ledger status
 make db-migrate   # apply pending migrations
-make db-down      # stop PostgreSQL (data volume preserved)
+make db-rollback  # roll back the most recent migration
+make db-provision # provision or rotate the single local user
 ```
 
-PostgreSQL is the current runtime store. SQLite is **not** integrated as the
-runtime store in M44; `make preflight` reports SQLite availability only.
+SQLite is the only active runtime store. It defaults to
+`.fdbtrade/fdbtrade.sqlite3`; `FDB_DATA_ROOT` may select an absolute local
+directory. PostgreSQL, Redis, Docker, database ports, and database credentials
+are not required.
 
 ## 4. Start, stop, inspect
 
@@ -115,7 +117,7 @@ make format-check                        # syntax + deterministic formatting
 | `python_sqlite` | Python stdlib `sqlite3` module version (required) |
 | `disk` | Free space; below 5 GB raises a warning |
 | `permissions` | Repository writability |
-| `ports` | Loopback availability for 3000, 3100, 15432 |
+| `ports` | Loopback availability for 3000 and 3100 |
 
 `preflight` exits `1` only for hard errors. Warnings are printed and do not block.
 
@@ -133,7 +135,7 @@ scripts/fdbtrade recover
 | Missing `.env` | `cp infra/.env.example .env` | < 2 min |
 | Port conflict | `scripts/fdbtrade stop` then `ss -tlnp` | < 1 min |
 | Service won't start | `scripts/fdbtrade stop && scripts/fdbtrade start` | < 2 min |
-| Database corruption | `scripts/restore-db.sh <backup> --confirm` | < 15 min |
+| Database corruption | Stop; preserve the file; follow `RECOVERY.md` | uncommitted |
 | Dependency drift | `pnpm install --frozen-lockfile` | < 5 min |
 
 Full procedures, RPO expectations, and the clean-slate path: `RECOVERY.md`.

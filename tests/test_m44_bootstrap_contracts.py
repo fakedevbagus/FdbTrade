@@ -263,7 +263,7 @@ class OperatorCliContractTests(unittest.TestCase):
 
     def test_preflight_reports_loopback_ports(self):
         payload = json.loads(run(["python3", str(CLI), "preflight", "--json"]).stdout)
-        self.assertEqual(sorted(payload["checks"]["ports"]), ["15432", "3000", "3100"])
+        self.assertEqual(sorted(payload["checks"]["ports"]), ["3000", "3100"])
 
     def test_init_dry_run_exits_zero_and_prints_plan(self):
         result = run(["python3", str(CLI), "init", "--dry-run"])
@@ -280,7 +280,7 @@ class OperatorCliContractTests(unittest.TestCase):
     def test_recover_exits_zero_and_gives_actionable_steps(self):
         result = run(["python3", str(CLI), "recover"])
         self.assertEqual(result.returncode, 0)
-        for needle in ("Recovery Guide", "make db-down", "pnpm install --frozen-lockfile"):
+        for needle in ("Recovery Guide", "make db-migrate", "pnpm install --frozen-lockfile"):
             self.assertIn(needle, result.stdout, f"recovery guidance must mention {needle!r}")
 
     def test_stop_is_scoped_and_never_kills_unrelated_servers(self):

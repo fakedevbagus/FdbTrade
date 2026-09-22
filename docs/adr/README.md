@@ -97,5 +97,5 @@ not used.
 | [ADR-0034](ADR-0034-continuous-scheduler-and-runtime-hardening.md) | Continuous scheduler and runtime hardening | Accepted |
 | [ADR-0035](ADR-0035-user-facing-historical-research-workflow.md) | User-facing historical research workflow | Accepted |
 | [ADR-0036](ADR-0036-seven-major-runtime-coverage.md) | Seven-major runtime coverage | Accepted |
-
+| [ADR-0037](ADR-0037-local-sqlite-authority.md) | Local SQLite authority | Accepted |
 

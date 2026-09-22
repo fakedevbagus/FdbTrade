@@ -13,7 +13,6 @@ internal timestamps are UTC (ADR-0004).
 
 from __future__ import annotations
 
-import http.cookiejar
 import json
 import os
 import pathlib
@@ -21,6 +20,7 @@ import re
 import signal
 import socket
 import subprocess
+import tempfile
 import time
 import unittest
 import urllib.error
@@ -31,7 +31,7 @@ BACKEND = REPO_ROOT / "backend"
 SRC = BACKEND / "src"
 FRONTEND = REPO_ROOT / "frontend"
 FSRC = FRONTEND / "src"
-MIGRATIONS = BACKEND / "db" / "migrations"
+MIGRATIONS = BACKEND / "db" / "sqlite-migrations"
 
 # Deliberately non-secret test credentials (live lifecycle only).
 TEST_USERNAME = "contract-owner"
@@ -52,17 +52,6 @@ def run(cmd, cwd=None, timeout=120, env=None):
     )
 
 
-def load_env_file(path: pathlib.Path) -> dict[str, str]:
-    env: dict[str, str] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        env[key] = value
-    return env
-
-
 def request_json(
     url: str,
     *,
@@ -81,7 +70,7 @@ def request_json(
             "; ".join(f"{k}={v}" for k, v in cookies.items()),
         )
     try:
-        with urllib.request.urlopen(request, timeout=15) as response:
+        with urllib.request.urlopen(request, timeout=30) as response:
             return (
                 response.status,
                 {k.lower(): v for k, v in response.headers.items()},
@@ -105,11 +94,11 @@ class AuthMigrationContract(unittest.TestCase):
         self.assertTrue(down.is_file())
         self.assertRegex(up.name, r"^\d{4}_[a-z0-9_]+\.sql$")
         text = up.read_text(encoding="utf-8")
-        for table in ("fdb.users", "fdb.sessions", "fdb.user_profiles"):
+        for table in ("users", "sessions", "user_profiles"):
             self.assertIn(f"CREATE TABLE {table}", text)
-        self.assertIn("timestamptz", text)
+        self.assertIn("created_at_utc TEXT", text)
         self.assertIn("mfa_enabled", text)
-        self.assertIn("gen_random_uuid()", text)
+        self.assertIn("singleton_key", text)
         # The ledger is never created by a migration.
         self.assertNotIn("CREATE TABLE public.schema_migrations", text)
         self.assertNotIn("CREATE TABLE IF NOT EXISTS public.schema_migrations", text)
@@ -118,9 +107,9 @@ class AuthMigrationContract(unittest.TestCase):
         text = (MIGRATIONS / "0002_auth_foundation.down.sql").read_text(
             encoding="utf-8"
         )
-        self.assertIn("DROP TABLE IF EXISTS fdb.sessions", text)
-        self.assertIn("DROP TABLE IF EXISTS fdb.user_profiles", text)
-        self.assertIn("DROP TABLE IF EXISTS fdb.users", text)
+        self.assertIn("DROP TABLE IF EXISTS sessions", text)
+        self.assertIn("DROP TABLE IF EXISTS user_profiles", text)
+        self.assertIn("DROP TABLE IF EXISTS users", text)
         # Rollbacks never touch the runner-owned ledger.
         self.assertNotIn("public.schema_migrations", text.split("--")[-1])
 
@@ -238,7 +227,7 @@ class FrontendAuthWiringContract(unittest.TestCase):
 
 class LiveAuthLifecycleTest(unittest.TestCase):
     """
-    Live auth lifecycle (self-skipping without Docker/.env/database).
+    Hermetic auth lifecycle against a temporary SQLite database.
 
     Exercises the real backend server against the real database: provision
     the single user, verify login/guard/cookie behavior, restart the server
@@ -247,30 +236,26 @@ class LiveAuthLifecycleTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        if os.environ.get("FDB_TOOLCHAIN_EXTERNAL_STATE") == "disabled":
-            raise unittest.SkipTest(
-                "external database mutation disabled by the R0.3 toolchain"
-            )
-        if not (REPO_ROOT / ".env").exists():
-            raise unittest.SkipTest("no .env; run `make db-up` for live checks")
-        if run(["docker", "inspect", "fdbtrade-postgres"]).returncode != 0:
-            raise unittest.SkipTest(
-                "fdbtrade-postgres not running; run `make db-up`"
-            )
-        cls.env = {**os.environ, **load_env_file(REPO_ROOT / ".env")}
+        cls.temp_dir = tempfile.TemporaryDirectory(prefix="fdbtrade-auth-")
+        cls.env = {
+            **os.environ,
+            "FDB_APP_ENV": "testing",
+            "FDB_DATA_ROOT": cls.temp_dir.name,
+        }
 
-        run(
-            ["pnpm", "--filter", "@fdbtrade/backend", "run", "build"],
-            timeout=600,
+        migrate = run(
+            ["corepack", "pnpm", "--filter", "@fdbtrade/backend", "run", "db:migrate"],
+            env=cls.env,
+            timeout=180,
         )
-        if not (BACKEND / ".next" / "BUILD_ID").exists():
-            raise unittest.SkipTest(
-                "backend production build unavailable; live auth not asserted"
-            )
+        if migrate.returncode != 0:
+            cls.temp_dir.cleanup()
+            raise RuntimeError(migrate.stdout + migrate.stderr)
 
         # Provision the single test user (idempotent upsert).
         provision = run(
             [
+                "corepack",
                 "pnpm",
                 "--filter",
                 "@fdbtrade/backend",
@@ -282,9 +267,8 @@ class LiveAuthLifecycleTest(unittest.TestCase):
             timeout=120,
         )
         if provision.returncode != 0:
-            raise unittest.SkipTest(
-                "provisioning failed; live auth not asserted"
-            )
+            cls.temp_dir.cleanup()
+            raise RuntimeError(provision.stdout + provision.stderr)
 
         cls.port = cls._free_port()
         cls.proc = None
@@ -300,31 +284,32 @@ class LiveAuthLifecycleTest(unittest.TestCase):
     def _start_server(cls):
         cls.proc = subprocess.Popen(
             [
+                "corepack",
                 "pnpm",
                 "--filter",
                 "@fdbtrade/backend",
                 "exec",
                 "next",
-                "start",
+                "dev",
                 "-p",
                 str(cls.port),
             ],
             cwd=REPO_ROOT,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             start_new_session=True,
             env=cls.env,
         )
-        deadline = time.monotonic() + 90
-        assert cls.proc.stdout is not None
+        deadline = time.monotonic() + 120
         while time.monotonic() < deadline:
-            line = cls.proc.stdout.readline()
-            if not line:
+            if cls.proc.poll() is not None:
                 break
-            if "Ready" in line:
+            try:
+                request_json(f"http://127.0.0.1:{cls.port}/api/health")
                 return
-        raise unittest.SkipTest("backend server did not report Ready")
+            except (OSError, TimeoutError):
+                time.sleep(1)
+        raise RuntimeError("backend dev server did not report Ready")
 
     @classmethod
     def _stop_server(cls):
@@ -338,13 +323,12 @@ class LiveAuthLifecycleTest(unittest.TestCase):
 
             with contextlib.suppress(ProcessLookupError):
                 os.killpg(cls.proc.pid, signal.SIGKILL)
-        if cls.proc.stdout is not None:
-            cls.proc.stdout.close()
         cls.proc = None
 
     @classmethod
     def tearDownClass(cls):
         cls._stop_server()
+        cls.temp_dir.cleanup()
 
     def base_url(self) -> str:
         return f"http://127.0.0.1:{self.port}"

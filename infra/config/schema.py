@@ -75,23 +75,8 @@ class AppConfig:
 
 @dataclasses.dataclass(frozen=True)
 class DatabaseConfig:
-    host: str
-    port: int
-    name: str
-    user: str
-    password: str
-    pool_size: int
-    ssl_mode: str
-
-
-@dataclasses.dataclass(frozen=True)
-class CacheConfig:
-    host: str
-    port: int
-    db: int
-    password: str
-    ttl_seconds: int
-    prefix: str
+    data_root: str
+    busy_timeout_ms: int
 
 
 @dataclasses.dataclass(frozen=True)
@@ -140,7 +125,6 @@ class Config:
 
     app: AppConfig
     database: DatabaseConfig
-    cache: CacheConfig
     market_data: MarketDataConfig
     notifications: NotificationsConfig
     broker: BrokerConfig
@@ -199,32 +183,14 @@ _APP_FIELDS: tuple[Field, ...] = (
 )
 
 _DATABASE_FIELDS: tuple[Field, ...] = (
-    Field("host", "FDB_DB_HOST", kind="str", default="localhost"),
-    Field("port", "FDB_DB_PORT", kind="int", default=5432, min_value=1, max_value=65535),
-    Field("name", "FDB_DB_NAME", kind="str", default="fdbtrade"),
-    Field("user", "FDB_DB_USER", kind="str", default="fdbtrade"),
     Field(
-        "password", "FDB_DB_PASSWORD", kind="secret", default="",
-        required_in=SECRET_REQUIRED_IN,
-        description="PostgreSQL password (secret).",
+        "data_root", "FDB_DATA_ROOT", kind="str", default=".fdbtrade",
+        description="Canonical local durable-state root; absolute paths are recommended.",
     ),
-    Field("pool_size", "FDB_DB_POOL_SIZE", kind="int", default=10, min_value=1, max_value=100),
-    Field("ssl_mode", "FDB_DB_SSL_MODE", kind="enum", default="disable",
-          allowed=("disable", "prefer", "require")),
-)
-
-_CACHE_FIELDS: tuple[Field, ...] = (
-    Field("host", "FDB_CACHE_HOST", kind="str", default="localhost"),
-    Field("port", "FDB_CACHE_PORT", kind="int", default=6379, min_value=1, max_value=65535),
-    Field("db", "FDB_CACHE_DB", kind="int", default=0, min_value=0, max_value=15),
     Field(
-        "password", "FDB_CACHE_PASSWORD", kind="secret", default="",
-        required_in=SECRET_REQUIRED_IN,
-        description="Redis password (secret).",
+        "busy_timeout_ms", "FDB_SQLITE_BUSY_TIMEOUT_MS", kind="int", default=5000,
+        min_value=1, max_value=60000,
     ),
-    Field("ttl_seconds", "FDB_CACHE_TTL_SECONDS", kind="int", default=300,
-          min_value=0, max_value=86400),
-    Field("prefix", "FDB_CACHE_PREFIX", kind="str", default="fdbtrade"),
 )
 
 _MARKET_DATA_FIELDS: tuple[Field, ...] = (
@@ -304,7 +270,6 @@ NamespaceType: TypeAlias = type[Any]
 SCHEMA: dict[str, tuple[NamespaceType, tuple[Field, ...]]] = {
     "app": (AppConfig, _APP_FIELDS),
     "database": (DatabaseConfig, _DATABASE_FIELDS),
-    "cache": (CacheConfig, _CACHE_FIELDS),
     "market_data": (MarketDataConfig, _MARKET_DATA_FIELDS),
     "notifications": (NotificationsConfig, _NOTIFICATIONS_FIELDS),
     "broker": (BrokerConfig, _BROKER_FIELDS),

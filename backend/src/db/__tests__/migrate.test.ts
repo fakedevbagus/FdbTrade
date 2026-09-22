@@ -1,18 +1,19 @@
 /**
- * Unit tests for the migration runner's pure planning logic (P01-03).
- *
- * These tests import the runner module with a stubbed `pg` module — no live
- * database is needed. The lifecycle (migrate/rollback/status against a real
- * database) is covered by `tests/test_db_foundation_contracts.py`.
+ * Unit and lifecycle tests for the SQLite migration runner (R0.4).
  */
-import { describe, expect, it, vi } from "vitest";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 
-const pgStub = { Client: vi.fn(), Pool: vi.fn() };
-vi.doMock("pg", () => ({ default: pgStub, ...pgStub }));
+import { afterAll, describe, expect, it } from "vitest";
 
-const { computeChecksum, planUpMigrations, planPending } = await import(
+const { computeChecksum, planUpMigrations, planPending, runMigrate, runRollback } = await import(
   "@/db/migrate.mjs"
 );
+
+const tempRoot = mkdtempSync(path.join(tmpdir(), "fdbtrade-migrations-"));
+afterAll(() => rmSync(tempRoot, { recursive: true, force: true }));
 
 describe("computeChecksum", () => {
   it("is deterministic and content-addressed (sha256 hex)", () => {
@@ -81,5 +82,71 @@ describe("planPending", () => {
 
   it("is empty-safe for an empty plan (boundary)", () => {
     expect(planPending([], [])).toEqual([]);
+  });
+});
+
+describe("SQLite migration lifecycle", () => {
+  it("migrates from zero, is idempotent, rolls back, and reapplies", () => {
+    const databasePath = path.join(tempRoot, "lifecycle.sqlite3");
+    expect(runMigrate({ databasePath, log: () => {} })).toEqual({
+      applied: 3,
+      skipped: 0,
+    });
+    expect(runMigrate({ databasePath, log: () => {} })).toEqual({
+      applied: 0,
+      skipped: 3,
+    });
+    expect(runRollback({ databasePath, log: () => {} })).toEqual({ rolledBack: 1 });
+    expect(runMigrate({ databasePath, log: () => {} })).toEqual({
+      applied: 1,
+      skipped: 2,
+    });
+  });
+
+  it("rolls back a failed migration without writing its ledger row", () => {
+    const migrationsDir = path.join(tempRoot, "atomic-migrations");
+    mkdirSync(migrationsDir);
+    writeFileSync(
+      path.join(migrationsDir, "0001_good.sql"),
+      "CREATE TABLE good (id INTEGER PRIMARY KEY) STRICT;",
+    );
+    writeFileSync(
+      path.join(migrationsDir, "0002_bad.sql"),
+      "CREATE TABLE partial (id INTEGER); THIS IS INVALID;",
+    );
+    const databasePath = path.join(tempRoot, "atomic.sqlite3");
+    expect(() =>
+      runMigrate({ databasePath, migrationsDir, log: () => {} }),
+    ).toThrow();
+    const database = new DatabaseSync(databasePath);
+    try {
+      const tables = database
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+        .all()
+        .map((row) => String(row.name));
+      expect(tables).toContain("good");
+      expect(tables).not.toContain("partial");
+      const applied = database
+        .prepare("SELECT id FROM schema_migrations ORDER BY id")
+        .all()
+        .map((row) => String(row.id));
+      expect(applied).toEqual(["0001_good"]);
+    } finally {
+      database.close();
+    }
+  });
+
+  it("refuses checksum drift on an applied migration", () => {
+    const migrationsDir = path.join(tempRoot, "checksum-migrations");
+    mkdirSync(migrationsDir);
+    const migrationPath = path.join(migrationsDir, "0001_one.sql");
+    writeFileSync(migrationPath, "CREATE TABLE one (id INTEGER);\n");
+    const databasePath = path.join(tempRoot, "checksum.sqlite3");
+    runMigrate({ databasePath, migrationsDir, log: () => {} });
+    const original = readFileSync(migrationPath, "utf8");
+    writeFileSync(migrationPath, `${original}-- changed\n`);
+    expect(() =>
+      runMigrate({ databasePath, migrationsDir, log: () => {} }),
+    ).toThrow(/checksum mismatch/u);
   });
 });

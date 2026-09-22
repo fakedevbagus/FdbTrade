@@ -130,7 +130,7 @@ def preflight(as_json=False):
     # Ports (loopback only — the private beta never binds a public interface)
     port_state = {}
     socket_probe_warning = False
-    for port in (3000, 3100, 15432):
+    for port in (3000, 3100):
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
                 sock.settimeout(1)
@@ -150,7 +150,7 @@ def preflight(as_json=False):
                 socket_probe_warning = True
     checks["ports"] = port_state
 
-    log("Ports checked on loopback: 3000, 3100, 15432")
+    log("Ports checked on loopback: 3000, 3100")
     # Guarantee the full documented preflight surface is always reported, even
     # when a tool is missing, so downstream gates and tests see stable keys.
     for key in ("python", "node", "npm", "pnpm", "make", "bash", "sqlite3",
@@ -369,14 +369,11 @@ def status():
         print(f"  Error: {e}")
 
     print("\nDatabase:")
-    try:
-        result = subprocess.run(["docker", "inspect", "fdbtrade-postgres"], capture_output=True, text=True)
-        if result.returncode == 0:
-            print("  Status: container running")
-        else:
-            print("  Status: container not running (run 'make db-up')")
-    except Exception as e:
-        print(f"  {e}")
+    configured_root = os.environ.get("FDB_DATA_ROOT")
+    data_root = pathlib.Path(configured_root) if configured_root else REPO_ROOT / ".fdbtrade"
+    database_path = data_root / "fdbtrade.sqlite3"
+    print(f"  Authority: SQLite ({database_path})")
+    print(f"  Status: {'initialized' if database_path.is_file() else 'not initialized'}")
 
     print("\nOperator state:")
     if STATE_FILE.exists():
@@ -413,17 +410,17 @@ def recover():
     print("""
 === FdbTrade Recovery Guide ===
 
-1. Port conflict (3000/3100/15432 in use):
+1. Port conflict (3000/3100 in use):
    fdbtrade stop
-   ss -tlnp | grep -E ':3000|:3100|:15432'
+   ss -tlnp | grep -E ':3000|:3100'
 
-2. Database unreachable:
-   make db-down
-   make db-up
+2. Database not initialized:
+   make db-migrate
+   make db-status
 
 3. .env missing or corrupt:
    cp infra/.env.example .env
-   make db-up
+   make db-migrate
 
 4. .venv missing or corrupt:
    rm -rf .venv
@@ -437,12 +434,9 @@ def recover():
    git status
    git stash
 
-7. Full clean slate:
-   make db-down
-   docker volume rm fdbtrade_pgdata
-   rm -rf .venv node_modules .env
-   git clean -fdX
-   fdbtrade init
+7. Durable-state recovery:
+   Stop the backend and inspect RECOVERY.md. R0.4 intentionally has no
+   approved destructive reset or SQLite restore command.
 
 Documentation: See RECOVERY.md for details.
 """)

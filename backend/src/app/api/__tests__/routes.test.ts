@@ -42,7 +42,7 @@ describe("GET /api/health", () => {
     expect(body.ok).toBe(true);
     expect(body.data.status).toBe("degraded"); // mocked DB unavailable
     expect(body.data.service).toBe("fdbtrade-api");
-    expect(body.data.environment).toBe("development");
+    expect(body.data.environment).toBe("testing");
     expect(typeof body.data.uptimeSeconds).toBe("number");
     expect(body.data.serverTimeUtc).toMatch(/Z$/u);
     expect(body.data.checks.process).toBe("ok");

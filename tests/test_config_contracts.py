@@ -31,13 +31,11 @@ from infra.config import (  # noqa: E402
 ENV_VALUES = tuple(e.value for e in Env)
 
 # Distinct secret values used to prove they never leak into logs/views.
-SECRET_DB = "s3cret-db"
-SECRET_CACHE = "s3cret-cache"
 SECRET_MD = "md-secret"
 SECRET_SMTP = "notif-smtp-secret"
 SECRET_WEBHOOK = "notif-webhook-secret"
 SECRET_BROKER = "broker-secret"
-ALL_SECRETS = (SECRET_DB, SECRET_CACHE, SECRET_MD, SECRET_SMTP, SECRET_WEBHOOK, SECRET_BROKER)
+ALL_SECRETS = (SECRET_MD, SECRET_SMTP, SECRET_WEBHOOK, SECRET_BROKER)
 
 
 def base_env(**overrides):
@@ -46,10 +44,8 @@ def base_env(**overrides):
         "FDB_APP_ENV": "development",
         "FDB_APP_NAME": "fdbtrade-test",
         "FDB_APP_API_PORT": "8080",
-        "FDB_DB_HOST": "db.local",
-        "FDB_DB_PASSWORD": SECRET_DB,
-        "FDB_CACHE_HOST": "cache.local",
-        "FDB_CACHE_PASSWORD": SECRET_CACHE,
+        "FDB_DATA_ROOT": "/tmp/fdb/state",
+        "FDB_SQLITE_BUSY_TIMEOUT_MS": "2500",
         "FDB_MD_API_KEY": SECRET_MD,
         "FDB_NOTIF_SMTP_PASSWORD": SECRET_SMTP,
         "FDB_NOTIF_WEBHOOK_TOKEN": SECRET_WEBHOOK,
@@ -78,10 +74,8 @@ class ConfigLoadingTests(unittest.TestCase):
         self.assertEqual(cfg.app.log_level, "INFO")  # default
         self.assertEqual(cfg.app.api_host, "0.0.0.0")  # default
         self.assertEqual(cfg.app.api_port, 8080)  # from env
-        self.assertEqual(cfg.database.host, "db.local")
-        self.assertEqual(cfg.database.password, SECRET_DB)
-        self.assertEqual(cfg.cache.host, "cache.local")
-        self.assertEqual(cfg.cache.port, 6379)  # default
+        self.assertEqual(cfg.database.data_root, "/tmp/fdb/state")
+        self.assertEqual(cfg.database.busy_timeout_ms, 2500)
         self.assertEqual(cfg.market_data.provider, "fixture")
         self.assertEqual(cfg.market_data.symbols, ())
         self.assertEqual(cfg.research.random_seed, 42)
@@ -92,8 +86,8 @@ class ConfigLoadingTests(unittest.TestCase):
         self.assertEqual(cfg.app.name, "fdbtrade")
         self.assertEqual(cfg.app.api_port, 8000)
         self.assertEqual(cfg.app.timezone, "UTC")
-        self.assertEqual(cfg.database.password, "")
-        self.assertEqual(cfg.cache.password, "")
+        self.assertEqual(cfg.database.data_root, ".fdbtrade")
+        self.assertEqual(cfg.database.busy_timeout_ms, 5000)
         self.assertEqual(cfg.market_data.api_key, "")
         self.assertIs(cfg.broker.live_enabled, False)
         self.assertIs(cfg.broker.read_only, True)
@@ -147,29 +141,29 @@ class MissingMalformedTests(unittest.TestCase):
 
     def test_production_missing_required_secret_fails(self):
         env = base_env(FDB_APP_ENV="production")
-        del env["FDB_DB_PASSWORD"]
+        del env["FDB_MD_API_KEY"]
         with self.assertRaises(ConfigError) as ctx:
             load_config(environ=env)
-        self.assertIn("FDB_DB_PASSWORD", str(ctx.exception))
+        self.assertIn("FDB_MD_API_KEY", str(ctx.exception))
 
     def test_development_allows_missing_secret_default(self):
         env = base_env()
-        del env["FDB_DB_PASSWORD"]
+        del env["FDB_MD_API_KEY"]
         cfg = load_config(environ=env)
-        self.assertEqual(cfg.database.password, "")
+        self.assertEqual(cfg.market_data.api_key, "")
 
     def test_multiple_errors_are_aggregated(self):
-        env = base_env(FDB_APP_API_PORT="abc", FDB_CACHE_PORT="xyz")
+        env = base_env(FDB_APP_API_PORT="abc", FDB_SQLITE_BUSY_TIMEOUT_MS="xyz")
         with self.assertRaises(ConfigError) as ctx:
             load_config(environ=env)
         message = str(ctx.exception)
         self.assertIn("FDB_APP_API_PORT", message)
-        self.assertIn("FDB_CACHE_PORT", message)
+        self.assertIn("FDB_SQLITE_BUSY_TIMEOUT_MS", message)
 
     def test_regression_secret_never_leaks_into_validation_error(self):
         """Regression guard: an error raised near a secret field must not echo it."""
-        env = base_env(FDB_CACHE_PORT="notaport")  # triggers a validation error
-        env["FDB_DB_PASSWORD"] = "TOPSECRETCANTLEAK"
+        env = base_env(FDB_SQLITE_BUSY_TIMEOUT_MS="notanint")
+        env["FDB_NOTIF_SMTP_PASSWORD"] = "TOPSECRETCANTLEAK"
         with self.assertRaises(ConfigError) as ctx:
             load_config(environ=env)
         assert_no_secret(str(ctx.exception), str(ctx.exception), "ConfigError message")
@@ -188,11 +182,11 @@ class BoundaryTests(unittest.TestCase):
         cfg = load_config(environ=base_env(FDB_APP_API_PORT="65535"))
         self.assertEqual(cfg.app.api_port, 65535)
 
-    def test_cache_db_index_boundaries(self):
+    def test_sqlite_busy_timeout_boundaries(self):
         with self.assertRaises(ConfigError):
-            load_config(environ=base_env(FDB_CACHE_DB="-1"))
-        cfg = load_config(environ=base_env(FDB_CACHE_DB="15"))
-        self.assertEqual(cfg.cache.db, 15)
+            load_config(environ=base_env(FDB_SQLITE_BUSY_TIMEOUT_MS="0"))
+        cfg = load_config(environ=base_env(FDB_SQLITE_BUSY_TIMEOUT_MS="60000"))
+        self.assertEqual(cfg.database.busy_timeout_ms, 60000)
 
     def test_timezone_is_locked_to_utc(self):
         # ADR-0004: app.timezone must be UTC; any other value is rejected.
@@ -220,8 +214,6 @@ class RedactionTests(unittest.TestCase):
     def test_redacted_view_masks_every_secret(self):
         cfg = load_config(environ=base_env())
         redacted = cfg.to_redacted_dict()
-        self.assertEqual(redacted["database"]["password"], "[REDACTED]")
-        self.assertEqual(redacted["cache"]["password"], "[REDACTED]")
         self.assertEqual(redacted["market_data"]["api_key"], "[REDACTED]")
         self.assertEqual(redacted["notifications"]["smtp_password"], "[REDACTED]")
         self.assertEqual(redacted["notifications"]["webhook_token"], "[REDACTED]")
@@ -232,8 +224,8 @@ class RedactionTests(unittest.TestCase):
         cfg = load_config(environ=base_env())
         redacted = cfg.to_redacted_dict()
         self.assertEqual(redacted["app"]["name"], "fdbtrade-test")
-        self.assertEqual(redacted["database"]["host"], "db.local")
-        self.assertEqual(redacted["database"]["port"], 5432)
+        self.assertEqual(redacted["database"]["data_root"], "/tmp/fdb/state")
+        self.assertEqual(redacted["database"]["busy_timeout_ms"], 2500)
 
     def test_public_view_contains_only_public_fields(self):
         cfg = load_config(environ=base_env())
@@ -244,7 +236,7 @@ class RedactionTests(unittest.TestCase):
         self.assertEqual(pub["app"]["api_port"], 8080)
         self.assertIs(pub["broker"]["live_enabled"], False)
         # Only namespaces with at least one public field appear.
-        for namespace in ("database", "cache", "market_data", "notifications", "research"):
+        for namespace in ("database", "market_data", "notifications", "research"):
             self.assertNotIn(namespace, pub)
 
     def test_public_view_never_contains_secrets(self):
@@ -294,12 +286,12 @@ class DotenvTests(unittest.TestCase):
             "# comment\n"
             "\n"
             "FDB_APP_NAME=fromfile\n"
-            "export FDB_DB_HOST='db-quoted'\n"
+            "export FDB_DATA_ROOT='/tmp/db-quoted'\n"
             'FDB_MD_SYMBOLS=" EURUSD , GBPUSD "\n'
         )
         parsed = parse_dotenv_text(text)
         self.assertEqual(parsed["FDB_APP_NAME"], "fromfile")
-        self.assertEqual(parsed["FDB_DB_HOST"], "db-quoted")
+        self.assertEqual(parsed["FDB_DATA_ROOT"], "/tmp/db-quoted")
         self.assertEqual(parsed["FDB_MD_SYMBOLS"], " EURUSD , GBPUSD ")
         self.assertNotIn("FDB_APP_ENV", parsed)
 

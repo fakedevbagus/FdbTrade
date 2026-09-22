@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "workUnit": "R0.4",
+  "status": "complete",
+  "recordedOn": "2026-09-22",
+  "repository": {
+    "branch": "rebuild/r0-preserve-current-state",
+    "baselineCommit": "d0bd2924623c2ef99c69344a9c89e045a11bcdd6"
+  },
+  "authority": {
+    "engine": "SQLite via Node 24 node:sqlite",
+    "dataRootDefault": ".fdbtrade",
+    "dataRootOverride": "FDB_DATA_ROOT (absolute paths only)",
+    "databaseFile": "fdbtrade.sqlite3",
+    "connectionModule": "backend/src/db/sqlite.mjs",
+    "activeMigrations": "backend/db/sqlite-migrations",
+    "migrationCount": 3,
+    "durableDomains": [
+      "private-user",
+      "auth-sessions",
+      "privileged-audit"
+    ]
+  },
+  "parity": {
+    "cleanMigration": "pass",
+    "idempotentRemigration": "pass",
+    "rollbackReapply": "pass",
+    "failedMigrationAtomicity": "pass",
+    "checksumDriftRefusal": "pass",
+    "authSessionRestartPersistence": "pass",
+    "auditRestartPersistence": "pass",
+    "auditPhysicalMutationRefusal": "pass",
+    "externalStateRequired": false,
+    "skippedLifecycleTests": 0
+  },
+  "retirement": {
+    "postgresRuntimeDependency": false,
+    "redisRuntimeDependency": false,
+    "dockerComposeAuthority": false,
+    "legacyPostgresMigrations": "historical_evidence_only",
+    "legacyStateTouched": false,
+    "automaticLegacyImport": false,
+    "backupRestore": "fail_closed_pending_later_authority",
+    "decision": "docs/adr/ADR-0037-local-sqlite-authority.md"
+  },
+  "finalGate": {
+    "command": "make toolchain-gate",
+    "reportPath": "artifacts/toolchain/gate.json",
+    "startedAtUtc": "2026-09-22T06:48:05.514Z",
+    "finishedAtUtc": "2026-09-22T06:52:25.207Z",
+    "durationMs": 259693,
+    "exitCode": 0,
+    "status": "pass",
+    "summary": {
+      "total": 15,
+      "pass": 15,
+      "fail": 0,
+      "timeout": 0,
+      "environmentBlocked": 0,
+      "skipped": 0,
+      "planned": 0
+    },
+    "tests": {
+      "contracts": "43 files, 631 passed",
+      "backend": "71 files, 679 passed",
+      "frontend": "12 files, 97 passed",
+      "python": "535 passed, 0 skipped"
+    },
+    "firstActionableFailure": null
+  },
+  "preservation": {
+    "m48FileCount": 10,
+    "m48HashVerification": "pass",
+    "m48RuntimeAuthority": false
+  },
+  "safety": {
+    "liveExecutionEnabled": false,
+    "providerOrderTransportEnabled": false,
+    "externalStateMutationEnabled": false
+  },
+  "nextWorkUnit": "R0.5 — Local application and runtime lifecycle"
+}

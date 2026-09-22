@@ -9,6 +9,9 @@
  * writes). Session lookup stubbed at the auth-store boundary.
  */
 import { describe, expect, it, vi } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
 import type { AuthResult } from "@/auth/store";
 
@@ -34,6 +37,7 @@ vi.mock("@/auth/store", async (importOriginal) => {
 });
 
 import { AuditService } from "@/obs/auditService";
+import { openDatabase, runMigrate } from "@/db/sqlite.mjs";
 import { GET as getAudit, POST as postAudit } from "@/app/api/admin/audit/route";
 
 function request(path: string, init?: RequestInit): Request {
@@ -164,6 +168,41 @@ describe("AuditService", () => {
       });
     }
     expect(a.digest()).toBe(b.digest());
+  });
+
+  it("survives a close/reopen and refuses physical update/delete", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "fdbtrade-audit-"));
+    const databasePath = path.join(root, "audit.sqlite3");
+    runMigrate({ databasePath, log: () => {} });
+    const firstDatabase = openDatabase({ databasePath, mustExist: true });
+    const first = new AuditService("persisted", firstDatabase);
+    const event = first.append({
+      atUtc: T0,
+      actor: "owner",
+      action: "a",
+      subjectType: "config",
+      subjectId: "cfg",
+      before: null,
+      after: { v: 1 },
+      correlationId: "req-persist",
+      source: "admin-api",
+    });
+    firstDatabase.close();
+
+    const reopened = openDatabase({ databasePath, mustExist: true });
+    try {
+      const second = new AuditService("persisted", reopened);
+      expect(second.events()).toEqual([event]);
+      expect(() =>
+        reopened.prepare("UPDATE audit_events SET actor = 'system'").run(),
+      ).toThrow(/append-only/u);
+      expect(() => reopened.prepare("DELETE FROM audit_events").run()).toThrow(
+        /append-only/u,
+      );
+    } finally {
+      reopened.close();
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
 

@@ -1,15 +1,4 @@
-"""P01-03 database foundation contract tests.
-
-Covers: migration file/ledger conventions, the bootstrap script contract
-(secret-free, destructive reset gated), env template parity (FDB_DB_* names),
-the compose isolation contract, and — when Docker and the fdbtrade database
-are available — a live lifecycle check (idempotent re-migrate, rollback,
-re-apply). Live checks self-skip with a clear reason when the database is not
-reachable (e.g. CI clean rooms without Docker).
-
-Pure Python stdlib ``unittest``. Deterministic for deterministic inputs. All
-internal timestamps are UTC (ADR-0004).
-"""
+"""R0.4 SQLite authority and hermetic lifecycle contracts."""
 
 from __future__ import annotations
 
@@ -17,29 +6,24 @@ import json
 import os
 import pathlib
 import re
+import sqlite3
+import stat
 import subprocess
+import tempfile
 import unittest
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 BACKEND = REPO_ROOT / "backend"
-MIGRATIONS = BACKEND / "db" / "migrations"
+MIGRATIONS = BACKEND / "db" / "sqlite-migrations"
 DB = BACKEND / "src" / "db"
-BOOTSTRAP = REPO_ROOT / "scripts" / "db-bootstrap.sh"
 ENV_TEMPLATE = REPO_ROOT / "infra" / ".env.example"
-COMPOSE = REPO_ROOT / "infra" / "compose.yaml"
-
 MIGRATION_UP_PATTERN = re.compile(r"^(\d{4})_([a-z0-9_]+)\.sql$")
-LEDGER_DDL = "public.schema_migrations"
 
 
-def load_json(path: pathlib.Path):
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def run(cmd, cwd=None, timeout=120, env=None):
+def run(cmd, *, env=None, timeout=120):
     return subprocess.run(
         cmd,
-        cwd=cwd or REPO_ROOT,
+        cwd=REPO_ROOT,
         capture_output=True,
         text=True,
         timeout=timeout,
@@ -48,243 +32,125 @@ def run(cmd, cwd=None, timeout=120, env=None):
     )
 
 
-def load_env_file(path: pathlib.Path) -> dict[str, str]:
-    env: dict[str, str] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        env[key] = value
-    return env
-
-
 class MigrationFileContract(unittest.TestCase):
-    """Static conventions for on-disk migrations (ADR-0007)."""
-
-    def test_migrations_directory_exists_and_has_files(self):
-        self.assertTrue(MIGRATIONS.is_dir(), "missing db/migrations directory")
-        files = sorted(p.name for p in MIGRATIONS.glob("*.sql"))
-        self.assertTrue(files, "no migration files found")
-        for name in files:
-            if name.endswith(".down.sql"):
-                continue
-            with self.subTest(name=name):
-                self.assertRegex(name, r"^\d{4}_[a-z0-9_]+\.sql$")
-
-    def test_every_up_migration_name_is_lexically_ordered_and_unique(self):
-        ids = []
+    def test_active_migrations_are_ordered_unique_and_reversible(self):
+        self.assertTrue(MIGRATIONS.is_dir())
+        ups = []
         for path in sorted(MIGRATIONS.glob("*.sql")):
             if path.name.endswith(".down.sql"):
                 continue
             match = MIGRATION_UP_PATTERN.match(path.name)
             self.assertIsNotNone(match, f"bad migration name: {path.name}")
-            ids.append(match.group(1))
-        self.assertEqual(ids, sorted(ids), "migration ids must be ascending")
-        self.assertEqual(len(ids), len(set(ids)), "migration ids must be unique")
-
-    def test_foundation_migration_establishes_conventions(self):
-        text = (MIGRATIONS / "0001_foundation.sql").read_text(encoding="utf-8")
-        self.assertIn("CREATE SCHEMA IF NOT EXISTS fdb", text)
-        self.assertIn("timestamptz", text)
-        # The ledger is runner-owned: migrations must not create/alter it.
-        self.assertNotIn("CREATE TABLE IF NOT EXISTS public.schema_migrations", text)
-        self.assertNotIn("CREATE TABLE public.schema_migrations", text)
-
-    def test_foundation_down_migration_reverses_it(self):
-        text = (MIGRATIONS / "0001_foundation.down.sql").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn("DROP SCHEMA IF EXISTS fdb", text)
-        # Rollbacks must never touch the runner-owned ledger.
-        self.assertNotIn("DROP TABLE IF EXISTS public.schema_migrations", text)
-        self.assertNotIn("DELETE FROM public.schema_migrations", text)
-        self.assertNotIn("TRUNCATE public.schema_migrations", text)
-
-    def test_no_business_tables_beyond_foundation_and_auth(self):
-        """Foundation-only + auth-foundation migrations (P01-03/P01-04);
-        later business migrations land with their owning phase prompts."""
-        ups = [
-            p.name
-            for p in MIGRATIONS.glob("*.sql")
-            if not p.name.endswith(".down.sql")
-        ]
+            ups.append(path.stem)
+            self.assertTrue(
+                MIGRATIONS.joinpath(f"{path.stem}.down.sql").is_file(),
+                f"missing down migration for {path.name}",
+            )
         self.assertEqual(
             ups,
-            ["0001_foundation.sql", "0002_auth_foundation.sql"],
-            "P01-04 must not add migrations beyond the auth foundation",
+            ["0001_foundation", "0002_auth_foundation", "0003_audit_authority"],
         )
 
+    def test_sqlite_schema_encodes_single_user_and_append_only_audit(self):
+        auth = MIGRATIONS.joinpath("0002_auth_foundation.sql").read_text("utf-8")
+        audit = MIGRATIONS.joinpath("0003_audit_authority.sql").read_text("utf-8")
+        self.assertIn("singleton_key", auth)
+        self.assertIn("CHECK(singleton_key = 1)", auth)
+        self.assertIn("token_hash", auth)
+        self.assertIn("audit_events_no_update", audit)
+        self.assertIn("audit_events_no_delete", audit)
+        self.assertIn("audit_events_chronology", audit)
 
-class BootstrapAndInfraContract(unittest.TestCase):
-    """scripts/db-bootstrap.sh, infra/compose.yaml, .env.example parity."""
-
-    def test_bootstrap_script_exists_and_is_syntax_valid(self):
-        self.assertTrue(BOOTSTRAP.is_file())
-        result = run(["bash", "-n", str(BOOTSTRAP)])
-        self.assertEqual(result.returncode, 0, msg=result.stderr)
-
-    def test_bootstrap_never_prints_the_password_value(self):
-        text = BOOTSTRAP.read_text(encoding="utf-8")
-        # The generated password is written to .env but never echoed.
-        self.assertIn("value not shown", text)
-        self.assertNotIn("echo $password", text)
-
-    def test_bootstrap_reset_requires_yes(self):
-        text = BOOTSTRAP.read_text(encoding="utf-8")
-        self.assertIn("--yes", text)
-        self.assertIn("reset --yes", text)
-
-    def test_compose_project_is_isolated_and_has_no_default_credentials(self):
-        text = COMPOSE.read_text(encoding="utf-8")
-        self.assertIn("name: fdbtrade", text)
-        self.assertIn("image: postgres:16", text)
-        self.assertIn("127.0.0.1:${FDB_DB_PORT", text)
-        # Missing env vars must fail loudly, not fall back to weak defaults.
-        self.assertIn("?FDB_DB_PASSWORD is required", text)
-        # Isolation: the compose file must not reference external containers.
-        self.assertNotIn("network_mode: host", text)
-        self.assertNotIn("external: true", text)
-
-    def test_env_template_declares_the_full_db_contract(self):
-        text = ENV_TEMPLATE.read_text(encoding="utf-8")
-        for name in (
-            "FDB_DB_HOST",
-            "FDB_DB_PORT",
-            "FDB_DB_NAME",
-            "FDB_DB_USER",
-            "FDB_DB_PASSWORD",
-            "FDB_DB_POOL_SIZE",
-            "FDB_DB_SSL_MODE",
-        ):
-            self.assertIn(f"{name}=", text, f"missing {name} in template")
-
-    def test_env_template_port_matches_backend_default(self):
-        template = load_env_file(ENV_TEMPLATE)
-        self.assertEqual(template["FDB_DB_PORT"], "15432")
-        pkg = load_json(BACKEND / "package.json")
-        self.assertIn("db:migrate", pkg["scripts"])
-        self.assertIn("pg", pkg["dependencies"])
-
-    def test_migrate_cli_never_logs_credentials(self):
-        text = (DB / "migrate.mjs").read_text(encoding="utf-8")
-        self.assertNotIn("console.log(password", text)
-        self.assertNotIn("console.log(config", text)
-        self.assertIn("cannot connect to database (code:", text)
+    def test_legacy_postgres_migrations_are_not_active_authority(self):
+        runner = DB.joinpath("sqlite.mjs").read_text("utf-8")
+        self.assertIn('"sqlite-migrations"', runner)
+        self.assertNotIn('"migrations",', runner)
+        self.assertNotIn('from "pg"', runner)
 
 
-class DbClientContract(unittest.TestCase):
-    """backend/src/db/client.ts static safety contract."""
+class ConfigurationContract(unittest.TestCase):
+    def test_env_template_declares_only_local_sqlite_state(self):
+        text = ENV_TEMPLATE.read_text("utf-8")
+        self.assertIn("FDB_DATA_ROOT=", text)
+        self.assertIn("FDB_SQLITE_BUSY_TIMEOUT_MS=", text)
+        self.assertNotIn("FDB_DB_", text)
+        self.assertNotIn("FDB_CACHE_", text)
 
-    def test_client_is_server_only(self):
-        text = (DB / "client.ts").read_text(encoding="utf-8")
+    def test_backend_has_no_postgres_runtime_dependency(self):
+        package = json.loads(BACKEND.joinpath("package.json").read_text("utf-8"))
+        self.assertNotIn("pg", package["dependencies"])
+        self.assertNotIn("@types/pg", package["devDependencies"])
+        self.assertIn("db:migrate", package["scripts"])
+
+    def test_client_is_server_only_and_has_no_network_database_config(self):
+        text = DB.joinpath("client.ts").read_text("utf-8")
         self.assertIn("assertServerOnly()", text)
-
-    def test_client_never_builds_connection_strings(self):
-        text = (DB / "client.ts").read_text(encoding="utf-8")
-        self.assertNotIn("postgres://", text)
-        self.assertNotIn("postgresql://", text)
-
-    def test_health_route_reports_database_check(self):
-        text = (BACKEND / "src/app/api/health/route.ts").read_text("utf-8")
-        self.assertIn("checkDatabaseHealth", text)
-        self.assertIn('"degraded"', text)
+        self.assertIn("node:sqlite", text)
+        for forbidden in ("postgres://", "FDB_DB_HOST", "FDB_DB_PASSWORD", "Pool"):
+            self.assertNotIn(forbidden, text)
 
 
-class LiveDatabaseLifecycleTest(unittest.TestCase):
-    """
-    Live lifecycle against the local fdbtrade database (self-skipping).
-
-    Requires: docker daemon, the fdbtrade-postgres container running, and a
-    repository .env with credentials. Exercises the real runner CLI end to
-    end: idempotent re-migrate, rollback, re-apply. On a CI clean room without
-    Docker or a database, the class self-skips with a clear reason.
-    """
-
-    @classmethod
-    def setUpClass(cls):
-        if os.environ.get("FDB_TOOLCHAIN_EXTERNAL_STATE") == "disabled":
-            raise unittest.SkipTest(
-                "external database mutation disabled by the R0.3 toolchain"
-            )
-        if not (REPO_ROOT / ".env").exists():
-            raise unittest.SkipTest("no .env; run `make db-up` for live checks")
-        if run(["docker", "inspect", "fdbtrade-postgres"]).returncode != 0:
-            raise unittest.SkipTest(
-                "fdbtrade-postgres container not running; run `make db-up`"
-            )
-        cls.env = {**os.environ, **load_env_file(REPO_ROOT / ".env")}
-
-    def _runner(self, command: str):
-        result = run(
+class HermeticLifecycleTest(unittest.TestCase):
+    def _runner(self, command: str, data_root: pathlib.Path):
+        env = {**os.environ, "FDB_DATA_ROOT": str(data_root)}
+        return run(
             [
+                "corepack",
                 "pnpm",
                 "--filter",
                 "@fdbtrade/backend",
                 "run",
                 f"db:{command}",
             ],
-            env=self.env,
+            env=env,
             timeout=180,
         )
-        return result
 
-    def test_full_lifecycle_migrate_idempotent_rollback_reapply(self):
-        # Idempotency: whatever the current state, migrate is safe.
-        first = self._runner("status")
-        self.assertEqual(first.returncode, 0, msg=first.stdout + first.stderr)
+    def test_zero_to_migrate_idempotent_rollback_reapply_without_external_state(self):
+        with tempfile.TemporaryDirectory(prefix="fdbtrade-r04-") as tmp:
+            root = pathlib.Path(tmp) / "data"
+            first = self._runner("migrate", root)
+            self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
+            self.assertIn("applied=3", first.stdout)
 
-        migrate_once = self._runner("migrate")
-        self.assertEqual(
-            migrate_once.returncode,
-            0,
-            msg=migrate_once.stdout + migrate_once.stderr,
-        )
-        self.assertRegex(migrate_once.stdout, r"applied=\d+")
+            second = self._runner("migrate", root)
+            self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
+            self.assertIn("applied=0", second.stdout)
 
-        # Re-migrate: nothing pending, still exit 0.
-        migrate_twice = self._runner("migrate")
-        self.assertEqual(migrate_twice.returncode, 0)
-        self.assertIn("applied=0", migrate_twice.stdout)
+            rollback = self._runner("rollback", root)
+            self.assertEqual(rollback.returncode, 0, rollback.stdout + rollback.stderr)
+            self.assertIn("rolled back 0003_audit_authority", rollback.stdout)
 
-        # Rollback removes the MOST RECENT migration from the ledger/schema.
-        rollback = self._runner("rollback")
-        self.assertEqual(rollback.returncode, 0, msg=rollback.stdout)
-        match = re.search(r"rolled back (\S+)", rollback.stdout)
-        self.assertIsNotNone(match, msg=rollback.stdout)
-        rolled_back_id = match.group(1)
-        self.assertEqual(rolled_back_id, "0002_auth_foundation")
+            reapply = self._runner("migrate", root)
+            self.assertEqual(reapply.returncode, 0, reapply.stdout + reapply.stderr)
+            self.assertIn("applied 0003_audit_authority", reapply.stdout)
 
-        # Re-apply restores the fully applied state.
-        reapply = self._runner("migrate")
-        self.assertEqual(reapply.returncode, 0, msg=reapply.stdout)
-        self.assertIn(f"applied {rolled_back_id}", reapply.stdout)
+            database_path = root / "fdbtrade.sqlite3"
+            self.assertTrue(database_path.is_file())
+            self.assertEqual(stat.S_IMODE(root.stat().st_mode), 0o700)
+            self.assertEqual(stat.S_IMODE(database_path.stat().st_mode), 0o600)
+            with sqlite3.connect(database_path) as database:
+                applied = database.execute(
+                    "SELECT id FROM schema_migrations ORDER BY id"
+                ).fetchall()
+                self.assertEqual(len(applied), 3)
+                self.assertEqual(database.execute("PRAGMA integrity_check").fetchone()[0], "ok")
 
-        status = self._runner("status")
-        for migration_id in ("0001_foundation", "0002_auth_foundation"):
-            self.assertIn(f"applied  {migration_id}", status.stdout)
-
-    def test_wrong_password_fails_explicitly_without_leaking_secret(self):
-        wrong = {
-            **self.env,
-            "FDB_DB_PASSWORD": "definitely-not-the-password",
-            "FDB_DB_PORT": "1",
-        }
+    def test_relative_data_root_fails_closed_without_creating_state(self):
+        env = {**os.environ, "FDB_DATA_ROOT": "relative/data"}
         result = run(
             [
+                "corepack",
                 "pnpm",
                 "--filter",
                 "@fdbtrade/backend",
                 "run",
                 "db:status",
             ],
-            env=wrong,
-            timeout=60,
+            env=env,
         )
         self.assertNotEqual(result.returncode, 0)
-        combined = result.stdout + result.stderr
-        self.assertIn("cannot connect to database", combined)
-        self.assertNotIn("definitely-not-the-password", combined)
+        self.assertIn("FDB_DATA_ROOT must be an absolute path", result.stderr)
 
 
 if __name__ == "__main__":
