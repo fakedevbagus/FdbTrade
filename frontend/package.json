@@ -5,9 +5,9 @@
   "type": "module",
   "description": "FdbTrade web frontend — Next.js application shell (P01-01).",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -H 127.0.0.1 -p 3000",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -H 127.0.0.1 -p 3000",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"

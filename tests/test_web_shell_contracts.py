@@ -63,7 +63,7 @@ class FrontendPackageContract(unittest.TestCase):
 
     def test_canonical_tool_commands(self):
         self.assertEqual(self.scripts["build"], "next build")
-        self.assertEqual(self.scripts["start"], "next start")
+        self.assertEqual(self.scripts["start"], "next start -H 127.0.0.1 -p 3000")
         self.assertEqual(self.scripts["typecheck"], "tsc --noEmit")
         self.assertEqual(self.scripts["test"], "vitest run")
         self.assertEqual(self.scripts["lint"], "eslint .")

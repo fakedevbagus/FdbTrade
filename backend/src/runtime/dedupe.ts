@@ -39,6 +39,16 @@ export type DedupeOutcome =
   | { recorded: true; entry: DedupeEntry }
   | { recorded: false; existing: DedupeEntry; reason: "duplicate" | "payload_mismatch" };
 
+/** Storage contract used by the scheduler (memory in unit tests, SQLite in production). */
+export interface DedupeRepository {
+  record(domain: DedupeDomain, key: string, payload: string, atMs: number): DedupeOutcome;
+  has(domain: DedupeDomain, key: string): boolean;
+  get(domain: DedupeDomain, key: string): DedupeEntry | null;
+  list(domain: DedupeDomain): DedupeEntry[];
+  listAll(): DedupeEntry[];
+  readonly size: number;
+}
+
 /** Pure domain content hash (canonical string, sha256 hex). */
 export function dedupeContentHash(domain: DedupeDomain, key: string, payload: string): string {
   return createHash("sha256")
@@ -46,7 +56,7 @@ export function dedupeContentHash(domain: DedupeDomain, key: string, payload: st
     .digest("hex");
 }
 
-export class DedupeLedger {
+export class DedupeLedger implements DedupeRepository {
   private readonly entries = new Map<string, DedupeEntry>();
 
   /**

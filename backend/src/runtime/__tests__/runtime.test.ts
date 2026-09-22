@@ -35,9 +35,6 @@ import {
 } from "@/runtime/lease";
 import {
   InMemoryLockTable,
-  PostgresAdvisoryProcessLock,
-  ADVISORY_LOCK_LOCK_SQL,
-  ADVISORY_LOCK_UNLOCK_SQL,
 } from "@/runtime/lock";
 import { BoundedRuntimeLog, cycleCorrelationId } from "@/runtime/retention";
 import {
@@ -149,33 +146,6 @@ describe("process lock (one lock per runtime database)", () => {
     expect((await taker.acquire(15_000)).acquired).toBe(false);
   });
 
-  it("advisory adapter issues pg_try_advisory_lock/unlock SQL with the database id", async () => {
-    const queries: { sql: string; params?: readonly unknown[] }[] = [];
-    const executor = {
-      query: async <T extends Record<string, unknown>>(
-        sql: string,
-        params?: readonly unknown[],
-      ) => {
-        queries.push({ sql, params });
-        // pg_try_advisory_lock -> acquired=true; pg_advisory_unlock -> released=true.
-        return {
-          rows: [
-            {
-              acquired: sql.includes("pg_try_advisory_lock"),
-              released: sql.includes("pg_advisory_unlock"),
-            },
-          ] as unknown as T[],
-        };
-      },
-    };
-    const lock = new PostgresAdvisoryProcessLock(executor, "fdbtrade-runtime", "proc-1");
-    const acquire = await lock.acquire();
-    expect(acquire.acquired).toBe(true);
-    expect(queries[0].sql).toBe(ADVISORY_LOCK_LOCK_SQL);
-    expect(queries[0].params).toEqual(["fdbtrade-runtime"]);
-    expect(await lock.release()).toBe(true);
-    expect(queries[queries.length - 1].sql).toBe(ADVISORY_LOCK_UNLOCK_SQL);
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -879,7 +849,6 @@ describe("fixture soak (kill at multiple checkpoints, restart, hashes)", () => {
     expect(durableOutcomeHash(a)).toBe(durableOutcomeHash(b));
   });
 });
-
 
 
 

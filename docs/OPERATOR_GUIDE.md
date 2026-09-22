@@ -77,17 +77,26 @@ SQLite is the only active runtime store. It defaults to
 directory. PostgreSQL, Redis, Docker, database ports, and database credentials
 are not required.
 
-## 4. Start, stop, inspect
+## 5. Start, stop, inspect
 
 ```bash
-scripts/fdbtrade start     # backend on http://127.0.0.1:3100 only
-scripts/fdbtrade status    # health, database, operator state, venv, safety flags
-scripts/fdbtrade stop      # stop the backend (scoped to port 3100 / recorded PID)
+scripts/fdbtrade start          # frontend :3000 + backend :3100, loopback only
+scripts/fdbtrade status         # both apps plus SQLite-backed runtime health
+scripts/fdbtrade status --json  # the same facts as machine-readable JSON
+scripts/fdbtrade stop           # stop only the recorded process groups
 ```
 
-`stop` only targets the PID recorded in the operator state file and the process
-actually listening on `127.0.0.1:3100`. It never kills unrelated Node or Next
-servers on this host.
+`start` requires an initialized database (`make db-migrate`) and both ports to
+be free. It has a 60-second readiness bound and cleans up its own partial start.
+`stop` requires the recorded PID and Linux process-start token to match before
+signalling a process group. It never kills by process name or assumes that a
+listener on either port belongs to FdbTrade.
+
+The file under `<data-root>/run/lifecycle.json` is non-authoritative process
+ownership metadata. Durable scheduler locks, leases, checkpoints, completions,
+dedupe and recovery state live only in SQLite. The observation scheduler stays
+off unless `FDB_RUNTIME_SCHEDULER=on` and a bounded
+`FDB_RUNTIME_INTERVAL_MS=1000..3600000` are set.
 
 Machine-readable environment report:
 
@@ -95,7 +104,7 @@ Machine-readable environment report:
 scripts/fdbtrade preflight --json
 ```
 
-## 5. Verify the installation
+## 6. Verify the installation
 
 ```bash
 make check                              # lint + typecheck + test + build
@@ -108,7 +117,7 @@ make handoff-check                       # handoff/operator docs present
 make format-check                        # syntax + deterministic formatting
 ```
 
-## 6. What the preflight report means
+## 7. What the preflight report means
 
 | Key | Meaning |
 | --- | --- |
@@ -121,7 +130,7 @@ make format-check                        # syntax + deterministic formatting
 
 `preflight` exits `1` only for hard errors. Warnings are printed and do not block.
 
-## 7. Recovery
+## 8. Recovery
 
 In-app guidance:
 
@@ -140,7 +149,7 @@ scripts/fdbtrade recover
 
 Full procedures, RPO expectations, and the clean-slate path: `RECOVERY.md`.
 
-## 8. What is unavailable or gated in this beta
+## 9. What is unavailable or gated in this beta
 
 - No live-money order or trade route exists.
 - No broker order credential is used, stored, or requested.
@@ -151,7 +160,7 @@ Full procedures, RPO expectations, and the clean-slate path: `RECOVERY.md`.
   provider shadow, remote access, and research-validity work are later milestones
   (M45–M52), not part of M44.
 
-## 9. Where things live
+## 10. Where things live
 
 | Path | Purpose |
 | --- | --- |

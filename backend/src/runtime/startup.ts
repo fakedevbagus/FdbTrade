@@ -26,7 +26,11 @@ import {
   CheckpointStore,
 } from "./checkpoints";
 import { DedupeLedger } from "./dedupe";
+import { InMemoryCycleLeaseStore } from "./lease";
 import { InMemoryLockTable, type ProcessLock } from "./lock";
+import type { DatabaseSync } from "node:sqlite";
+import { getDatabase } from "../db/client";
+import { SqliteProcessLock, SqliteRuntimeStore } from "./sqlite";
 import {
   Scheduler,
   CYCLE_STAGES,
@@ -98,6 +102,7 @@ export function createObservationHandlers(
 /** A started runtime scheduler and how to stop it. */
 export interface RuntimeSchedulerHandle {
   scheduler: Scheduler;
+  ready: Promise<import("./scheduler").StartResult>;
   stop: () => Promise<void>;
 }
 
@@ -107,26 +112,35 @@ export function buildRuntimeScheduler(options: {
   intervalMs: number;
   databaseId?: string;
   owner?: string;
+  database?: DatabaseSync;
 }): { scheduler: Scheduler; observation: RuntimeObservation; log: BoundedRuntimeLog } {
   const clock = options.clock ?? { nowMs: () => Date.now() };
   const log = new BoundedRuntimeLog(1_000);
   const observation = createRuntimeObservation(log, clock);
-  const lockTable = new InMemoryLockTable();
-  const processLock: ProcessLock = lockTable.lockFor(
-    options.databaseId ?? "fdbtrade-runtime",
-    options.owner ?? "fdbtrade-api",
-  );
+  const databaseId = options.databaseId ?? "fdbtrade-runtime";
+  const owner = options.owner ?? "fdbtrade-api";
+  const lockTable = options.database ? null : new InMemoryLockTable();
+  const processLock: ProcessLock = options.database
+    ? new SqliteProcessLock(
+        options.database,
+        databaseId,
+        owner,
+        Math.max(options.intervalMs * 3, 60_000),
+      )
+    : lockTable!.lockFor(databaseId, owner);
+  const durableStore = options.database ? new SqliteRuntimeStore(options.database) : null;
   const scheduler = new Scheduler({
     clock,
     intervalMs: options.intervalMs,
     processLock,
-    checkpoints: new CheckpointStore(),
-    ledger: new DedupeLedger(),
-    completions: new CompletionLedger(),
+    checkpoints: durableStore ?? new CheckpointStore(),
+    ledger: durableStore ?? new DedupeLedger(),
+    completions: durableStore ?? new CompletionLedger(),
+    leases: durableStore ?? new InMemoryCycleLeaseStore(),
     log,
     handlers: createObservationHandlers(observation),
-    owner: options.owner ?? "fdbtrade-api",
-    databaseId: options.databaseId ?? "fdbtrade-runtime",
+    owner,
+    databaseId,
   });
   return { scheduler, observation, log };
 }
@@ -134,31 +148,44 @@ export function buildRuntimeScheduler(options: {
 /** The interval-ticking driver (real timers; the core stays timer-free). */
 export interface RuntimeDriver {
   readonly timer: NodeJS.Timeout;
-  stop: () => void;
+  stop: () => Promise<void>;
 }
 
 export function startRuntimeDriver(
   scheduler: Scheduler,
   onTick?: (outcome: TickOutcome) => void,
 ): RuntimeDriver {
+  let stopping = false;
+  let inFlight: Promise<void> | null = null;
   const timer = setInterval(() => {
-    void scheduler
+    if (stopping || inFlight) return;
+    inFlight = scheduler
       .tick()
       .then((outcome) => {
         if (onTick) {
           onTick(outcome);
         }
       })
-      .catch(() => {
-        // A tick failure must never crash the process; the scheduler
-        // records the failure internally and the health projection shows it.
+      .catch(async () => {
+        // Fail closed: stop renewing/releasing the lock so health cannot
+        // present a failed driver as an active scheduler.
+        stopping = true;
+        clearInterval(timer);
+        await scheduler.stop();
+      })
+      .finally(() => {
+        inFlight = null;
       });
   }, scheduler.tickIntervalMs);
   // Do not hold the event loop open just for the timer.
   timer.unref();
   return {
     timer,
-    stop: () => clearInterval(timer),
+    stop: async () => {
+      stopping = true;
+      clearInterval(timer);
+      await inFlight;
+    },
   };
 }
 
@@ -188,6 +215,10 @@ const getGlobalEnv = (): Record<string, string | undefined> => {
   return g.process?.env ?? {};
 };
 
+const globalForRuntime = globalThis as unknown as {
+  __fdbRuntimeHandle?: RuntimeSchedulerHandle;
+};
+
 /**
  * Entry point used by instrumentation: start the runtime scheduler ONLY
  * when explicitly enabled, with a bounded interval and graceful signals.
@@ -200,24 +231,42 @@ export function startRuntimeScheduler(
   if (!flag.enabled) {
     return null;
   }
+  if (globalForRuntime.__fdbRuntimeHandle) {
+    return globalForRuntime.__fdbRuntimeHandle;
+  }
   const intervalMs = parseIntervalMs(env.FDB_RUNTIME_INTERVAL_MS);
   const databaseId = env.FDB_RUNTIME_DATABASE_ID ?? "fdbtrade-runtime";
-  const { scheduler } = buildRuntimeScheduler({ intervalMs, databaseId });
-  void scheduler.start().then((result) => {
+  const { scheduler } = buildRuntimeScheduler({
+    intervalMs,
+    databaseId,
+    owner: `fdbtrade-api:${process.pid}`,
+    database: getDatabase(),
+  });
+  let driver: RuntimeDriver | null = null;
+  const ready = scheduler.start().then((result) => {
     if (!result.started) {
       // Fail closed: another process owns this database; stay off.
-      return;
+      return result;
     }
-    startRuntimeDriver(scheduler);
+    driver = startRuntimeDriver(scheduler);
+    return result;
   });
   const handle: RuntimeSchedulerHandle = {
     scheduler,
-    stop: () => scheduler.stop(),
+    ready,
+    stop: async () => {
+      await driver?.stop();
+      await scheduler.stop();
+      if (globalForRuntime.__fdbRuntimeHandle === handle) {
+        globalForRuntime.__fdbRuntimeHandle = undefined;
+      }
+    },
   };
+  globalForRuntime.__fdbRuntimeHandle = handle;
   if (typeof process !== "undefined" && typeof process.on === "function") {
     const drain = (signal: string) => {
       scheduler.requestShutdown();
-      void scheduler.stop().finally(() => {
+      void handle.stop().finally(() => {
         // Process shutdown is completed by the Next.js runtime.
       });
       void signal;
@@ -227,5 +276,3 @@ export function startRuntimeScheduler(
   }
   return handle;
 }
-
-

@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "workUnit": "R0.5",
+  "status": "complete",
+  "recordedOn": "2026-09-22",
+  "repository": {
+    "branch": "rebuild/r0-preserve-current-state",
+    "baselineCommit": "a69b0ce1ff3b98b27c78d917ce6f9bcb107957cb"
+  },
+  "applicationLifecycle": {
+    "authority": "scripts/fdbtrade",
+    "frontend": "http://127.0.0.1:3000",
+    "backend": "http://127.0.0.1:3100",
+    "startupTimeoutSeconds": 60,
+    "stopOwnership": "recorded PID plus Linux process-start token",
+    "operatorStateAuthoritative": false
+  },
+  "runtimePersistence": {
+    "engine": "SQLite via Node 24 node:sqlite",
+    "migration": "0004_runtime_lifecycle",
+    "migrationCount": 4,
+    "tables": [
+      "runtime_locks",
+      "runtime_cycles",
+      "runtime_checkpoints",
+      "runtime_completions",
+      "runtime_dedupe"
+    ],
+    "postgresAdvisoryLockAdapter": false,
+    "schedulerDefault": "off",
+    "productionInMemoryAuthority": false
+  },
+  "behavior": {
+    "exclusiveOwnership": "pass",
+    "staleLeaseTakeover": "pass",
+    "checkpointIntegrity": "pass",
+    "crashRestartRecovery": "pass",
+    "idempotentResume": "pass",
+    "dedupeAcrossReopen": "pass",
+    "truthfulSqliteHealth": "pass",
+    "unmanagedProcessRefusal": "pass"
+  },
+  "finalGate": {
+    "command": "make toolchain-gate",
+    "reportPath": "artifacts/toolchain/gate.json",
+    "startedAtUtc": "2026-09-22T08:03:47.344Z",
+    "finishedAtUtc": "2026-09-22T08:07:50.905Z",
+    "durationMs": 243561,
+    "exitCode": 0,
+    "status": "pass",
+    "summary": {
+      "total": 15,
+      "pass": 15,
+      "fail": 0,
+      "timeout": 0,
+      "environmentBlocked": 0,
+      "skipped": 0,
+      "planned": 0
+    },
+    "tests": {
+      "contracts": "43 files, 631 passed",
+      "backend": "72 files, 682 passed",
+      "frontend": "12 files, 97 passed",
+      "python": "545 passed, 0 skipped"
+    },
+    "firstActionableFailure": null
+  },
+  "preservation": {
+    "m48FileCount": 10,
+    "m48Bytes": 55941,
+    "m48HashVerification": "pass",
+    "m48RuntimeAuthority": false
+  },
+  "safety": {
+    "liveExecutionEnabled": false,
+    "providerOrderTransportEnabled": false,
+    "externalStateMutationEnabled": false
+  },
+  "nextWorkUnit": "R0.6 — Market-data and artifact authority (not yet authorized)"
+}

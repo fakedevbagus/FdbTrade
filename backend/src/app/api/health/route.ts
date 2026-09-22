@@ -11,11 +11,16 @@
  * faked. Non-GET methods return a structured 405 with an `allow` header.
  */
 import { utcNowIso } from "@/clock";
-import { checkDatabaseHealth } from "@/db/client";
+import { checkDatabaseHealth, getDatabase } from "@/db/client";
 import { apiEnv } from "@/env";
 import { withApi } from "@/http/handler";
 import { ApiError } from "@/http/errors";
 import { jsonOk } from "@/http/responses";
+import { parseSchedulerFlag } from "@/runtime/startup";
+import {
+  readRuntimePersistenceHealth,
+  type RuntimePersistenceHealth,
+} from "@/runtime/sqlite";
 
 export const dynamic = "force-dynamic";
 
@@ -23,9 +28,29 @@ const bootTimeMs = Date.now();
 
 export const GET = withApi(async (_request, { requestId }) => {
   const database = await checkDatabaseHealth();
+  const schedulerEnabled = parseSchedulerFlag(apiEnv.FDB_RUNTIME_SCHEDULER).enabled;
+  let runtime: RuntimePersistenceHealth | null = null;
+  if (database.status === "ok") {
+    try {
+      runtime = readRuntimePersistenceHealth(
+        getDatabase(),
+        apiEnv.FDB_RUNTIME_DATABASE_ID,
+        Date.now(),
+      );
+    } catch {
+      runtime = null;
+    }
+  }
+  const runtimeStatus = !schedulerEnabled
+    ? "disabled"
+    : runtime?.checkpointIntegrity === "corrupt" || runtime?.lock !== "held"
+      ? "degraded"
+      : "ok";
+  const status =
+    database.status === "ok" && runtimeStatus !== "degraded" ? "ok" : "degraded";
   return jsonOk(
     {
-      status: database.status === "ok" ? "ok" : "degraded",
+      status,
       service: apiEnv.FDB_API_SERVICE_NAME,
       version: apiEnv.FDB_API_VERSION,
       environment: apiEnv.FDB_APP_ENV,
@@ -34,6 +59,18 @@ export const GET = withApi(async (_request, { requestId }) => {
       checks: {
         process: "ok",
         database: database.status,
+        runtime: runtimeStatus,
+      },
+      runtime: {
+        enabled: schedulerEnabled,
+        authority: "sqlite",
+        ...(runtime ?? {
+          lock: "unknown",
+          lockOwner: null,
+          incompleteCycles: null,
+          lastCompletedCycleId: null,
+          checkpointIntegrity: "unknown",
+        }),
       },
     },
     { requestId },

@@ -76,6 +76,7 @@ KNOWN_ADRS = {
     35: "user-facing-historical-research-workflow",
     36: "seven-major-runtime-coverage",
     37: "local-sqlite-authority",
+    38: "local-application-and-runtime-lifecycle",
 }
 
 

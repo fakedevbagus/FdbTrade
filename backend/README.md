@@ -20,8 +20,9 @@ frontend shell uses). Default port: **3100**.
     unknown failures to a generic structured 500 (message never leaked).
   - `request-context.ts` — request/correlation ID generation and validation.
 - `src/env.ts` — zod-parsed server-side configuration. **Server-only** (see
-  `src/server-only.ts`); the only app module that reads `process.env`
-  (the standalone migration CLI is the one documented exception); contains
+  `src/server-only.ts`); the only application-config module that reads
+  `process.env` (`src/instrumentation.ts` reads only Next's compile-time
+  runtime selector, and the migration CLI is standalone); contains
   no hardcoded database credentials; SQLite uses only `FDB_DATA_ROOT` and a
   bounded busy timeout.
 - `src/db/client.ts` — typed, server-only SQLite connection authority using
@@ -45,7 +46,7 @@ frontend shell uses). Default port: **3100**.
 - No secrets in source, logs, or responses; no `NEXT_PUBLIC_*` variables.
 - All internal timestamps are UTC (ADR-0004).
 
-## Database (R0.4)
+## Database and runtime lifecycle (R0.5)
 
 SQLite is the only active durable-state authority. The default database is
 `.fdbtrade/fdbtrade.sqlite3`; set `FDB_DATA_ROOT` to an absolute directory to
@@ -74,6 +75,9 @@ binding — see `docs/adr/ADR-0007-sql-migrations-and-database-foundation.md`:
   update/delete triggers.
 - The old PostgreSQL SQL files remain only as inactive historical evidence.
   See ADR-0037.
+- Runtime locks, leases, checkpoint chains, completions and dedupe are in the
+  same SQLite database. The optional observation scheduler is wired by the
+  Node instrumentation hook and remains off by default; see ADR-0038.
 
 ## Commands
 

@@ -29,6 +29,14 @@ export interface RuntimeCheckpoint {
   hash: string;
 }
 
+export interface CheckpointRepository {
+  append(input: { cycleId: string; stage: string; atMs: number; digest?: string }): RuntimeCheckpoint;
+  lastVerified(cycleId: string): RuntimeCheckpoint | null;
+  chain(cycleId: string): readonly RuntimeCheckpoint[];
+  cycleIds(): string[];
+  verify(cycleId: string): boolean;
+}
+
 /** Deterministic record hash over the full checkpoint tuple. */
 export function checkpointHash(input: {
   cycleId: string;
@@ -36,15 +44,23 @@ export function checkpointHash(input: {
   stage: string;
   atMs: number;
   prevHash: string;
+  digest?: string | null;
 }): string {
   return createHash("sha256")
     .update(
-      [input.cycleId, String(input.seq), input.stage, String(input.atMs), input.prevHash].join("|"),
+      [
+        input.cycleId,
+        String(input.seq),
+        input.stage,
+        String(input.atMs),
+        input.digest ?? "",
+        input.prevHash,
+      ].join("|"),
     )
     .digest("hex");
 }
 
-export class CheckpointStore {
+export class CheckpointStore implements CheckpointRepository {
   private readonly chains = new Map<string, RuntimeCheckpoint[]>();
 
   /** Append the next checkpoint for a cycle. Enforces seq monotonicity. */
@@ -64,6 +80,7 @@ export class CheckpointStore {
         seq,
         stage: input.stage,
         atMs: input.atMs,
+        digest: input.digest ?? null,
         prevHash,
       }),
     };
@@ -82,6 +99,7 @@ export class CheckpointStore {
         seq: record.seq,
         stage: record.stage,
         atMs: record.atMs,
+        digest: record.digest,
         prevHash,
       });
       if (record.prevHash !== prevHash || record.hash !== expected) {
@@ -118,6 +136,7 @@ export class CheckpointStore {
         seq: record.seq,
         stage: record.stage,
         atMs: record.atMs,
+        digest: record.digest,
         prevHash,
       });
       if (record.prevHash !== prevHash || record.hash !== expected) {
@@ -137,12 +156,25 @@ export interface CycleCompletion {
   completedAtMs: number;
 }
 
+export interface CompletionRepository {
+  complete(
+    cycleId: string,
+    outcomeHash: string,
+    atMs: number,
+  ): { firstWrite: boolean; completion: CycleCompletion };
+  has(cycleId: string): boolean;
+  get(cycleId: string): CycleCompletion | null;
+  entries(): CycleCompletion[];
+  readonly count: number;
+  lastCompletedCycleId(): string | null;
+}
+
 /**
  * Completion ledger: the durable set of cycles that reached `completed`.
  * `complete` is first-write-wins — a replayed completion of the same cycle
  * can never double-count (no progress jumps after recovery).
  */
-export class CompletionLedger {
+export class CompletionLedger implements CompletionRepository {
   private readonly completions = new Map<string, CycleCompletion>();
 
   /** Record a completion. Returns false when the cycle already completed. */

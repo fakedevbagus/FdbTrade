@@ -11,22 +11,12 @@
  *   row across simulated "processes" (tests, fixture soak). Stale holders are
  *   taken over only after `staleAfterMs` without a heartbeat — a live holder
  *   can never be stolen.
- * - `PostgresAdvisoryProcessLock`: session-scoped PostgreSQL advisory lock
- *   (`pg_try_advisory_lock`) over an INJECTED executor, so the SQL contract
- *   is testable without a live database. The adapter takes its connection
- *   from the caller (the startup module wires the real pool).
+ * - `SqliteProcessLock` in `sqlite.ts`: the production authority, backed by
+ *   an expiring row and short `BEGIN IMMEDIATE` transactions.
  *
  * Fail-closed rule: `acquire` returns a result, never throws for "held by
  * someone else"; the caller decides what a lost race means.
  */
-
-/** Injectable query executor for the advisory-lock adapter. */
-export interface AdvisoryLockExecutor {
-  query<T extends Record<string, unknown>>(
-    sql: string,
-    params?: readonly unknown[],
-  ): Promise<{ rows: T[] }>;
-}
 
 export interface LockHolderInfo {
   databaseId: string;
@@ -127,61 +117,6 @@ export class InMemoryLockTable {
     return true;
   }
 }
-
-/**
- * PostgreSQL advisory-lock adapter. The lock key is the 32-bit hash of the
- * logical database id (`hashtext`), which is stable across processes and
- * connections. Session-scoped: the lock vanishes if the connection dies,
- * which is exactly the crash semantics a process lock wants.
- */
-export const ADVISORY_LOCK_LOCK_SQL =
-  "SELECT pg_try_advisory_lock(hashtext($1)) AS acquired";
-export const ADVISORY_LOCK_UNLOCK_SQL =
-  "SELECT pg_advisory_unlock(hashtext($1)) AS released";
-
-export class PostgresAdvisoryProcessLock implements ProcessLock {
-  constructor(
-    private readonly executor: AdvisoryLockExecutor,
-    readonly databaseId: string,
-    readonly owner: string,
-  ) {
-    if (databaseId.length === 0 || owner.length === 0) {
-      throw new Error("databaseId and owner must be non-empty");
-    }
-  }
-
-  private async boolQuery(
-    sql: string,
-    column: string,
-  ): Promise<boolean> {
-    const result = await this.executor.query<Record<string, unknown>>(sql, [
-      `${this.databaseId}`,
-    ]);
-    const value = result.rows[0]?.[column];
-    return value === true;
-  }
-
-  async acquire(): Promise<AcquireResult> {
-    const acquired = await this.boolQuery(ADVISORY_LOCK_LOCK_SQL, "acquired");
-    return acquired
-      ? { acquired: true, holder: null, reason: "acquired" }
-      : { acquired: false, holder: "unknown", reason: "unknown_holder" };
-  }
-
-  /** Advisory locks are session-scoped; re-asserting is the heartbeat. */
-  async heartbeat(): Promise<boolean> {
-    return this.boolQuery(ADVISORY_LOCK_LOCK_SQL, "acquired");
-  }
-
-  async release(): Promise<boolean> {
-    return this.boolQuery(ADVISORY_LOCK_UNLOCK_SQL, "released");
-  }
-
-  async holderInfo(): Promise<LockHolderInfo | null> {
-    return null;
-  }
-}
-
 
 class InMemoryProcessLock implements ProcessLock {
   constructor(

@@ -90,6 +90,33 @@ export interface CycleLease {
   updatedAtMs: number;
 }
 
+/** Durable lease contract. Production uses SQLite; tests may use memory. */
+export interface CycleLeaseRepository {
+  save(cycle: CycleLease): void;
+  getLease(cycleId: string): CycleLease | null;
+  recoverableCycleIds(): string[];
+}
+
+export class InMemoryCycleLeaseStore implements CycleLeaseRepository {
+  private readonly cycles = new Map<string, CycleLease>();
+
+  save(cycle: CycleLease): void {
+    this.cycles.set(cycle.cycleId, { ...cycle });
+  }
+
+  getLease(cycleId: string): CycleLease | null {
+    const cycle = this.cycles.get(cycleId);
+    return cycle ? { ...cycle } : null;
+  }
+
+  recoverableCycleIds(): string[] {
+    return [...this.cycles.values()]
+      .filter((cycle) => !["completed", "failed", "shutdown_complete"].includes(cycle.state))
+      .map((cycle) => cycle.cycleId)
+      .sort();
+  }
+}
+
 export function createCycleLease(
   cycleId: string,
   options: { maxAttempts?: number; owner?: string } = {},

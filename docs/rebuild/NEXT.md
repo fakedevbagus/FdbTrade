@@ -1,61 +1,66 @@
 # FdbTrade Rebuild — Next Work Unit
 
-Current completed unit: **R0.4 — Authority reset and SQLite foundation**
+Current completed unit: **R0.5 — Local application and runtime lifecycle**
 
-Next authorized unit: **R0.5 — Local application and runtime lifecycle**
+Next planned unit: **R0.6 — Market-data and artifact authority**
 
-## Resume context
+R0.6 is not authorized by the R0.5 commit alone. Start it only after an
+explicit user request in a fresh chat.
 
-1. Read `artifacts/rebuild/r0.4/sqlite-foundation.json`,
-   `docs/rebuild/checkpoints/R0.4_AUTHORITY_RESET_SQLITE_FOUNDATION.md`, and
-   ADR-0037.
-2. Revalidate branch, HEAD, clean user-change boundaries, the R0.4 gate report,
-   and all ten M48 preservation hashes before editing.
-3. Keep `scripts/rebuild_toolchain.py` and `make toolchain-gate` as the only
-   install/lint/typecheck/test/build authority.
-4. Keep SQLite and `backend/src/db/sqlite.mjs` as the only durable-state and
-   transaction authority. Do not reintroduce PostgreSQL, Redis or Docker.
-5. Keep live execution off, provider-order transport off, and M48 disconnected.
+## Copy-ready next-chat prompt
 
-## R0.5 scope
+```text
+Lanjutkan rebuild FdbTrade dengan mengerjakan HANYA:
 
-R0.5 may do only the local application/runtime lifecycle unit from the R0.2
-dependency order:
+R0.6 — Market-data and artifact authority
 
-- make both local applications start predictably on loopback through one
-  bounded operator lifecycle;
-- replace duplicate or misleading startup/status/stop authority;
-- persist scheduler locks, leases, checkpoints, dedupe and recovery state in
-  the canonical SQLite database with explicit transactions;
-- prove crash/restart recovery, exclusive ownership, stale-lease takeover,
-  idempotent resume and truthful health with hermetic behavior tests;
-- update current operator docs, ADR/checkpoint evidence and the next handoff.
+Repository:
+`/media/fakedevbagus/WD BLUE/BACKUP LINUX/PROJECTS/FdbTrade`
 
-## Explicit exclusions
+Baseline:
 
-- Do not implement market-data or artifact authority.
-- Do not persist feature, regime, strategy, ensemble or signal intelligence.
-- Do not rebuild backtest/research, risk, paper broker, outcomes or UI.
-- Do not design backup/restore beyond preserving the R0.4 fail-closed gap.
-- Do not inspect or clean up the legacy PostgreSQL container/database.
-- Do not use credentials, make provider network requests, wire M48, or begin
-  credentialed shadow-provider work.
+- Branch: `rebuild/r0-preserve-current-state`
+- Commit: revalidate HEAD from the completed R0.5 atomic commit
+- R0.5 gate: revalidate PASS 15/15, zero skip
+- SQLite adalah satu-satunya durable-state authority
+- Local frontend/backend lifecycle authority: `scripts/fdbtrade`
+- Runtime locks/leases/checkpoints/completions/dedupe: SQLite migration 0004
+- Live execution OFF
+- Provider-order transport OFF
+- M48 tetap dikarantina dan non-authoritative
 
-## Entry evidence and known gaps
+Baca terlebih dahulu:
 
-- R0.4 replaced the external PostgreSQL lifecycle skips with temporary SQLite
-  lifecycle tests; the final R0.4 gate is required to be fully PASS.
-- SQLite serializes writes. R0.5 transaction scope must stay short and lock
-  contention must be surfaced, never hidden by fabricated success.
-- The current runtime layer still contains in-memory stores and a legacy
-  PostgreSQL advisory-lock adapter. They are evidence to classify and replace,
-  not authority to preserve automatically.
-- The operator CLI still represents M44-era single-backend lifecycle behavior;
-  R0.5 must reconcile it with the actual frontend/backend topology.
-- The frontend middleware deprecation warning is non-blocking and should only
-  be changed if required for the authorized lifecycle behavior.
+- `artifacts/rebuild/r0.5/local-runtime-lifecycle.json`
+- `docs/rebuild/checkpoints/R0.5_LOCAL_APPLICATION_RUNTIME_LIFECYCLE.md`
+- `docs/adr/ADR-0037-local-sqlite-authority.md`
+- `docs/adr/ADR-0038-local-application-and-runtime-lifecycle.md`
+- `docs/rebuild/NEXT.md`
+
+Kerjakan hanya market-data dan artifact authority: fixture/historical ingestion,
+registries, tujuh major/timeframe yang disetujui, freshness/quality, immutable
+artifact content plus transactional SQLite metadata, atomic publication, dan
+hermetic recovery/idempotency evidence.
+
+Jangan mengerjakan signal intelligence, backtest/research orchestration, risk,
+paper broker/outcomes, UI, backup/restore, credentialed provider, live/provider
+order transport, atau M48.
+
+Gunakan `make toolchain-gate` sebagai acceptance gate dan berhenti setelah satu
+commit atomik R0.6.
+```
+
+## Entry checks
+
+1. Revalidate branch, HEAD, clean worktree, R0.5 artifact and the 15/15 gate.
+2. Revalidate all ten M48 hashes before editing.
+3. Confirm no local lifecycle is running before tests that bind ports; never
+   stop an unmanaged listener.
+4. Keep migration 0004 and ADR-0038 behavior intact.
+5. Keep every test hermetic: no provider credentials, network calls, Docker,
+   PostgreSQL or Redis.
 
 ## Stop rule
 
-Stop after R0.5 acceptance evidence and one atomic commit. Do not roll into the
-market-data/artifact unit or any later product work.
+Stop after R0.6 evidence and one atomic commit. Do not roll into signal
+intelligence or any later unit.

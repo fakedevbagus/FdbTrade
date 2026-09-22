@@ -49,6 +49,9 @@ export const apiEnvSchema = z.object({
     .min(1)
     .max(60_000)
     .default(5_000),
+  FDB_RUNTIME_SCHEDULER: z.string().default("off"),
+  FDB_RUNTIME_INTERVAL_MS: z.string().optional(),
+  FDB_RUNTIME_DATABASE_ID: z.string().min(1).default("fdbtrade-runtime"),
 });
 
 export type ApiEnv = z.infer<typeof apiEnvSchema>;

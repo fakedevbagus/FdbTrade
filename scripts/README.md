@@ -19,9 +19,9 @@ Usage:
 ```bash
 make bootstrap            # or: bash scripts/bootstrap.sh [--dry-run]
 make preflight            # or: python3 scripts/fdbtrade preflight --json
-scripts/fdbtrade start    # backend on 127.0.0.1:3100 only
-scripts/fdbtrade status
-scripts/fdbtrade stop     # scoped to the recorded PID / port 3100, never by name
+scripts/fdbtrade start    # frontend :3000 + backend :3100, loopback only
+scripts/fdbtrade status --json
+scripts/fdbtrade stop     # recorded PID + process-start token only, never by name/port
 scripts/fdbtrade recover
 ```
 

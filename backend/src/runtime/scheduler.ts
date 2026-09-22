@@ -26,8 +26,8 @@
 import { createHash } from "node:crypto";
 
 import type { RuntimeClock } from "./clock";
-import { CheckpointStore, CompletionLedger, parseCycleNumber } from "./checkpoints";
-import type { DedupeLedger } from "./dedupe";
+import { parseCycleNumber, type CheckpointRepository, type CompletionRepository } from "./checkpoints";
+import type { DedupeRepository } from "./dedupe";
 import {
   admitCycle,
   evaluateDegradation,
@@ -44,6 +44,7 @@ import {
   createCycleLease,
   isLeaseExpired,
   retryDecision,
+  type CycleLeaseRepository,
   type CycleLease,
 } from "./lease";
 import type { ProcessLock } from "./lock";
@@ -88,9 +89,10 @@ export interface SchedulerOptions {
   /** Tick interval; bounded by MIN/MAX_INTERVAL_MS. */
   intervalMs: number;
   processLock: ProcessLock;
-  checkpoints: CheckpointStore;
-  ledger: DedupeLedger;
-  completions: CompletionLedger;
+  checkpoints: CheckpointRepository;
+  ledger: DedupeRepository;
+  completions: CompletionRepository;
+  leases?: CycleLeaseRepository;
   log: BoundedRuntimeLog;
   /** Stage handlers keyed by stage name (all four required). */
   handlers: Record<CycleStage, StageHandler>;
@@ -109,6 +111,7 @@ export type TickOutcome =
   | { kind: "skipped_degraded"; level: DegradationLevel }
   | { kind: "skipped_duplicate"; cycleId: string }
   | { kind: "failed"; cycleId: string; attempts: number }
+  | { kind: "lock_lost" }
   | { kind: "not_running" }
   | { kind: "drained" };
 
@@ -243,9 +246,16 @@ export class Scheduler {
    */
   async recoverInterruptedCycles(): Promise<string[]> {
     const recovered: string[] = [];
-    for (const cycleId of this.options.checkpoints.cycleIds()) {
+    const cycleIds = new Set(this.options.checkpoints.cycleIds());
+    for (const cycleId of this.options.leases?.recoverableCycleIds() ?? []) {
+      cycleIds.add(cycleId);
+    }
+    for (const cycleId of [...cycleIds].sort()) {
       if (this.options.completions.has(cycleId)) {
         continue;
+      }
+      if (!this.options.checkpoints.verify(cycleId)) {
+        throw new Error(`checkpoint chain failed verification: ${cycleId}`);
       }
       const lastVerified = this.options.checkpoints.lastVerified(cycleId);
       const resumeIndex = lastVerified
@@ -271,6 +281,17 @@ export class Scheduler {
       return { kind: "not_running" };
     }
     const now = this.options.clock.nowMs();
+    if (!(await this.options.processLock.heartbeat(now))) {
+      this.status = "stopped";
+      this.options.log.append({
+        atMs: now,
+        correlationId: "system",
+        cycleId: null,
+        level: "error",
+        event: "process_lock_lost",
+      });
+      return { kind: "lock_lost" };
+    }
     const { level } = evaluateDegradation(
       this.options.pressureReader ? this.options.pressureReader() : {},
     );
@@ -463,7 +484,21 @@ export class Scheduler {
     let stageIndex = Math.min(Math.max(startStageIndex, 0), stages.length);
     // ONE lease per cycle, carried across retries so the attempt budget
     // accumulates (a fresh lease per retry would never exhaust).
-    let lease: CycleLease = createCycleLease(cycleId, { maxAttempts });
+    const savedLease = recovering ? this.options.leases?.getLease(cycleId) : null;
+    let lease: CycleLease = savedLease
+      ? {
+          ...savedLease,
+          state: "pending",
+          owner: this.options.owner ?? "scheduler",
+          leaseExpiresAtMs: 0,
+          heartbeatAtMs: savedLease.heartbeatAtMs,
+          updatedAtMs: clock.nowMs(),
+        }
+      : createCycleLease(cycleId, {
+          maxAttempts,
+          owner: this.options.owner ?? "scheduler",
+        });
+    this.options.leases?.save(lease);
 
     for (;;) {
       const now = clock.nowMs();
@@ -471,8 +506,10 @@ export class Scheduler {
         leaseTtlMs,
         owner: this.options.owner ?? "scheduler",
       });
+      this.options.leases?.save(lease);
       const attempts = lease.attempts;
       lease = applyCycleEvent(lease, "work_started", now);
+      this.options.leases?.save(lease);
       this.options.log.append({
         atMs: now,
         correlationId,
@@ -505,14 +542,18 @@ export class Scheduler {
           break;
         }
         lease = applyCycleEvent(lease, "lease_renewed", at, { leaseTtlMs });
+        this.options.leases?.save(lease);
         this.options.checkpoints.append({ cycleId, stage, atMs: at, digest });
         lease = applyCycleEvent(lease, "checkpoint_flushed", at);
+        this.options.leases?.save(lease);
         stageIndex += 1;
       }
 
       if (!timedOut) {
         lease = applyCycleEvent(lease, "commit_started", clock.nowMs());
+        this.options.leases?.save(lease);
         lease = applyCycleEvent(lease, "completed", clock.nowMs());
+        this.options.leases?.save(lease);
         return {
           status: "completed",
           stages: stages.map(String),
@@ -522,12 +563,15 @@ export class Scheduler {
       }
 
       lease = applyCycleEvent(lease, "lease_expired", clock.nowMs());
+      this.options.leases?.save(lease);
       const decision = retryDecision(lease);
       if (!decision.retry) {
         lease = applyCycleEvent(lease, "attempts_exhausted", clock.nowMs());
+        this.options.leases?.save(lease);
         return { status: "failed", attempts };
       }
       lease = applyCycleEvent(lease, "retry_scheduled", clock.nowMs());
+      this.options.leases?.save(lease);
       // Resume from the last verified checkpoint (no progress jumps; the
       // dedupe ledger absorbs any replayed side effect).
       const lastVerified = this.options.checkpoints.lastVerified(cycleId);
@@ -575,4 +619,3 @@ export function stageOutcomeHash(stageDigests: readonly string[]): string {
     .update([...stageDigests].sort().join("|"))
     .digest("hex");
 }
-

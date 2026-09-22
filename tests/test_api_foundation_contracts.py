@@ -116,8 +116,8 @@ class BackendPackageContract(unittest.TestCase):
 
     def test_canonical_tool_commands(self):
         self.assertEqual(self.scripts["build"], "next build")
-        self.assertEqual(self.scripts["start"], "next start -p 3100")
-        self.assertEqual(self.scripts["dev"], "next dev -p 3100")
+        self.assertEqual(self.scripts["start"], "next start -H 127.0.0.1 -p 3100")
+        self.assertEqual(self.scripts["dev"], "next dev -H 127.0.0.1 -p 3100")
         self.assertEqual(self.scripts["typecheck"], "tsc --noEmit")
         self.assertEqual(self.scripts["test"], "vitest run")
         self.assertEqual(self.scripts["lint"], "eslint .")
@@ -257,12 +257,12 @@ class ApiFoundationSafetyContract(unittest.TestCase):
         self.assertEqual(leaks, [], "backend must not carry .env files")
 
     def test_env_module_is_the_only_process_env_reader_and_is_server_only(self):
-        """`process.env` is read only in src/env.ts, guarded server-only."""
+        """Only config and Next's compile-time runtime selector read the environment."""
         env_text = (SRC / "env.ts").read_text(encoding="utf-8")
         self.assertIn("assertServerOnly()", env_text)
         self.assertIn("process.env", env_text)
         for path in iter_backend_source():
-            if path == SRC / "env.ts":
+            if path in (SRC / "env.ts", SRC / "instrumentation.ts"):
                 continue
             text = path.read_text(encoding="utf-8")
             self.assertNotIn(

@@ -7,17 +7,12 @@ timestamps referenced are UTC per the workspace contract.
 
 from __future__ import annotations
 
-import contextlib
 import json
-import os
 import pathlib
 import re
-import signal
-import socket
 import subprocess
 import sys
 import tempfile
-import time
 import unittest
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -214,59 +209,15 @@ class EntryPointExecutionTests(unittest.TestCase):
                 self.assertTrue(all(item["timeoutSeconds"] > 0 for item in payload["results"]))
 
     def test_make_start_serves_when_production_build_exists(self):
-        """`make start` launches the real frontend server (P01-01).
-
-        The target blocks by design once a production build exists, so the
-        test waits for the server's "Ready" line and then terminates the whole
-        process group (make -> pnpm -> next) to avoid orphaned servers. On a
-        clean checkout without `.next/BUILD_ID` the serving behaviour cannot
-        be asserted, so the check is skipped there.
-        """
-        build_id = REPO_ROOT / "frontend" / ".next" / "BUILD_ID"
-        if not build_id.exists():
-            self.skipTest(
-                "no frontend production build; make start serving behaviour not asserted"
-            )
-        # A fixed port makes this toolchain contract depend on unrelated host
-        # processes. Reserve an available loopback port, then pass it to Next.
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
-            listener.bind(("127.0.0.1", 0))
-            frontend_port = listener.getsockname()[1]
-        env = {**os.environ, "PORT": str(frontend_port)}
-        proc = subprocess.Popen(
-            ["make", "start"],
-            cwd=REPO_ROOT,
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            start_new_session=True,
+        """`make start` delegates to the bounded two-application lifecycle."""
+        makefile = (REPO_ROOT / "Makefile").read_text(encoding="utf-8")
+        self.assertRegex(
+            makefile,
+            r"(?m)^start:\n\tpython3 scripts/fdbtrade start$",
         )
-        output: list[str] = []
-        ready = False
-        try:
-            deadline = time.monotonic() + 90
-            while time.monotonic() < deadline:
-                line = proc.stdout.readline()  # type: ignore[union-attr]
-                if not line:
-                    break
-                output.append(line)
-                if "Ready" in line:
-                    ready = True
-                    break
-        finally:
-            try:
-                os.killpg(proc.pid, signal.SIGTERM)
-                proc.wait(timeout=30)
-            except (ProcessLookupError, subprocess.TimeoutExpired):
-                with contextlib.suppress(ProcessLookupError):
-                    os.killpg(proc.pid, signal.SIGKILL)
-            if proc.stdout is not None:
-                proc.stdout.close()
-        self.assertTrue(
-            ready,
-            msg="make start did not report ready:\n" + "".join(output),
-        )
+        cli = (REPO_ROOT / "scripts" / "fdbtrade").read_text(encoding="utf-8")
+        self.assertIn('("backend", 3100,', cli)
+        self.assertIn('("frontend", 3000,', cli)
 
     def test_make_install_is_idempotent(self):
         lock = REPO_ROOT / "pnpm-lock.yaml"

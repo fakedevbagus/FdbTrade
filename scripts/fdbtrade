@@ -5,12 +5,13 @@ Stdlib-only, deterministic. Loopback 127.0.0.1.
 LIVE_EXECUTION_ENABLED=false, PROVIDER_ORDER_TRANSPORT_ENABLED=false.
 """
 
-import argparse, json, os, pathlib, shutil, signal, socket, subprocess, sys, time, urllib.error, urllib.request
+import argparse, contextlib, fcntl, json, os, pathlib, shutil, signal, socket, subprocess, sys, time, urllib.error, urllib.request
 from datetime import datetime, timezone
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 VENV_DIR = REPO_ROOT / ".venv"
-STATE_FILE = REPO_ROOT / ".fdbtrade" / "state.json"
+RUN_DIR = REPO_ROOT / ".fdbtrade" / "run"
+STATE_FILE = RUN_DIR / "lifecycle.json"
 TOOLCHAIN = REPO_ROOT / "scripts" / "rebuild_toolchain.py"
 PROBE_TIMEOUT_SECONDS = 10
 
@@ -255,38 +256,211 @@ def init(dry_run=False):
     return 0
 
 
-def start():
-    """Start backend on loopback 127.0.0.1:3100 (never a public interface)."""
-    log("Starting FdbTrade services...")
-    existing = _pids_listening_on(3100)
-    if existing:
-        log(f"Backend already listening on 127.0.0.1:3100 (PID {existing[0]}). Use 'fdbtrade stop' first.")
-        return 1
+def _data_root():
+    configured = os.environ.get("FDB_DATA_ROOT", "").strip()
+    if configured:
+        path = pathlib.Path(configured)
+        if not path.is_absolute():
+            raise ValueError("FDB_DATA_ROOT must be an absolute path")
+        return path.resolve()
+    return REPO_ROOT / ".fdbtrade"
 
-    log("Starting backend on http://127.0.0.1:3100")
-    proc = subprocess.Popen(
-        ["pnpm", "--filter", "@fdbtrade/backend", "dev"],
-        cwd=str(REPO_ROOT),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
+
+def _runtime_paths():
+    run_dir = _data_root() / "run"
+    return run_dir, run_dir / "lifecycle.json", run_dir / "operator.lock"
+
+
+@contextlib.contextmanager
+def _lifecycle_guard():
+    run_dir, _, lock_path = _runtime_paths()
+    run_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(run_dir, 0o700)
+    with lock_path.open("a+", encoding="utf-8") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        yield
+
+
+def _process_start_token(pid):
+    try:
+        # Linux /proc stat field 22 is the process start tick. Parenthesized
+        # command names may contain spaces, so split only after the final ')'.
+        fields = pathlib.Path(f"/proc/{pid}/stat").read_text(encoding="utf-8").rsplit(")", 1)[1].split()
+        if fields[0] == "Z":
+            return None
+        return fields[19]
+    except (FileNotFoundError, PermissionError, IndexError, OSError):
+        return None
+
+
+def _record_process(proc, role, port):
+    return {
+        "role": role,
+        "pid": proc.pid,
+        "pgid": os.getpgid(proc.pid),
+        "startToken": _process_start_token(proc.pid),
+        "port": port,
+    }
+
+
+def _write_lifecycle_state(payload):
+    run_dir, state_file, _ = _runtime_paths()
+    run_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    temporary = state_file.with_suffix(".tmp")
+    temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    os.chmod(temporary, 0o600)
+    os.replace(temporary, state_file)
+
+
+def _read_lifecycle_state():
+    _, state_file, _ = _runtime_paths()
+    if not state_file.exists():
+        return None
+    try:
+        payload = json.loads(state_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"invalid lifecycle state: {error}") from error
+    if payload.get("schemaVersion") != 1 or not isinstance(payload.get("processes"), list):
+        raise ValueError("invalid lifecycle state schema")
+    return payload
+
+
+def _record_is_live(record):
+    pid = record.get("pid")
+    token = record.get("startToken")
+    return (
+        isinstance(pid, int)
+        and isinstance(token, str)
+        and _process_start_token(pid) == token
     )
 
-    start_time = time.time()
-    while time.time() - start_time < 60:
-        try:
-            with urllib.request.urlopen("http://127.0.0.1:3100/api/health", timeout=2) as resp:
-                if resp.status == 200:
-                    log("Backend ready (127.0.0.1:3100)")
-                    (REPO_ROOT / ".fdbtrade").mkdir(exist_ok=True)
-                    STATE_FILE.write_text(json.dumps({"pid": proc.pid, "started": utc_now_iso()}), encoding="utf-8")
-                    return 0
-        except Exception:
-            time.sleep(1)
 
-    log("Backend failed to start within 60s")
-    proc.terminate()
-    return 1
+def _backend_probe():
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:3100/api/health", timeout=2) as response:
+            body = json.loads(response.read().decode("utf-8"))
+            health = body.get("data", body)
+            return {
+                "reachable": response.status == 200,
+                "ready": response.status == 200 and health.get("status") == "ok",
+                "status": health.get("status", "unknown"),
+                "checks": health.get("checks", {}),
+                "runtime": health.get("runtime"),
+            }
+    except Exception as error:
+        return {"reachable": False, "ready": False, "status": "unavailable", "error": str(error)}
+
+
+def _frontend_probe():
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:3000/login", timeout=2) as response:
+            return {
+                "reachable": response.status < 500,
+                "ready": response.status < 500,
+                "status": "ok" if response.status < 500 else "degraded",
+            }
+    except Exception as error:
+        return {"reachable": False, "ready": False, "status": "unavailable", "error": str(error)}
+
+
+def _terminate_records(records, timeout_seconds=10):
+    live = [record for record in records if _record_is_live(record)]
+    for record in reversed(live):
+        try:
+            os.killpg(record["pgid"], signal.SIGTERM)
+            log(f"Sent SIGTERM to recorded {record['role']} process group {record['pgid']}")
+        except ProcessLookupError:
+            pass
+    deadline = time.monotonic() + timeout_seconds
+    while live and time.monotonic() < deadline:
+        live = [record for record in live if _record_is_live(record)]
+        if live:
+            time.sleep(0.1)
+    for record in live:
+        try:
+            os.killpg(record["pgid"], signal.SIGKILL)
+            log(f"Sent SIGKILL to unresponsive recorded {record['role']} process group {record['pgid']}")
+        except ProcessLookupError:
+            pass
+    return len(live) == 0
+
+
+def start():
+    """Start frontend and backend as one bounded loopback-only lifecycle."""
+    with _lifecycle_guard():
+        log("Starting FdbTrade frontend and backend...")
+        database_path = _data_root() / "fdbtrade.sqlite3"
+        if not database_path.is_file():
+            log(f"ERROR: SQLite is not initialized at {database_path}; run make db-migrate")
+            return 1
+        try:
+            existing_state = _read_lifecycle_state()
+        except ValueError as error:
+            log(f"ERROR: {error}; refusing to overwrite unverifiable process ownership")
+            return 1
+        if existing_state and any(_record_is_live(item) for item in existing_state["processes"]):
+            log("ERROR: a recorded FdbTrade lifecycle is already running; use 'fdbtrade status'")
+            return 1
+        occupied = {
+            port: {"inUse": _port_is_in_use(port), "visiblePids": _pids_listening_on(port)}
+            for port in (3000, 3100)
+        }
+        if any(item["inUse"] for item in occupied.values()):
+            log(f"ERROR: required loopback ports are occupied by unmanaged processes: {occupied}")
+            return 1
+
+        run_dir, state_file, _ = _runtime_paths()
+        processes = []
+        log_handles = []
+        env = os.environ.copy()
+        env["FDB_DATA_ROOT"] = str(_data_root())
+        commands = (
+            ("backend", 3100, ["corepack", "pnpm", "--filter", "@fdbtrade/backend", "dev"]),
+            ("frontend", 3000, ["corepack", "pnpm", "--filter", "@fdbtrade/frontend", "dev"]),
+        )
+        try:
+            for role, port, command in commands:
+                output = (run_dir / f"{role}.log").open("ab", buffering=0)
+                log_handles.append(output)
+                proc = subprocess.Popen(
+                    command,
+                    cwd=str(REPO_ROOT),
+                    env=env,
+                    stdin=subprocess.DEVNULL,
+                    stdout=output,
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                )
+                processes.append(_record_process(proc, role, port))
+                _write_lifecycle_state({
+                    "schemaVersion": 1,
+                    "phase": "starting",
+                    "startedAtUtc": utc_now_iso(),
+                    "loopbackOnly": True,
+                    "processes": processes,
+                })
+            deadline = time.monotonic() + 60
+            while time.monotonic() < deadline:
+                if not all(_record_is_live(item) for item in processes):
+                    break
+                if _backend_probe()["ready"] and _frontend_probe()["ready"]:
+                    _write_lifecycle_state({
+                        "schemaVersion": 1,
+                        "phase": "running",
+                        "startedAtUtc": utc_now_iso(),
+                        "loopbackOnly": True,
+                        "processes": processes,
+                    })
+                    log("FdbTrade ready: frontend http://127.0.0.1:3000, backend http://127.0.0.1:3100")
+                    return 0
+                time.sleep(0.5)
+            log("ERROR: local applications did not become truthfully ready within 60 seconds")
+            _terminate_records(processes)
+            state_file.unlink(missing_ok=True)
+            return 1
+        finally:
+            for handle in log_handles:
+                handle.close()
 
 
 def _pids_listening_on(port):
@@ -311,90 +485,107 @@ def _pids_listening_on(port):
     return sorted(set(pids))
 
 
-def stop():
-    """Stop the FdbTrade backend only.
-
-    Deliberately scoped: the PID recorded in the operator state file first, then
-    the process actually listening on loopback 127.0.0.1:3100. Unrelated Node or
-    Next servers on this host are never matched by process name.
-    """
-    log("Stopping FdbTrade services...")
-    targets = []
-    if STATE_FILE.exists():
-        try:
-            state = json.loads(STATE_FILE.read_text(encoding="utf-8"))
-            pid = state.get("pid")
-            if isinstance(pid, int):
-                targets.append(pid)
-        except Exception:
-            pass
-    targets.extend(_pids_listening_on(3100))
-
-    stopped = []
-    for pid in sorted(set(targets)):
-        try:
-            os.kill(pid, signal.SIGTERM)
-            stopped.append(pid)
-            log(f"Sent SIGTERM to PID {pid}")
-        except ProcessLookupError:
-            log(f"PID {pid} already exited")
-        except PermissionError:
-            log(f"ERROR: no permission to stop PID {pid}")
-            return 1
-
-    if STATE_FILE.exists():
-        STATE_FILE.unlink()
-
-    if stopped:
-        log(f"Stopped {len(stopped)} process(es)")
-    else:
-        log("No running FdbTrade service found")
-    return 0
-
-
-def status():
-    """Show service health and process state."""
-    print("\n=== FdbTrade Status ===\n")
-    print("Backend (http://127.0.0.1:3100):")
+def _port_is_in_use(port):
+    """Truthful loopback reachability, including listeners whose PID is hidden."""
     try:
-        with urllib.request.urlopen("http://127.0.0.1:3100/api/health", timeout=2) as resp:
-            data = json.loads(resp.read().decode())
-            print(f"  Status: {data.get('status', 'unknown')}")
-            print(f"  Service: {data.get('service', 'N/A')}")
-            print(f"  Environment: {data.get('environment', 'N/A')}")
-            print(f"  Uptime: {data.get('uptimeSeconds', 0)}s")
-    except urllib.error.URLError as e:
-        print(f"  Unavailable: {e.reason}")
-    except Exception as e:
-        print(f"  Error: {e}")
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.settimeout(0.5)
+            return probe.connect_ex(("127.0.0.1", port)) == 0
+    except OSError:
+        return True
 
-    print("\nDatabase:")
-    configured_root = os.environ.get("FDB_DATA_ROOT")
-    data_root = pathlib.Path(configured_root) if configured_root else REPO_ROOT / ".fdbtrade"
-    database_path = data_root / "fdbtrade.sqlite3"
-    print(f"  Authority: SQLite ({database_path})")
-    print(f"  Status: {'initialized' if database_path.is_file() else 'not initialized'}")
 
-    print("\nOperator state:")
-    if STATE_FILE.exists():
-        state = json.loads(STATE_FILE.read_text())
-        print(f"  Last started: {state.get('started', 'N/A')}")
-        print(f"  PID: {state.get('pid', 'N/A')}")
-    else:
-        print("  No state file (services not started via fdbtrade)")
+def stop():
+    """Stop only process groups proven by PID plus Linux process-start token."""
+    with _lifecycle_guard():
+        log("Stopping FdbTrade services...")
+        _, state_file, _ = _runtime_paths()
+        try:
+            state = _read_lifecycle_state()
+        except ValueError as error:
+            log(f"ERROR: {error}; refusing broad process termination")
+            return 1
+        if state is None:
+            occupied = {
+                port: {"inUse": _port_is_in_use(port), "visiblePids": _pids_listening_on(port)}
+                for port in (3000, 3100)
+            }
+            if any(item["inUse"] for item in occupied.values()):
+                log(f"ERROR: unmanaged listeners remain; refusing to stop them: {occupied}")
+                return 1
+            log("No recorded FdbTrade lifecycle found")
+            return 0
+        records = state["processes"]
+        if not _terminate_records(records):
+            log("ERROR: one or more recorded processes could not be stopped")
+            return 1
+        state_file.unlink(missing_ok=True)
+        log("FdbTrade frontend and backend stopped")
+        return 0
 
-    print("\nPython venv:")
-    if VENV_DIR.exists():
-        print(f"  Exists: {VENV_DIR}")
-    else:
-        print("  Missing (run 'fdbtrade init')")
 
-    print("\nSafety flags:")
-    print("  LIVE_EXECUTION_ENABLED=false")
-    print("  PROVIDER_ORDER_TRANSPORT_ENABLED=false")
-    print("  Provider: fixture (read-only)")
-    print("  Broker: paper")
-    print()
+def status(as_json=False):
+    """Observe recorded ownership, both HTTP surfaces, and SQLite-backed health."""
+    try:
+        state = _read_lifecycle_state()
+        state_error = None
+    except ValueError as error:
+        state = None
+        state_error = str(error)
+    processes = [] if state is None else [
+        {**record, "ownedAndLive": _record_is_live(record)} for record in state["processes"]
+    ]
+    backend = _backend_probe()
+    frontend = _frontend_probe()
+    database_path = _data_root() / "fdbtrade.sqlite3"
+    payload = {
+        "command": "status",
+        "status": (
+            "running"
+            if state_error is None
+            and len(processes) == 2
+            and all(item["ownedAndLive"] for item in processes)
+            and backend["ready"]
+            and frontend["ready"]
+            else "stopped"
+            if not processes and not backend["reachable"] and not frontend["reachable"]
+            else "degraded"
+        ),
+        "loopbackOnly": True,
+        "frontend": frontend,
+        "backend": backend,
+        "database": {
+            "authority": "sqlite",
+            "path": str(database_path),
+            "initialized": database_path.is_file(),
+        },
+        "operatorState": {
+            "authoritative": False,
+            "error": state_error,
+            "phase": state.get("phase") if state else None,
+            "processes": processes,
+        },
+        "safety": {
+            "liveExecutionEnabled": False,
+            "providerOrderTransportEnabled": False,
+        },
+    }
+    if as_json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+    print("\n=== FdbTrade Status ===\n")
+    print(f"Lifecycle: {payload['status']}")
+    print(f"Frontend  http://127.0.0.1:3000  {frontend['status']}")
+    print(f"Backend   http://127.0.0.1:3100  {backend['status']}")
+    print(f"Database  SQLite {database_path}  {'initialized' if database_path.is_file() else 'not initialized'}")
+    if backend.get("runtime") is not None:
+        print(f"Runtime   {json.dumps(backend['runtime'], sort_keys=True)}")
+    if state_error:
+        print(f"Operator state error: {state_error}")
+    for process in processes:
+        print(f"Recorded {process['role']}: PID {process['pid']} live={process['ownedAndLive']}")
+    print("\nLIVE_EXECUTION_ENABLED=false")
+    print("PROVIDER_ORDER_TRANSPORT_ENABLED=false\n")
     return 0
 
 
@@ -411,8 +602,9 @@ def recover():
 === FdbTrade Recovery Guide ===
 
 1. Port conflict (3000/3100 in use):
-   fdbtrade stop
+   fdbtrade status --json
    ss -tlnp | grep -E ':3000|:3100'
+   Stop only when the recorded PID and process-start token prove ownership.
 
 2. Database not initialized:
    make db-migrate
@@ -435,7 +627,7 @@ def recover():
    git stash
 
 7. Durable-state recovery:
-   Stop the backend and inspect RECOVERY.md. R0.4 intentionally has no
+   Stop both local applications and inspect RECOVERY.md. R0.5 intentionally has no
    approved destructive reset or SQLite restore command.
 
 Documentation: See RECOVERY.md for details.
@@ -450,9 +642,10 @@ def main():
     p_preflight.add_argument("--json", action="store_true", help="emit machine-readable JSON only")
     p_init = sub.add_parser("init", help="create venv and install locked dependencies")
     p_init.add_argument("--dry-run", action="store_true", help="validate and print the plan only")
-    sub.add_parser("start", help="start backend on 127.0.0.1:3100")
-    sub.add_parser("stop", help="stop the FdbTrade backend")
-    sub.add_parser("status", help="show service health")
+    sub.add_parser("start", help="start frontend and backend on loopback")
+    sub.add_parser("stop", help="stop the recorded local lifecycle")
+    p_status = sub.add_parser("status", help="show truthful local lifecycle health")
+    p_status.add_argument("--json", action="store_true", help="emit machine-readable JSON only")
     sub.add_parser("check", help="run make check")
     sub.add_parser("recover", help="show recovery guidance")
     args = parser.parse_args()
@@ -465,11 +658,12 @@ def main():
         return preflight(as_json=args.json)
     if args.cmd == "init":
         return init(dry_run=args.dry_run)
+    if args.cmd == "status":
+        return status(as_json=args.json)
 
     handlers = {
         "start": start,
         "stop": stop,
-        "status": status,
         "check": check,
         "recover": recover,
     }

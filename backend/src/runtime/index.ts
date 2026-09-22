@@ -18,6 +18,7 @@ export * from "./degradation";
 export * from "./health";
 export * from "./retention";
 export * from "./scheduler";
+export * from "./sqlite";
 export * from "./soak";
 export * from "./observation";
 export * from "./startup";

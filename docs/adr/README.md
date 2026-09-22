@@ -98,4 +98,4 @@ not used.
 | [ADR-0035](ADR-0035-user-facing-historical-research-workflow.md) | User-facing historical research workflow | Accepted |
 | [ADR-0036](ADR-0036-seven-major-runtime-coverage.md) | Seven-major runtime coverage | Accepted |
 | [ADR-0037](ADR-0037-local-sqlite-authority.md) | Local SQLite authority | Accepted |
-
+| [ADR-0038](ADR-0038-local-application-and-runtime-lifecycle.md) | Local application and runtime lifecycle | Accepted |

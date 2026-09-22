@@ -59,7 +59,7 @@ build:
 	$(TOOLCHAIN) --output $(TOOLCHAIN_REPORT_DIR)/build.json stage build
 
 start:
-	pnpm -r --if-present run start
+	python3 scripts/fdbtrade start
 
 check:
 	$(TOOLCHAIN) --output $(TOOLCHAIN_REPORT_DIR)/check.json check
