@@ -54,6 +54,7 @@ class MigrationFileContract(unittest.TestCase):
                 "0003_audit_authority",
                 "0004_runtime_lifecycle",
                 "0005_market_data_artifacts",
+                "0006_signal_intelligence",
             ],
         )
 
@@ -117,7 +118,7 @@ class HermeticLifecycleTest(unittest.TestCase):
             root = pathlib.Path(tmp) / "data"
             first = self._runner("migrate", root)
             self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
-            self.assertIn("applied=5", first.stdout)
+            self.assertIn("applied=6", first.stdout)
 
             second = self._runner("migrate", root)
             self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
@@ -125,11 +126,11 @@ class HermeticLifecycleTest(unittest.TestCase):
 
             rollback = self._runner("rollback", root)
             self.assertEqual(rollback.returncode, 0, rollback.stdout + rollback.stderr)
-            self.assertIn("rolled back 0005_market_data_artifacts", rollback.stdout)
+            self.assertIn("rolled back 0006_signal_intelligence", rollback.stdout)
 
             reapply = self._runner("migrate", root)
             self.assertEqual(reapply.returncode, 0, reapply.stdout + reapply.stderr)
-            self.assertIn("applied 0005_market_data_artifacts", reapply.stdout)
+            self.assertIn("applied 0006_signal_intelligence", reapply.stdout)
 
             database_path = root / "fdbtrade.sqlite3"
             self.assertTrue(database_path.is_file())
@@ -139,7 +140,7 @@ class HermeticLifecycleTest(unittest.TestCase):
                 applied = database.execute(
                     "SELECT id FROM schema_migrations ORDER BY id"
                 ).fetchall()
-                self.assertEqual(len(applied), 5)
+                self.assertEqual(len(applied), 6)
                 self.assertEqual(database.execute("PRAGMA integrity_check").fetchone()[0], "ok")
 
     def test_relative_data_root_fails_closed_without_creating_state(self):

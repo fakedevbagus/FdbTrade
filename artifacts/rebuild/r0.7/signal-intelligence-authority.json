@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "workUnit": "R0.7",
+  "status": "complete",
+  "recordedOn": "2026-09-22",
+  "repository": {
+    "branch": "rebuild/r0-preserve-current-state",
+    "baselineCommit": "daa5b40a342b3664dd67d02b4fa05076535e7d57"
+  },
+  "authority": {
+    "metadataEngine": "SQLite via Node 24 node:sqlite",
+    "migration": "0006_signal_intelligence",
+    "migrationCount": 6,
+    "tables": [
+      "signal_rule_registry",
+      "signal_evaluation_runs",
+      "signal_candidates",
+      "signal_evidence",
+      "signal_lifecycle_events"
+    ],
+    "ruleId": "authoritative-momentum-baseline",
+    "logicVersion": "1.0.0",
+    "configVersion": "1.0.0",
+    "legacyDashboardPipelineAuthoritative": false
+  },
+  "scope": {
+    "instruments": [
+      "EURUSD",
+      "GBPUSD",
+      "USDJPY",
+      "USDCHF",
+      "AUDUSD",
+      "USDCAD",
+      "NZDUSD"
+    ],
+    "timeframes": ["15m", "1h", "4h"],
+    "sourceAuthority": "verified R0.6 immutable datasets only",
+    "credentialedProviderSelected": false
+  },
+  "behavior": {
+    "versionedImmutableRegistry": "pass",
+    "deterministicRuleCandidate": "pass",
+    "canonicalSignalConstruction": "pass",
+    "datasetArtifactIntegrity": "pass",
+    "qualityFailClosed": "pass",
+    "freshnessFailClosed": "pass",
+    "durableWaitAndBlockedEvidence": "pass",
+    "candidateLifecycle": "pass",
+    "reopenPersistence": "pass",
+    "crashRecovery": "pass",
+    "requestIdempotency": "pass",
+    "postCommitReplay": "pass",
+    "immutableEvidence": "pass"
+  },
+  "finalGate": {
+    "command": "make toolchain-gate",
+    "reportPath": "artifacts/toolchain/gate.json",
+    "startedAtUtc": "2026-09-22T16:06:30.370Z",
+    "finishedAtUtc": "2026-09-22T16:13:48.118Z",
+    "durationMs": 437748,
+    "exitCode": 0,
+    "status": "pass",
+    "summary": {
+      "total": 15,
+      "pass": 15,
+      "fail": 0,
+      "timeout": 0,
+      "environmentBlocked": 0,
+      "skipped": 0,
+      "planned": 0
+    },
+    "tests": {
+      "contracts": "43 files, 631 passed",
+      "backend": "74 files, 692 passed",
+      "frontend": "12 files, 97 passed",
+      "python": "555 passed, 0 skipped"
+    },
+    "firstActionableFailure": null
+  },
+  "preservation": {
+    "m48FileCount": 10,
+    "m48Bytes": 55941,
+    "m48AggregateManifestDigest": "f7dc5aacade5078cf934be760651c2e59d9e340c7a096a25629006d8f8555fe6",
+    "m48HashVerification": "pass",
+    "m48RuntimeAuthority": false
+  },
+  "safety": {
+    "liveExecutionEnabled": false,
+    "providerOrderTransportEnabled": false,
+    "externalProviderNetworkCallsEnabled": false,
+    "researchOrBacktestAuthorityAdded": false,
+    "riskOrBrokerAuthorityAdded": false
+  },
+  "nextWorkUnit": "R0.8 — Research and backtest authority (not yet authorized)"
+}

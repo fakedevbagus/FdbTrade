@@ -100,3 +100,4 @@ not used.
 | [ADR-0037](ADR-0037-local-sqlite-authority.md) | Local SQLite authority | Accepted |
 | [ADR-0038](ADR-0038-local-application-and-runtime-lifecycle.md) | Local application and runtime lifecycle | Accepted |
 | [ADR-0039](ADR-0039-market-data-and-artifact-authority.md) | Market-data and artifact authority | Accepted |
+| [ADR-0040](ADR-0040-signal-intelligence-authority.md) | Signal intelligence authority | Accepted |

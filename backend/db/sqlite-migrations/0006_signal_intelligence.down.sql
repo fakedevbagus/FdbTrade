@@ -1,0 +1,15 @@
+DROP TRIGGER IF EXISTS signal_lifecycle_no_delete;
+DROP TRIGGER IF EXISTS signal_lifecycle_no_update;
+DROP TRIGGER IF EXISTS signal_evidence_no_delete;
+DROP TRIGGER IF EXISTS signal_evidence_no_update;
+DROP TRIGGER IF EXISTS signal_candidates_no_delete;
+DROP TRIGGER IF EXISTS signal_candidates_no_update;
+DROP TRIGGER IF EXISTS signal_runs_no_delete;
+DROP TRIGGER IF EXISTS signal_runs_terminal_immutable;
+DROP TRIGGER IF EXISTS signal_rule_registry_no_delete;
+DROP TRIGGER IF EXISTS signal_rule_registry_no_update;
+DROP TABLE IF EXISTS signal_lifecycle_events;
+DROP TABLE IF EXISTS signal_evidence;
+DROP TABLE IF EXISTS signal_candidates;
+DROP TABLE IF EXISTS signal_evaluation_runs;
+DROP TABLE IF EXISTS signal_rule_registry;
