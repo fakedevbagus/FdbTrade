@@ -89,17 +89,17 @@ describe("SQLite migration lifecycle", () => {
   it("migrates from zero, is idempotent, rolls back, and reapplies", () => {
     const databasePath = path.join(tempRoot, "lifecycle.sqlite3");
     expect(runMigrate({ databasePath, log: () => {} })).toEqual({
-      applied: 6,
+      applied: 7,
       skipped: 0,
     });
     expect(runMigrate({ databasePath, log: () => {} })).toEqual({
       applied: 0,
-      skipped: 6,
+      skipped: 7,
     });
     expect(runRollback({ databasePath, log: () => {} })).toEqual({ rolledBack: 1 });
     expect(runMigrate({ databasePath, log: () => {} })).toEqual({
       applied: 1,
-      skipped: 5,
+      skipped: 6,
     });
   });
 

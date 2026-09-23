@@ -1,0 +1,12 @@
+DROP TRIGGER IF EXISTS research_backtest_results_no_delete;
+DROP TRIGGER IF EXISTS research_backtest_results_no_update;
+DROP TRIGGER IF EXISTS research_backtest_artifacts_no_delete;
+DROP TRIGGER IF EXISTS research_backtest_artifacts_no_update;
+DROP TRIGGER IF EXISTS research_backtest_runs_no_delete;
+DROP TRIGGER IF EXISTS research_backtest_runs_terminal_immutable;
+DROP TRIGGER IF EXISTS research_backtest_configs_no_delete;
+DROP TRIGGER IF EXISTS research_backtest_configs_no_update;
+DROP TABLE IF EXISTS research_backtest_results;
+DROP TABLE IF EXISTS research_backtest_artifacts;
+DROP TABLE IF EXISTS research_backtest_runs;
+DROP TABLE IF EXISTS research_backtest_configs;

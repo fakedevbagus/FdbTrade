@@ -7,6 +7,7 @@ import {
   getInstrument,
   signalSchema,
   utcInstantSchema,
+  type Candle,
   type RegimeAssessment,
   type Signal,
 } from "@fdbtrade/contracts";
@@ -78,6 +79,13 @@ interface EvaluationEvidence {
 interface BuiltEvaluation {
   outcome: EvidenceOutcome;
   evidence: EvaluationEvidence;
+  signal: Signal | null;
+}
+
+export interface BaselineRuleEvaluation {
+  reasons: readonly string[];
+  regime: RegimeAssessment | null;
+  metrics: Record<string, number | null>;
   signal: Signal | null;
 }
 
@@ -197,6 +205,104 @@ function evidenceBase(
   };
 }
 
+/**
+ * Pure R0.7 rule evaluation shared by current signal assessment and R0.8
+ * historical replay. It reads only the supplied closed candle window and
+ * never persists candidates or treats a historical result as live evidence.
+ */
+export function evaluateBaselineRule(
+  candles: readonly Candle[],
+): BaselineRuleEvaluation {
+  const last = candles.at(-1);
+  if (!last) {
+    return {
+      reasons: ["insufficient_history"],
+      regime: null,
+      metrics: { atr: null, fastMomentum: null, slowMomentum: null },
+      signal: null,
+    };
+  }
+  const pip = getInstrument(last.instrument).precision.pip;
+  const features = regimeFeatureSeriesFromCandles(candles, {
+    adxPeriod: SIGNAL_RULE_CONFIG.regimeAdxPeriod,
+    atrPeriod: SIGNAL_RULE_CONFIG.regimeAtrPeriod,
+    slopeWindow: SIGNAL_RULE_CONFIG.regimeSlopeWindow,
+    pip,
+  });
+  const assessments = classifyRegimes(features, {
+    instrument: last.instrument,
+    timeframe: last.timeframe,
+  });
+  const regime = assessments.at(-1) ?? null;
+  const atrSeries = atr(candles, SIGNAL_RULE_CONFIG.atrPeriod);
+  const atrValue = atrSeries.at(-1) ?? null;
+  const i = candles.length - 1;
+  const fastMomentum =
+    i >= SIGNAL_RULE_CONFIG.fastHorizon
+      ? last.close - candles[i - SIGNAL_RULE_CONFIG.fastHorizon].close
+      : null;
+  const slowMomentum =
+    i >= SIGNAL_RULE_CONFIG.slowHorizon
+      ? last.close - candles[i - SIGNAL_RULE_CONFIG.slowHorizon].close
+      : null;
+  const metrics = { atr: atrValue, fastMomentum, slowMomentum };
+  const wait = (reasons: readonly string[]): BaselineRuleEvaluation => ({
+    reasons: sorted(reasons),
+    regime,
+    metrics,
+    signal: null,
+  });
+
+  if (!regime || atrValue === null || fastMomentum === null || slowMomentum === null) {
+    return wait(["insufficient_history"]);
+  }
+  if (regime.state !== "trend" || regime.confidence <= 0) {
+    return wait([regime.state === "unknown" ? "missing_input" : "regime_filter_rejected"]);
+  }
+  const long = fastMomentum > 0 && slowMomentum > 0;
+  const short = fastMomentum < 0 && slowMomentum < 0;
+  if (!long && !short) return wait(["mtf_alignment_rejected"]);
+  const confirmed = long ? last.close > last.open : last.close < last.open;
+  if (!confirmed) return wait(["confirmation_rejected"]);
+
+  const direction = long ? "long" : "short";
+  const stopDistance = atrValue * SIGNAL_RULE_CONFIG.stopAtr;
+  const rewardDistance = stopDistance * SIGNAL_RULE_CONFIG.rewardMultiple;
+  const referencePrice = last.close;
+  const signal = buildSignal({
+    instrument: last.instrument,
+    timeframe: last.timeframe,
+    eventTimeUtc: last.timestamp,
+    direction,
+    strategyId: SIGNAL_RULE_ID,
+    strategyVersion: SIGNAL_RULE_LOGIC_VERSION,
+    configVersion: SIGNAL_RULE_CONFIG_VERSION,
+    entryType: "market",
+    entryPrice: null,
+    referencePrice,
+    stopLoss: long ? referencePrice - stopDistance : referencePrice + stopDistance,
+    takeProfit: long ? referencePrice + rewardDistance : referencePrice - rewardDistance,
+    expiresAtUtc: new Date(
+      Date.parse(last.timestamp) + TIMEFRAME_MS[last.timeframe] * SIGNAL_RULE_CONFIG.expiryBars,
+    ).toISOString(),
+    confidence: regime.confidence,
+    reasonCodes: [
+      "confirmation_passed",
+      "mtf_alignment_confirmed",
+      "regime_filter_passed",
+      "signal_emitted",
+    ],
+    inputs: {
+      atr: atrValue,
+      fast_momentum: fastMomentum,
+      slow_momentum: slowMomentum,
+      regime_confidence: regime.confidence,
+    },
+    signalContractVersion: 1,
+  });
+  return { reasons: signal.reasonCodes, regime, metrics, signal };
+}
+
 function buildEvaluation(
   runId: string,
   dataset: StoredDataset,
@@ -232,105 +338,17 @@ function buildEvaluation(
     return { outcome: "blocked", evidence, signal: null };
   }
 
-  const candles = dataset.candles;
-  const last = candles[candles.length - 1];
-  const pip = getInstrument(dataset.manifest.instrument).precision.pip;
-  const features = regimeFeatureSeriesFromCandles(candles, {
-    adxPeriod: SIGNAL_RULE_CONFIG.regimeAdxPeriod,
-    atrPeriod: SIGNAL_RULE_CONFIG.regimeAtrPeriod,
-    slopeWindow: SIGNAL_RULE_CONFIG.regimeSlopeWindow,
-    pip,
-  });
-  const assessments = classifyRegimes(features, {
-    instrument: dataset.manifest.instrument,
-    timeframe: dataset.manifest.timeframe,
-  });
-  const regime = assessments[assessments.length - 1] ?? null;
-  const atrSeries = atr(candles, SIGNAL_RULE_CONFIG.atrPeriod);
-  const atrValue = atrSeries[atrSeries.length - 1] ?? null;
-  const i = candles.length - 1;
-  const fastMomentum =
-    i >= SIGNAL_RULE_CONFIG.fastHorizon
-      ? last.close - candles[i - SIGNAL_RULE_CONFIG.fastHorizon].close
-      : null;
-  const slowMomentum =
-    i >= SIGNAL_RULE_CONFIG.slowHorizon
-      ? last.close - candles[i - SIGNAL_RULE_CONFIG.slowHorizon].close
-      : null;
-  const metrics = {
-    atr: atrValue,
-    fastMomentum,
-    slowMomentum,
-  };
-  const wait = (reasons: readonly string[]): BuiltEvaluation => {
-    const evidence: EvaluationEvidence = {
-      ...base,
-      outcome: "wait",
-      reasons: sorted(reasons),
-      regime,
-      metrics,
-      signal: null,
-    };
-    return { outcome: "wait", evidence, signal: null };
-  };
-
-  if (!last || !regime || atrValue === null || fastMomentum === null || slowMomentum === null) {
-    return wait(["insufficient_history"]);
-  }
-  if (regime.state !== "trend" || regime.confidence <= 0) {
-    return wait([regime.state === "unknown" ? "missing_input" : "regime_filter_rejected"]);
-  }
-  const long = fastMomentum > 0 && slowMomentum > 0;
-  const short = fastMomentum < 0 && slowMomentum < 0;
-  if (!long && !short) return wait(["mtf_alignment_rejected"]);
-  const confirmed = long ? last.close > last.open : last.close < last.open;
-  if (!confirmed) return wait(["confirmation_rejected"]);
-
-  const direction = long ? "long" : "short";
-  const stopDistance = atrValue * SIGNAL_RULE_CONFIG.stopAtr;
-  const rewardDistance = stopDistance * SIGNAL_RULE_CONFIG.rewardMultiple;
-  const referencePrice = last.close;
-  const signal = buildSignal({
-    instrument: dataset.manifest.instrument,
-    timeframe: dataset.manifest.timeframe,
-    eventTimeUtc: last.timestamp,
-    direction,
-    strategyId: SIGNAL_RULE_ID,
-    strategyVersion: SIGNAL_RULE_LOGIC_VERSION,
-    configVersion: SIGNAL_RULE_CONFIG_VERSION,
-    entryType: "market",
-    entryPrice: null,
-    referencePrice,
-    stopLoss: long ? referencePrice - stopDistance : referencePrice + stopDistance,
-    takeProfit: long ? referencePrice + rewardDistance : referencePrice - rewardDistance,
-    expiresAtUtc: new Date(
-      Date.parse(last.timestamp) +
-        TIMEFRAME_MS[dataset.manifest.timeframe] * SIGNAL_RULE_CONFIG.expiryBars,
-    ).toISOString(),
-    confidence: regime.confidence,
-    reasonCodes: [
-      "confirmation_passed",
-      "mtf_alignment_confirmed",
-      "regime_filter_passed",
-      "signal_emitted",
-    ],
-    inputs: {
-      atr: atrValue,
-      fast_momentum: fastMomentum,
-      slow_momentum: slowMomentum,
-      regime_confidence: regime.confidence,
-    },
-    signalContractVersion: 1,
-  });
+  const evaluated = evaluateBaselineRule(dataset.candles);
+  const outcome: EvidenceOutcome = evaluated.signal ? "candidate" : "wait";
   const evidence: EvaluationEvidence = {
     ...base,
-    outcome: "candidate",
-    reasons: signal.reasonCodes,
-    regime,
-    metrics,
-    signal,
+    outcome,
+    reasons: evaluated.reasons,
+    regime: evaluated.regime,
+    metrics: evaluated.metrics,
+    signal: evaluated.signal,
   };
-  return { outcome: "candidate", evidence, signal };
+  return { outcome, evidence, signal: evaluated.signal };
 }
 
 export class SignalIntelligenceAuthority {

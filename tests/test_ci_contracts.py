@@ -79,6 +79,7 @@ KNOWN_ADRS = {
     38: "local-application-and-runtime-lifecycle",
     39: "market-data-and-artifact-authority",
     40: "signal-intelligence-authority",
+    41: "research-and-backtest-authority",
 }
 
 

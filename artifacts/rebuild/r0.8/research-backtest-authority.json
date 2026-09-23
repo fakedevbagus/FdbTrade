@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "workUnit": "R0.8",
+  "status": "complete",
+  "recordedOn": "2026-09-23",
+  "repository": {
+    "branch": "rebuild/r0-preserve-current-state",
+    "baselineCommit": "7901b89e7858ec4af9e59ef3c4cf4f7925bc41a4"
+  },
+  "authority": {
+    "metadataEngine": "SQLite via Node 24 node:sqlite",
+    "migration": "0007_research_backtest_authority",
+    "migrationCount": 7,
+    "tables": [
+      "research_backtest_configs",
+      "research_backtest_runs",
+      "research_backtest_artifacts",
+      "research_backtest_results"
+    ],
+    "configId": "baseline-historical-evaluation",
+    "configVersion": "1.0.0",
+    "signalRuleId": "authoritative-momentum-baseline",
+    "signalLogicVersion": "1.0.0",
+    "signalConfigVersion": "1.0.0",
+    "artifactRoot": "<data-root>/artifacts/research-backtests",
+    "artifactAddressing": "sha256",
+    "legacyBacktestApiAuthoritative": false,
+    "legacyRunDirectoryAuthoritative": false
+  },
+  "scope": {
+    "instruments": [
+      "EURUSD",
+      "GBPUSD",
+      "USDJPY",
+      "USDCHF",
+      "AUDUSD",
+      "USDCAD",
+      "NZDUSD"
+    ],
+    "timeframes": ["15m", "1h", "4h"],
+    "sourceAuthority": "verified R0.6 immutable datasets only",
+    "subjectAuthority": "registered R0.7 deterministic signal rule only",
+    "credentialedProviderSelected": false
+  },
+  "behavior": {
+    "versionedImmutableConfig": "pass",
+    "deterministicRealRuleReplay": "pass",
+    "realisticExplicitCostAssumptions": "pass",
+    "datasetArtifactIntegrity": "pass",
+    "qualityFailClosed": "pass",
+    "contentAddressedImmutableResults": "pass",
+    "artifactBeforeMetadataPublication": "pass",
+    "reopenPersistence": "pass",
+    "crashRecovery": "pass",
+    "orphanArtifactReporting": "pass",
+    "requestIdempotency": "pass",
+    "postCommitReplay": "pass",
+    "artifactTamperDetection": "pass",
+    "empiricalConfidenceSeparation": "pass"
+  },
+  "interpretation": {
+    "historicalOnly": true,
+    "signalConfidenceCalibrated": false,
+    "signalConfidenceValue": null,
+    "modelPromotionEligible": false,
+    "operationalOutcomeAuthority": false
+  },
+  "finalGate": {
+    "command": "make toolchain-gate",
+    "reportPath": "artifacts/toolchain/gate.json",
+    "startedAtUtc": "2026-09-23T06:43:02.760Z",
+    "finishedAtUtc": "2026-09-23T06:46:32.159Z",
+    "durationMs": 209398,
+    "exitCode": 0,
+    "status": "pass",
+    "summary": {
+      "total": 15,
+      "pass": 15,
+      "fail": 0,
+      "timeout": 0,
+      "environmentBlocked": 0,
+      "skipped": 0,
+      "planned": 0
+    },
+    "tests": {
+      "contracts": "43 files, 631 passed",
+      "backend": "75 files, 697 passed",
+      "frontend": "12 files, 97 passed",
+      "python": "560 passed, 0 skipped"
+    },
+    "firstActionableFailure": null
+  },
+  "preservation": {
+    "m48FileCount": 10,
+    "m48Bytes": 55941,
+    "m48AggregateManifestDigest": "f7dc5aacade5078cf934be760651c2e59d9e340c7a096a25629006d8f8555fe6",
+    "m48HashVerification": "pass",
+    "m48RuntimeAuthority": false
+  },
+  "safety": {
+    "liveExecutionEnabled": false,
+    "providerOrderTransportEnabled": false,
+    "externalProviderNetworkCallsEnabled": false,
+    "riskOrPaperBrokerAuthorityAdded": false,
+    "uiAuthorityAdded": false,
+    "modelPromotionAuthorityAdded": false
+  },
+  "nextWorkUnit": "R0.9 — Risk, paper broker and outcomes authority (not yet authorized)"
+}
