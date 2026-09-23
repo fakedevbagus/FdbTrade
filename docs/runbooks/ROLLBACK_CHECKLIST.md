@@ -1,43 +1,42 @@
-# Rollback Checklist (P14-05)
+# Local Rollback Checklist (R0.10)
 
-## Pre-Rollback Checks
-- [ ] 1. Identify the failing commit hash and target stable commit hash.
-- [ ] 2. Engage Kill Switch (`/admin/controls` -> Engage Kill Switch) to prevent any orders in flight during rollback.
-- [ ] 3. Ensure database backup is executed prior to touching schema:
-       `./scripts/backup-db.sh ./backups`
+Rollback is a deliberate operator procedure. It never enables live execution,
+uses a provider transport or overwrites the active SQLite root.
 
-## Step-by-Step Rollback Procedure
-1. **Rollback Database Migrations** (if current deployment introduced schema changes):
-   ```bash
-   pnpm --filter @fdbtrade/backend run db:rollback
-   ```
-   Verify database status:
-   ```bash
-   pnpm --filter @fdbtrade/backend run db:status
-   ```
+## Before changing code or schema
 
-2. **Revert Git Working Tree**:
-   ```bash
-   git checkout <TARGET_STABLE_COMMIT>
-   ```
+- [ ] Record the current branch and commit.
+- [ ] Engage the durable kill latch at `/admin/controls` when initialized.
+- [ ] Stop the local application with `scripts/fdbtrade stop`.
+- [ ] Create a verified backup outside the data root:
 
-3. **Re-install Dependencies & Validate Clean Room**:
-   ```bash
-   pnpm install --frozen-lockfile
-   pnpm run check
-   ```
+  ```bash
+  make backup BACKUP_ROOT=/absolute/path/to/backups
+  ```
 
-4. **Restart Application Services**:
-   ```bash
-   pnpm --filter @fdbtrade/backend run build
-   # Restart production process supervisor (systemd / docker compose)
-   ```
+- [ ] Run `make deployment-drill`; do not continue if restore verification fails.
 
-5. **Post-Rollback Smoke Verification**:
-   ```bash
-   ./scripts/smoke-test.sh http://localhost:3100
-   ```
+## Restore state
 
-6. **Release Kill Switch**:
-   - Only after health check shows status `healthy` across all components.
-   - Navigate to `/admin/controls` -> Release Kill Switch with incident note.
+Restore the selected backup into a new absolute empty directory:
+
+```bash
+scripts/restore-db.sh \
+  /absolute/path/to/backups/<backup-id> \
+  /absolute/path/to/empty-restore-root
+```
+
+Inspect the restored migration ledger and `/operations` view after starting
+with `FDB_DATA_ROOT` pointed at that new root. Keep the original root intact
+until the restored instance is accepted.
+
+## Verify
+
+```bash
+make db-status
+make toolchain-gate
+scripts/fdbtrade status --json
+```
+
+Release from kill only after review. Release lands in `red`; a separate
+explicit durable override is required before entries can be approved.

@@ -11,53 +11,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { controlsViewSchema, fetchControls, performControlsAction } from "@/lib/controls";
 
 const validView = {
-  flags: [
-    {
-      key: "signal_alerts",
-      enabled: true,
-      updatedBy: "system",
-      updatedAtUtc: "1970-01-01T00:00:00.000Z",
-      note: "default",
-    },
-    {
-      key: "live_execution",
-      enabled: false,
-      updatedBy: "system",
-      updatedAtUtc: "1970-01-01T00:00:00.000Z",
-      note: "default",
-    },
-  ],
+  authority: "sqlite",
   riskState: "green",
+  riskStateSequenceNo: 1,
   riskStateChangedAtUtc: "1970-01-01T00:00:00.000Z",
-  publish: {
-    current: {},
-    history: [
-      {
-        publishId: "pub_0123456789abcdef",
-        artifactId: "trend-pullback@1.4.0",
-        entryId: "reg_0123456789abcdef",
-        evidenceHash: "a".repeat(64),
-        publishedBy: "owner",
-        publishedAtUtc: "2026-09-12T01:00:00.000Z",
-        previousArtifactId: null,
-        rolledBack: false,
-      },
-    ],
+  allowedActions: ["engage_kill", "release_kill", "force_risk_state"],
+  safety: {
+    liveExecutionEnabled: false,
+    providerOrderTransportEnabled: false,
+    executionMode: "local-paper-simulation-only",
   },
-  incidents: [
-    {
-      incidentId: "inc_0123456789abcdef",
-      title: "Feed gap during London open",
-      severity: "high",
-      status: "open",
-      note: "Fixture feed served no bars.",
-      createdBy: "owner",
-      createdAtUtc: "2026-09-12T01:00:00.000Z",
-      resolvedBy: null,
-      resolvedAtUtc: null,
-    },
-  ],
-  allowedActions: ["engage_kill", "toggle_feature_flag"],
 };
 
 describe("controlsViewSchema", () => {
@@ -66,9 +29,8 @@ describe("controlsViewSchema", () => {
     expect(parsed.success).toBe(true);
     if (parsed.success) {
       expect(parsed.data.riskState).toBe("green");
-      expect(parsed.data.flags[1].key).toBe("live_execution");
-      expect(parsed.data.publish.history).toHaveLength(1);
-      expect(parsed.data.incidents[0].status).toBe("open");
+      expect(parsed.data.authority).toBe("sqlite");
+      expect(parsed.data.safety.liveExecutionEnabled).toBe(false);
     }
   });
 
@@ -79,11 +41,11 @@ describe("controlsViewSchema", () => {
     expect(
       controlsViewSchema.safeParse({
         ...validView,
-        flags: [{ ...validView.flags[0], key: "bogus_flag" }],
+        safety: { ...validView.safety, liveExecutionEnabled: true },
       }).success,
     ).toBe(false);
     expect(
-      controlsViewSchema.safeParse({ ...validView, incidents: [{ bogus: true }] }).success,
+      controlsViewSchema.safeParse({ ...validView, authority: "browser" }).success,
     ).toBe(false);
   });
 });

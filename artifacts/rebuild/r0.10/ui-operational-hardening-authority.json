@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "workUnit": "R0.10",
+  "status": "complete",
+  "recordedOn": "2026-09-23",
+  "repository": {
+    "branch": "rebuild/r0-preserve-current-state",
+    "baselineCommit": "33ceee1cc3859582e3d01f377a2e13f2c584aef2"
+  },
+  "authority": {
+    "metadataEngine": "SQLite via Node 24 node:sqlite",
+    "migration": "0009_operational_hardening",
+    "migrationCount": 9,
+    "operationalEventTable": "operational_events",
+    "uiProjection": "authenticated read-only projection over R0.6-R0.10 authority",
+    "riskControl": "R0.9 RiskPaperAuthority"
+  },
+  "scope": {
+    "instruments": [
+      "EURUSD",
+      "GBPUSD",
+      "USDJPY",
+      "USDCHF",
+      "AUDUSD",
+      "USDCAD",
+      "NZDUSD"
+    ],
+    "timeframes": ["15m", "1h", "4h"],
+    "backup": "SQLite online snapshot plus referenced R0.6 and R0.8 immutable artifacts",
+    "restore": "verified absolute empty target only",
+    "deploymentDrill": "local temporary restore, reopen and integrity verification",
+    "credentialedProviderSelected": false
+  },
+  "behavior": {
+    "routeAndNavigationReconciled": "pass",
+    "uiReadsSqliteAuthority": "pass",
+    "uiOrderActionAbsent": "pass",
+    "durableRiskLatchUsedByControlsAndHealth": "pass",
+    "operationalEventsAppendOnly": "pass",
+    "backupSnapshotConsistency": "pass",
+    "referencedArtifactDigestVerification": "pass",
+    "restoreToEmptyRootOnly": "pass",
+    "tamperedBackupRejected": "pass",
+    "deploymentRestoreReopenDrill": "pass",
+    "migrationRollbackReapply": "pass"
+  },
+  "interpretation": {
+    "uiAuthority": false,
+    "paperOnly": true,
+    "liveEvidence": false,
+    "signalConfidenceCalibrated": false,
+    "modelPromotionEligible": false,
+    "externalDeploymentClaimed": false
+  },
+  "finalGate": {
+    "command": "make toolchain-gate",
+    "reportPath": "artifacts/toolchain/gate.json",
+    "startedAtUtc": "2026-09-23T12:01:31.736Z",
+    "finishedAtUtc": "2026-09-23T12:08:46.524Z",
+    "durationMs": 434788,
+    "exitCode": 0,
+    "status": "pass",
+    "summary": {
+      "total": 15,
+      "pass": 15,
+      "fail": 0,
+      "timeout": 0,
+      "environmentBlocked": 0,
+      "skipped": 0,
+      "planned": 0
+    },
+    "tests": {
+      "contracts": "43 files, 631 passed",
+      "backend": "77 files, 704 passed",
+      "frontend": "13 files, 99 passed",
+      "python": "572 passed, 0 skipped"
+    },
+    "firstActionableFailure": null
+  },
+  "preservation": {
+    "m48FileCount": 10,
+    "m48Bytes": 55941,
+    "m48AggregateManifestDigest": "f7dc5aacade5078cf934be760651c2e59d9e340c7a096a25629006d8f8555fe6",
+    "m48HashVerification": "pass",
+    "m48RuntimeAuthority": false
+  },
+  "safety": {
+    "liveExecutionEnabled": false,
+    "providerOrderTransportEnabled": false,
+    "externalProviderNetworkCallsEnabled": false,
+    "credentialedProviderAuthorityAdded": false,
+    "uiAuthorityAdded": false,
+    "modelPromotionAuthorityAdded": false
+  },
+  "nextWorkUnit": null
+}

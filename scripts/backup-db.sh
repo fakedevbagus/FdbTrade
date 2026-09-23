@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
-# R0.4 fail-closed boundary: the legacy PostgreSQL dump path is retired.
+# R0.10 consistent SQLite + immutable-artifact backup.
 set -euo pipefail
 
-echo "[backup-db] unavailable: legacy PostgreSQL backup was retired in R0.4." >&2
-echo "[backup-db] no SQLite backup/restore authority is approved yet." >&2
-exit 2
+if [[ $# -ne 1 ]]; then
+  echo "usage: scripts/backup-db.sh ABSOLUTE_OUTPUT_ROOT" >&2
+  exit 2
+fi
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+exec node "$REPO_ROOT/scripts/operational-data.mjs" backup --output-root "$1"

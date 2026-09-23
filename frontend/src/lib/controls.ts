@@ -9,47 +9,17 @@ import { z } from "zod";
 
 import { BFF_API_URL } from "@/lib/dashboard";
 
-const flagViewSchema = z.object({
-  key: z.enum(["signal_alerts", "paper_execution", "ensemble_dashboard", "research_lab", "live_execution"]),
-  enabled: z.boolean(),
-  updatedBy: z.string(),
-  updatedAtUtc: z.string(),
-  note: z.string(),
-});
-
-const publishRecordViewSchema = z.object({
-  publishId: z.string(),
-  artifactId: z.string(),
-  entryId: z.string(),
-  evidenceHash: z.string(),
-  publishedBy: z.string(),
-  publishedAtUtc: z.string(),
-  previousArtifactId: z.string().nullable(),
-  rolledBack: z.boolean(),
-});
-
-const incidentViewSchema = z.object({
-  incidentId: z.string(),
-  title: z.string(),
-  severity: z.enum(["low", "medium", "high", "critical"]),
-  status: z.enum(["open", "resolved"]),
-  note: z.string(),
-  createdBy: z.string(),
-  createdAtUtc: z.string(),
-  resolvedBy: z.string().nullable(),
-  resolvedAtUtc: z.string().nullable(),
-});
-
 export const controlsViewSchema = z.object({
-  flags: z.array(flagViewSchema),
+  authority: z.literal("sqlite"),
   riskState: z.enum(["green", "yellow", "orange", "red", "kill"]),
+  riskStateSequenceNo: z.number().int().positive(),
   riskStateChangedAtUtc: z.string(),
-  publish: z.object({
-    current: z.record(z.string(), z.string()),
-    history: z.array(publishRecordViewSchema),
+  allowedActions: z.array(z.enum(["engage_kill", "release_kill", "force_risk_state"])),
+  safety: z.object({
+    liveExecutionEnabled: z.literal(false),
+    providerOrderTransportEnabled: z.literal(false),
+    executionMode: z.literal("local-paper-simulation-only"),
   }),
-  incidents: z.array(incidentViewSchema),
-  allowedActions: z.array(z.string()),
 });
 
 export type ControlsView = z.infer<typeof controlsViewSchema>;
@@ -60,11 +30,9 @@ export type ControlsResult =
 
 /** Action payloads accepted by POST /api/admin/controls (server-validated). */
 export type ControlsActionRequest =
-  | { action: "toggle_feature_flag"; key: string; enabled: boolean; note?: string }
   | { action: "engage_kill"; reason: string }
   | { action: "release_kill"; reason: string }
-  | { action: "force_risk_state"; targetState: "green" | "yellow" | "orange" | "red"; reason: string }
-  | { action: "rollback_artifact"; family: string };
+  | { action: "force_risk_state"; targetState: "green" | "yellow" | "orange" | "red"; reason: string };
 
 export async function fetchControls(cookie?: string): Promise<ControlsResult> {
   try {

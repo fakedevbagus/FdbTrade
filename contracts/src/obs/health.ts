@@ -63,6 +63,7 @@ export const HEALTH_REASON_CODES = [
   "risk_state_orange",
   "risk_state_red",
   "risk_kill_engaged",
+  "risk_authority_uninitialized",
   "check_stale",
   "check_missing",
 ] as const;
@@ -274,4 +275,3 @@ export function computeHealthSnapshot(input: HealthSnapshotInput): HealthSnapsho
 
 /** Type helper for check metrics. */
 export type HealthMetrics = Readonly<Record<string, ObsAttributeValue>>;
-

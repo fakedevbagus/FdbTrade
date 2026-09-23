@@ -15,7 +15,9 @@ import { NextResponse, type NextRequest } from "next/server";
 const BFF_API_URL = process.env.FDB_BFF_URL ?? "http://127.0.0.1:3100";
 
 /** Paths that require an authenticated session (protected app area). */
-const PROTECTED_PREFIXES = ["/dashboard", "/scanner", "/signals", "/alerts"];
+const PROTECTED_PREFIXES = [
+  "/dashboard", "/scanner", "/signals", "/alerts", "/research", "/admin", "/operations",
+];
 
 async function hasValidSession(request: NextRequest): Promise<boolean> {
   const sessionCookie = request.cookies.get("fdb_session");
@@ -66,5 +68,8 @@ export const config = {
     "/scanner/:path*",
     "/signals/:path*",
     "/alerts/:path*",
+    "/research/:path*",
+    "/admin/:path*",
+    "/operations/:path*",
   ],
 };

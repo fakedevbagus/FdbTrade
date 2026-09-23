@@ -19,9 +19,22 @@ import {
 } from "@fdbtrade/contracts";
 
 import { utcNowIso } from "@/clock";
-import { checkDatabaseHealth } from "@/db/client";
-import { riskStateStore } from "@/obs/riskStateStore";
+import { checkDatabaseHealth, getDatabase } from "@/db/client";
 import { obsService } from "@/obs/service";
+import type { RiskState } from "@fdbtrade/contracts";
+
+function durableRiskState(): RiskState | null {
+  try {
+    const row = getDatabase().prepare(`
+      SELECT state FROM risk_state_events ORDER BY sequence_no DESC LIMIT 1
+    `).get() as { state?: unknown } | undefined;
+    const state = row?.state;
+    return state === "green" || state === "yellow" || state === "orange" ||
+      state === "red" || state === "kill" ? state : null;
+  } catch {
+    return null;
+  }
+}
 
 /** Freshness budgets (data, tunable later; documented in ADR-0027). */
 export const HEALTH_BUDGETS: Readonly<
@@ -41,6 +54,7 @@ export type CheckFactory = () => Promise<readonly HealthCheck[]>;
 export const defaultCheckFactory: CheckFactory = async () => {
   const atUtc = utcNowIso();
   const checks: HealthCheck[] = [];
+  const riskState = durableRiskState();
 
   // Feed: fixture provider is deterministic and always serves in-session
   // bars; without a live provider the check is degraded with the explicit
@@ -110,10 +124,10 @@ export const defaultCheckFactory: CheckFactory = async () => {
   // construction; the STATE contribution comes from the snapshot input.
   checks.push({
     component: "risk",
-    status: "ok",
+    status: riskState === null ? "down" : "ok",
     observedAtUtc: atUtc,
-    reason: null,
-    metrics: { state: riskStateStore.state },
+    reason: riskState === null ? "risk_authority_uninitialized" : null,
+    metrics: { state: riskState ?? "uninitialized", authority: "sqlite" },
   });
 
   return checks;
@@ -124,9 +138,10 @@ export async function currentHealthSnapshot(
   factory: CheckFactory = defaultCheckFactory,
 ): Promise<HealthSnapshot> {
   const checks = await factory();
+  const riskState = durableRiskState() ?? "kill";
   return computeHealthSnapshot({
     asOfUtc: utcNowIso(),
-    riskState: riskStateStore.state,
+    riskState,
     checks,
     budgets: HEALTH_BUDGETS,
   });

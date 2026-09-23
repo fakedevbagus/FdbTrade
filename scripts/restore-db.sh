@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-# R0.4 fail-closed boundary: restoration must not claim success without an
-# approved, verified SQLite backup format and recovery procedure.
+# R0.10 verified restore. The target must be absolute and empty.
 set -euo pipefail
 
-echo "[restore-db] unavailable: legacy PostgreSQL restore was retired in R0.4." >&2
-echo "[restore-db] no SQLite backup/restore authority is approved yet." >&2
-exit 2
+if [[ $# -ne 2 ]]; then
+  echo "usage: scripts/restore-db.sh ABSOLUTE_BACKUP_DIRECTORY ABSOLUTE_EMPTY_DATA_ROOT" >&2
+  exit 2
+fi
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+exec node "$REPO_ROOT/scripts/operational-data.mjs" restore \
+  --backup "$1" --target-data-root "$2"

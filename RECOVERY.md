@@ -1,4 +1,4 @@
-# FdbTrade Recovery Procedures (R0.5 local lifecycle)
+# FdbTrade Recovery Procedures (R0.10 local authority)
 
 FdbTrade is a single-user Linux-local application. SQLite at
 `<data-root>/fdbtrade.sqlite3` is the only active durable-state authority.
@@ -11,7 +11,7 @@ The default data root is repository-local `.fdbtrade`; an explicit
 |---|---|
 | Database not initialized | `make db-migrate` then `make db-status` |
 | Migration failure | Preserve the database and command output; do not reset it |
-| Suspected database corruption | Stop the backend, preserve the database plus `-wal`/`-shm`, escalate |
+| Suspected database corruption | Stop the backend, preserve the root, restore a verified backup into a new empty root |
 | Service will not start | `scripts/fdbtrade status --json`, then stop only a verified recorded lifecycle |
 | Port conflict | Inspect `ss -tlnp`; do not assume the listener belongs to FdbTrade |
 | Interrupted scheduler cycle | Start normally after the lock expires; SQLite resumes the verified checkpoint chain |
@@ -31,11 +31,11 @@ stop: restore the committed migration file or add a new migration; never edit
 an applied migration. `make db-rollback` rolls back only the most recent
 migration and is not a general data-recovery mechanism.
 
-R0.4 intentionally exposes no destructive database reset and no approved
-SQLite backup/restore workflow. The legacy `scripts/backup-db.sh` and
-`scripts/restore-db.sh` commands fail closed until a later work unit defines
-and drills a truthful recovery authority. Never delete `.fdbtrade`, a custom
-data root, or SQLite `-wal`/`-shm` files as an ad-hoc repair.
+R0.10 provides verified, non-destructive SQLite plus artifact backup/restore.
+Follow `docs/runbooks/DISASTER_RECOVERY.md`. Restore always targets a new empty
+directory; it never repairs or overwrites the active root. Never delete
+`.fdbtrade`, a custom data root, or SQLite `-wal`/`-shm` files as an ad-hoc
+repair.
 
 ## Service recovery
 

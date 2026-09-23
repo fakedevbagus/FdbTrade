@@ -103,3 +103,4 @@ not used.
 | [ADR-0040](ADR-0040-signal-intelligence-authority.md) | Signal intelligence authority | Accepted |
 | [ADR-0041](ADR-0041-research-and-backtest-authority.md) | Research and backtest authority | Accepted |
 | [ADR-0042](ADR-0042-risk-paper-and-outcomes-authority.md) | Risk, paper broker and outcomes authority | Accepted |
+| [ADR-0043](ADR-0043-ui-and-operational-hardening.md) | UI and operational hardening | Accepted |

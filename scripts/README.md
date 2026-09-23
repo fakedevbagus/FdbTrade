@@ -32,6 +32,7 @@ Operator documentation: `docs/OPERATOR_GUIDE.md`. Recovery procedures: `RECOVERY
 | Script | Purpose |
 | --- | --- |
 | `db-bootstrap.sh` | SQLite migration/status compatibility wrapper |
-| `backup-db.sh` / `restore-db.sh` | Database backup and verified restore |
-| `deploy-staging.sh` | Staging deployment helper |
+| `backup-db.sh` / `restore-db.sh` | R0.10 SQLite plus referenced-artifact backup and non-destructive verified restore |
+| `operational-data.mjs` | Hermetic backup, restore and deployment-drill authority |
+| `deploy-staging.sh` | Compatibility name for the local R0.10 deployment/recovery drill; no external deployment |
 | `smoke-test.sh` | Post-deploy smoke checks |

@@ -11,22 +11,22 @@ type Area = {
 
 const AREAS: readonly Area[] = [
   {
-    title: "Command Center",
+    title: "Operational authority",
     description:
-      "Application shell placeholder. Signals, market context and risk states will appear here in later phases.",
-    href: "/dashboard",
+      "Read-only SQLite projection of market data, signals, research evidence, risk state, paper outcomes, and recovery drills.",
+    href: "/operations",
   },
   {
-    title: "Signals",
+    title: "Risk controls",
     description:
-      "Placeholder. The signal pipeline arrives with the strategy and ensemble phases.",
-    href: null,
+      "Human-only controls backed by the durable R0.9 risk latch. No order action is exposed.",
+    href: "/admin/controls",
   },
   {
-    title: "Research",
+    title: "Historical datasets",
     description:
-      "Placeholder. Backtests and validation gates arrive with the research phases.",
-    href: null,
+      "Verified R0.6 dataset metadata and immutable artifact provenance.",
+    href: "/research/datasets",
   },
 ];
 

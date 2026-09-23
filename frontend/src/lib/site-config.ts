@@ -40,11 +40,10 @@ const rawSiteConfig = {
   liveExecutionEnabled: false,
   nav: [
     { label: "Overview", href: "/" },
-    { label: "Command Center", href: "/dashboard" },
-    { label: "Scanner", href: "/scanner" },
-    { label: "Alert center", href: "/alerts" },
-    { label: "Research datasets", href: "/research/datasets" },
+    { label: "Operations", href: "/operations" },
     { label: "Historical datasets", href: "/research/datasets" },
+    { label: "Risk controls", href: "/admin/controls" },
+    { label: "Health", href: "/admin/health" },
   ],
 } as const;
 

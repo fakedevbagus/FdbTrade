@@ -1,68 +1,63 @@
 # FdbTrade Rebuild — Next Work Unit
 
-Current completed unit: **R0.9 — Risk, paper broker and outcomes authority**
+Current completed unit: **R0.10 — UI and operational hardening**
 
-Next planned unit: **R0.10 — UI and operational hardening**
+Next planned unit: **none authorized**
 
-R0.10 is not authorized by the R0.9 commit alone. Start it only after an
-explicit user request in a fresh chat. Its exact UI, observability,
-backup/restore and deployment-drill scope must be confirmed before editing.
+R0.10 is the current stop boundary. Do not infer authorization for a
+credentialed provider, M48, model promotion, live execution, provider-order
+transport or any wider universe/timeframe. A future unit requires a new,
+explicitly bounded user request after revalidating the R0.10 atomic commit.
 
 ## Copy-ready next-chat prompt
 
 ```text
-Lanjutkan rebuild FdbTrade dengan mengerjakan HANYA:
-
-R0.10 — UI and operational hardening
+Audit the completed FdbTrade R0.10 checkpoint and propose a scope for a future
+work unit only; do not implement or commit anything without separate explicit
+authorization.
 
 Repository:
 `/media/fakedevbagus/WD BLUE/BACKUP LINUX/PROJECTS/FdbTrade`
 
-Baseline:
+Revalidate first:
 
-- Branch: `rebuild/r0-preserve-current-state`
-- Commit: revalidate HEAD from the completed R0.9 atomic commit
-- R0.9 gate: revalidate PASS 15/15, zero skip
-- SQLite adalah satu-satunya durable metadata authority
-- R0.6 artifacts immutable/content-addressed dan scope tetap tujuh major, 15m/1h/4h
-- R0.7 signal candidates, R0.8 research evidence dan R0.9 risk/paper/outcome lineage tetap authoritative sesuai ADR masing-masing
-- Risk decision wajib sebelum paper execution; kill state tetap latched dan durable
-- Outcome paper bukan signal confidence, live evidence, atau model-promotion authority
-- Live execution OFF dan provider-order transport OFF
-- Credentialed/network provider belum dipilih
-- M48 tetap dikarantina dan non-authoritative
+- Branch `rebuild/r0-preserve-current-state`
+- HEAD from the completed atomic R0.10 commit
+- `artifacts/rebuild/r0.10/ui-operational-hardening-authority.json`
+- `docs/rebuild/checkpoints/R0.10_UI_OPERATIONAL_HARDENING.md`
+- `docs/adr/ADR-0043-ui-and-operational-hardening.md`
+- `artifacts/toolchain/gate.json` is PASS 15/15 with zero skip
+- all ten M48 hashes still match the R0.1 preservation manifest
 
-Baca terlebih dahulu:
+Preserve these boundaries:
 
-- `artifacts/rebuild/r0.9/risk-paper-outcomes-authority.json`
-- `docs/rebuild/checkpoints/R0.9_RISK_PAPER_OUTCOMES_AUTHORITY.md`
-- `docs/adr/ADR-0037-local-sqlite-authority.md`
-- `docs/adr/ADR-0039-market-data-and-artifact-authority.md`
-- `docs/adr/ADR-0040-signal-intelligence-authority.md`
-- `docs/adr/ADR-0041-research-and-backtest-authority.md`
-- `docs/adr/ADR-0042-risk-paper-and-outcomes-authority.md`
-- `docs/rebuild/NEXT.md`
+- SQLite is the only mutable durable metadata authority.
+- R0.6 artifacts stay immutable/content-addressed and scope stays exactly the
+  seven FX majors at 15m/1h/4h.
+- R0.7 signal, R0.8 research and R0.9 risk/paper/outcome authority remain
+  binding; risk approval is mandatory before paper execution.
+- Kill remains latched and durable. Paper outcomes are not signal confidence,
+  live evidence or model-promotion authority.
+- The R0.10 UI remains a projection, not authority; backup/restore remains
+  non-destructive and verified.
+- Live execution OFF; provider-order transport OFF; no credentialed/network
+  provider selected; M48 remains quarantined and non-authoritative.
 
-Tentukan scope R0.10 secara eksplisit sebelum implementasi. Jangan mengerjakan
-credentialed provider, live/provider order transport, model promotion, atau
-M48. Jangan melemahkan authority/gate R0.4-R0.9 dan jangan memperluas universe
-atau timeframe R0.6.
-
-Gunakan `make toolchain-gate` sebagai acceptance gate dan berhenti setelah satu
-commit atomik R0.10.
+Return an evidence-based audit and a proposed small-unit plan only. Stop before
+editing files, running an external integration, or choosing the next phase.
 ```
 
-## Entry checks
+## Resume checks
 
-1. Revalidate branch, HEAD, clean worktree, R0.9 artifact and 15/15 gate.
-2. Revalidate all ten M48 hashes before editing.
-3. Confirm no local lifecycle is running before tests that bind ports; never
+1. Revalidate branch, HEAD and a clean worktree after the R0.10 commit.
+2. Revalidate R0.10 evidence and the 15/15 zero-skip gate report.
+3. Revalidate all ten M48 files against `artifacts/rebuild/r0.1/preservation.json`.
+4. Confirm local lifecycle ownership before any test that binds ports; never
    stop an unmanaged listener.
-4. Preserve migrations 0004 through 0008 and ADR-0038 through ADR-0042.
-5. Keep tests hermetic: no provider credentials, external network, Docker,
-   PostgreSQL or Redis.
+5. Keep all checks hermetic unless a later request explicitly and safely
+   authorizes something else.
 
 ## Stop rule
 
-Stop after the explicitly authorized R0.10 scope and one atomic commit. Do not
-roll into credentialed providers, M48 or live/provider-order execution.
+There is no implied R0.11. Stop after audit and proposal. Do not implement a
+provider, M48, model promotion, live execution or provider-order transport.

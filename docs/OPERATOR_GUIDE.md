@@ -4,8 +4,8 @@ Audience: the single Linux operator of this private beta. You do **not** need to
 read the source code.
 
 Release: `2.0.0-private-beta`
-Execution authority: fixture/offline, historical replay, read-only shadow, and
-explicit operator-confirmed paper operations **only**.
+Execution authority: fixture/offline, historical replay and deterministic local
+paper simulation **only**.
 
 > FdbTrade is not a live-money trading system, not a public service, and not a
 > profitability product. It never binds a public network interface.
@@ -104,6 +104,10 @@ Machine-readable environment report:
 scripts/fdbtrade preflight --json
 ```
 
+The authenticated `/operations` page is the authoritative UI projection. It
+reads SQLite metadata for R0.6–R0.10 and exposes no signal, order, provider or
+promotion mutation. `/admin/controls` writes only the durable R0.9 risk latch.
+
 ## 6. Verify the installation
 
 ```bash
@@ -144,10 +148,21 @@ scripts/fdbtrade recover
 | Missing `.env` | `cp infra/.env.example .env` | < 2 min |
 | Port conflict | `scripts/fdbtrade stop` then `ss -tlnp` | < 1 min |
 | Service won't start | `scripts/fdbtrade stop && scripts/fdbtrade start` | < 2 min |
-| Database corruption | Stop; preserve the file; follow `RECOVERY.md` | uncommitted |
+| Database corruption | Stop; restore a verified backup into a new empty root | measured by drill |
 | Dependency drift | `pnpm install --frozen-lockfile` | < 5 min |
 
 Full procedures, RPO expectations, and the clean-slate path: `RECOVERY.md`.
+
+Create a complete SQLite/artifact backup and prove recovery:
+
+```bash
+export FDB_DATA_ROOT=/absolute/path/to/data
+make backup BACKUP_ROOT=/absolute/path/to/backups
+make deployment-drill
+```
+
+See `docs/runbooks/DISASTER_RECOVERY.md`. Restore never overwrites an active
+data root.
 
 ## 9. What is unavailable or gated in this beta
 
