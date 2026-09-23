@@ -84,6 +84,7 @@ KNOWN_ADRS = {
     43: "ui-and-operational-hardening",
     44: "crash-consistent-local-recovery",
     45: "operator-triggered-authoritative-signal-evaluation",
+    46: "r1-roadmap-and-promptpack-governance",
 }
 
 

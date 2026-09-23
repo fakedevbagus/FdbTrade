@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "workUnit": "R1.0",
+  "status": "complete",
+  "recordedOn": "2026-09-24",
+  "repository": {
+    "branch": "rebuild/r0-preserve-current-state",
+    "baselineCommit": "1773f257c1f9877774880e36406e45e2a8ae5918"
+  },
+  "authority": {
+    "kind": "roadmap-and-promptpack-governance",
+    "promptPack": "docs/roadmap/FDBTRADE_R1_BLUEPRINT_PROMPT_PACK.md",
+    "adr": "docs/adr/ADR-0046-r1-roadmap-and-promptpack-governance.md",
+    "checkpoint": "docs/rebuild/checkpoints/R1.0_BLUEPRINT_AUTHORITY_AND_PROMPT_PACK.md",
+    "firstImplementationUnit": "R1.1",
+    "lastPlannedUnit": "R1.24",
+    "implementationUnitCount": 24,
+    "standingImplementationAuthorization": false
+  },
+  "product": {
+    "deployment": "linux-local-single-user",
+    "ceiling": "decision-support-alerts-research-and-operator-confirmed-paper",
+    "informationOrder": "technical-first-then-macro-context",
+    "automationCeiling": "scheduled-analysis-and-alerts-only",
+    "mlRole": "challenger-only"
+  },
+  "scope": {
+    "instruments": [
+      "EURUSD",
+      "GBPUSD",
+      "USDJPY",
+      "USDCHF",
+      "AUDUSD",
+      "USDCAD",
+      "NZDUSD"
+    ],
+    "timeframes": ["15m", "1h", "4h"]
+  },
+  "preservation": {
+    "r0AuthorityPreservedThrough": "R0.12",
+    "m48FileCount": 10,
+    "m48AggregateManifestDigest": "f7dc5aacade5078cf934be760651c2e59d9e340c7a096a25629006d8f8555fe6",
+    "m48RuntimeAuthority": false
+  },
+  "safety": {
+    "liveExecutionEnabled": false,
+    "demoExecutionEnabled": false,
+    "providerOrderTransportEnabled": false,
+    "automaticPaperExecutionEnabled": false,
+    "externalProviderNetworkCallsEnabled": false,
+    "credentialedProviderSelected": false,
+    "macroProviderSelected": false,
+    "modelPromotionAuthorityAdded": false,
+    "remoteAccessEnabled": false
+  },
+  "verification": {
+    "focusedContract": "python3 -m unittest tests.test_r10_blueprint_promptpack_contracts",
+    "finalGateCommand": "make toolchain-gate",
+    "finalGateReport": "artifacts/toolchain/gate.json",
+    "requiredGateTotal": 15,
+    "requiredNonPass": 0
+  },
+  "nextWorkUnit": "R1.1",
+  "nextWorkUnitAuthorized": false
+}
