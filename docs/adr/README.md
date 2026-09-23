@@ -105,3 +105,4 @@ not used.
 | [ADR-0042](ADR-0042-risk-paper-and-outcomes-authority.md) | Risk, paper broker and outcomes authority | Accepted |
 | [ADR-0043](ADR-0043-ui-and-operational-hardening.md) | UI and operational hardening | Accepted |
 | [ADR-0044](ADR-0044-crash-consistent-local-recovery.md) | Crash-consistent local recovery | Accepted |
+| [ADR-0045](ADR-0045-operator-triggered-authoritative-signal-evaluation.md) | Operator-triggered authoritative signal evaluation | Accepted |

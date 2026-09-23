@@ -83,6 +83,7 @@ KNOWN_ADRS = {
     42: "risk-paper-and-outcomes-authority",
     43: "ui-and-operational-hardening",
     44: "crash-consistent-local-recovery",
+    45: "operator-triggered-authoritative-signal-evaluation",
 }
 
 
