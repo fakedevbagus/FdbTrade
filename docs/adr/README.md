@@ -102,3 +102,4 @@ not used.
 | [ADR-0039](ADR-0039-market-data-and-artifact-authority.md) | Market-data and artifact authority | Accepted |
 | [ADR-0040](ADR-0040-signal-intelligence-authority.md) | Signal intelligence authority | Accepted |
 | [ADR-0041](ADR-0041-research-and-backtest-authority.md) | Research and backtest authority | Accepted |
+| [ADR-0042](ADR-0042-risk-paper-and-outcomes-authority.md) | Risk, paper broker and outcomes authority | Accepted |

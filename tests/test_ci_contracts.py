@@ -80,6 +80,7 @@ KNOWN_ADRS = {
     39: "market-data-and-artifact-authority",
     40: "signal-intelligence-authority",
     41: "research-and-backtest-authority",
+    42: "risk-paper-and-outcomes-authority",
 }
 
 

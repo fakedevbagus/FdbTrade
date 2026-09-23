@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "workUnit": "R0.9",
+  "status": "complete",
+  "recordedOn": "2026-09-23",
+  "repository": {
+    "branch": "rebuild/r0-preserve-current-state",
+    "baselineCommit": "b0fb0bc4a35597e630b16120311c4fa46dcfa385"
+  },
+  "authority": {
+    "metadataEngine": "SQLite via Node 24 node:sqlite",
+    "migration": "0008_risk_paper_outcomes_authority",
+    "migrationCount": 8,
+    "configId": "baseline-risk-paper-authority",
+    "configVersion": "1.0.0",
+    "riskEngineVersion": "1.0.0",
+    "paperBrokerVersion": "1.0.0",
+    "tables": [
+      "risk_paper_configs",
+      "risk_state_events",
+      "risk_paper_runs",
+      "risk_decisions",
+      "paper_orders",
+      "paper_order_events",
+      "paper_fills",
+      "paper_position_events",
+      "paper_reconciliation_reports",
+      "paper_outcomes",
+      "paper_outcome_attribution_reports"
+    ]
+  },
+  "scope": {
+    "instruments": [
+      "EURUSD",
+      "GBPUSD",
+      "USDJPY",
+      "USDCHF",
+      "AUDUSD",
+      "USDCAD",
+      "NZDUSD"
+    ],
+    "timeframes": ["15m", "1h", "4h"],
+    "signalSource": "authoritative R0.7 candidates over verified R0.6 datasets only",
+    "paperDataSource": "verified R0.6 closed-bar datasets only",
+    "executionMode": "local-paper-simulation-only",
+    "credentialedProviderSelected": false
+  },
+  "behavior": {
+    "mandatoryPersistedRiskBeforePaper": "pass",
+    "databaseApprovalBoundary": "pass",
+    "appendOnlyOrderFillPositionLedger": "pass",
+    "fullLedgerReconciliation": "pass",
+    "latchedDurableKillState": "pass",
+    "riskStateChangeBeforePaperFailsClosed": "pass",
+    "operationalPaperOutcomeLineage": "pass",
+    "durableOutcomeAttribution": "pass",
+    "sqliteReopenPersistence": "pass",
+    "interruptedRunRecovery": "pass",
+    "requestIdempotency": "pass",
+    "postCommitReplay": "pass",
+    "contentDigestVerification": "pass"
+  },
+  "interpretation": {
+    "paperOnly": true,
+    "liveEvidence": false,
+    "signalConfidenceCalibrated": false,
+    "signalConfidenceValue": null,
+    "modelPromotionEligible": false,
+    "backtestEvidenceUsedAsConfidence": false
+  },
+  "finalGate": {
+    "command": "make toolchain-gate",
+    "reportPath": "artifacts/toolchain/gate.json",
+    "startedAtUtc": "2026-09-23T08:06:17.151Z",
+    "finishedAtUtc": "2026-09-23T08:11:45.584Z",
+    "durationMs": 328433,
+    "exitCode": 0,
+    "status": "pass",
+    "summary": {
+      "total": 15,
+      "pass": 15,
+      "fail": 0,
+      "timeout": 0,
+      "environmentBlocked": 0,
+      "skipped": 0,
+      "planned": 0
+    },
+    "tests": {
+      "contracts": "43 files, 631 passed",
+      "backend": "76 files, 702 passed",
+      "frontend": "12 files, 97 passed",
+      "python": "565 passed, 0 skipped"
+    },
+    "firstActionableFailure": null
+  },
+  "preservation": {
+    "m48FileCount": 10,
+    "m48Bytes": 55941,
+    "m48AggregateManifestDigest": "f7dc5aacade5078cf934be760651c2e59d9e340c7a096a25629006d8f8555fe6",
+    "m48HashVerification": "pass",
+    "m48RuntimeAuthority": false
+  },
+  "safety": {
+    "liveExecutionEnabled": false,
+    "providerOrderTransportEnabled": false,
+    "externalProviderNetworkCallsEnabled": false,
+    "credentialedProviderAuthorityAdded": false,
+    "uiAuthorityAdded": false,
+    "backupRestoreAuthorityAdded": false,
+    "modelPromotionAuthorityAdded": false
+  },
+  "nextWorkUnit": "R0.10 — UI and operational hardening (not yet authorized; scope must be confirmed)"
+}
