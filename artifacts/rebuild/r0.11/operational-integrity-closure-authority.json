@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "workUnit": "R0.11",
+  "status": "complete",
+  "recordedOn": "2026-09-23",
+  "repository": {
+    "branch": "rebuild/r0-preserve-current-state",
+    "baselineCommit": "83e383d12a83c60dc34d22a324bc088a85beb6ca"
+  },
+  "authority": {
+    "metadataEngine": "SQLite via Node 24 node:sqlite",
+    "migration": "0009_operational_hardening",
+    "migrationCount": 9,
+    "backupManifestSchemaVersion": 2,
+    "backupDirectoryRole": "immutable recovery evidence, never mutable metadata authority"
+  },
+  "scope": {
+    "instruments": [
+      "EURUSD",
+      "GBPUSD",
+      "USDJPY",
+      "USDCHF",
+      "AUDUSD",
+      "USDCAD",
+      "NZDUSD"
+    ],
+    "timeframes": [
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "backup": "verified and fsynced sibling staging set atomically renamed on output filesystem",
+    "restore": "verified absolute absent-or-empty target via fsynced sibling staging and atomic rename",
+    "r010ManifestCompatibility": "strict schema-v1 integrity compatibility; no retroactive crash-durability claim",
+    "credentialedProviderSelected": false
+  },
+  "behavior": {
+    "backupVerifyBeforeRename": "pass",
+    "backupFileAndDirectoryFsyncOrdering": "pass",
+    "backupPrePublicationFaultIsolation": "pass",
+    "publishedBackupBeforeEventRemainsUnclaimed": "pass",
+    "restoreVerifyBeforeTargetMutation": "pass",
+    "restoreSiblingStagingAtomicPublication": "pass",
+    "restoreCheckpointCloseAndFsync": "pass",
+    "strictManifestAndFilesystemBoundary": "pass",
+    "marketAndResearchArtifactsInOneSnapshot": "pass",
+    "operationsOverviewRouteBehavior": "pass",
+    "durableControlsRouteBehavior": "pass",
+    "fileBackedHealthKillReopenRelease": "pass",
+    "tamperUnsafePathNonEmptyTargetAndMigrationDrift": "pass"
+  },
+  "interpretation": {
+    "sha256IntegrityEvidence": true,
+    "cryptographicAuthenticityClaimed": false,
+    "uiAuthority": false,
+    "paperOnly": true,
+    "liveEvidence": false,
+    "signalConfidenceCalibrated": false,
+    "modelPromotionEligible": false,
+    "externalDeploymentClaimed": false
+  },
+  "finalGate": {
+    "command": "make toolchain-gate",
+    "reportPath": "artifacts/toolchain/gate.json",
+    "startedAtUtc": "2026-09-23T15:38:37.127Z",
+    "finishedAtUtc": "2026-09-23T15:44:46.681Z",
+    "durationMs": 369554,
+    "exitCode": 0,
+    "status": "pass",
+    "summary": {
+      "total": 15,
+      "pass": 15,
+      "fail": 0,
+      "timeout": 0,
+      "environmentBlocked": 0,
+      "skipped": 0,
+      "planned": 0
+    },
+    "tests": {
+      "contracts": "43 files, 631 passed",
+      "backend": "78 files, 704 passed",
+      "frontend": "13 files, 99 passed",
+      "python": "582 passed, 0 skipped"
+    },
+    "firstActionableFailure": null
+  },
+  "preservation": {
+    "m48FileCount": 10,
+    "m48Bytes": 55941,
+    "m48AggregateManifestDigest": "f7dc5aacade5078cf934be760651c2e59d9e340c7a096a25629006d8f8555fe6",
+    "m48HashVerification": "pass",
+    "m48RuntimeAuthority": false
+  },
+  "safety": {
+    "liveExecutionEnabled": false,
+    "providerOrderTransportEnabled": false,
+    "externalProviderNetworkCallsEnabled": false,
+    "credentialedProviderAuthorityAdded": false,
+    "uiAuthorityAdded": false,
+    "modelPromotionAuthorityAdded": false
+  },
+  "nextWorkUnit": null
+}

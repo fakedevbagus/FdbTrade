@@ -82,6 +82,7 @@ KNOWN_ADRS = {
     41: "research-and-backtest-authority",
     42: "risk-paper-and-outcomes-authority",
     43: "ui-and-operational-hardening",
+    44: "crash-consistent-local-recovery",
 }
 
 

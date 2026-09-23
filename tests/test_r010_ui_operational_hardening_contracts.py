@@ -148,7 +148,12 @@ class R010BackupRestoreBehavior(unittest.TestCase):
             backup_result = json.loads(backup.stdout.strip().splitlines()[-1])
             backup_dir = pathlib.Path(backup_result["backupDirectory"])
             manifest = json.loads((backup_dir / "manifest.json").read_text("utf-8"))
-            self.assertEqual(manifest["workUnit"], "R0.10")
+            self.assertEqual(manifest["schemaVersion"], 2)
+            self.assertEqual(manifest["workUnit"], "R0.11")
+            self.assertEqual(
+                manifest["integrityClaim"],
+                "sha256-integrity-evidence-not-cryptographic-authenticity",
+            )
             self.assertEqual(manifest["database"]["migrations"][-1]["id"], "0009_operational_hardening")
             self.assertFalse(manifest["safety"]["liveExecutionEnabled"])
             self.assertFalse(manifest["safety"]["providerOrderTransportEnabled"])

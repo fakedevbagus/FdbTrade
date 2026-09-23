@@ -1,15 +1,12 @@
-/**
- * Health aggregator + risk-state store + admin route tests (P13-04).
- *
- * Covers: default-factory snapshot (fixture feed explicitly degraded, db
- * down drives fail_safe), the latched risk-state store (human-only kill,
- * audited, release lands red, invalid override changes nothing), and the
- * API surface (snapshot shape, 401 no session, 405 writes). DB health and
- * session lookups stubbed at their boundaries.
- */
-import { describe, expect, it, vi, beforeEach } from "vitest";
+/** R0.11 health behavior over the durable R0.9 SQLite risk latch. */
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import type { DatabaseSync } from "node:sqlite";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthResult } from "@/auth/store";
+import type { HealthCheck } from "@fdbtrade/contracts";
 
 const SESSION_TOKEN = "test-session-token-health";
 const AUTH_RESULT: AuthResult = {
@@ -21,6 +18,7 @@ const AUTH_RESULT: AuthResult = {
   },
   user: { id: "user-1", username: "owner", isActive: true, mfaEnabled: false },
 };
+const runtime = vi.hoisted(() => ({ database: undefined as DatabaseSync | undefined }));
 
 vi.mock("@/auth/store", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/auth/store")>();
@@ -38,15 +36,40 @@ vi.mock("@/db/client", () => ({
     latencyMs: 3,
     errorCode: null,
   })),
+  getDatabase: vi.fn(() => {
+    if (!runtime.database) throw new Error("test database is not initialized");
+    return runtime.database;
+  }),
 }));
 
-import { currentHealthSnapshot } from "@/obs/healthService";
-import { RiskStateStore } from "@/obs/riskStateStore";
-import { auditService } from "@/obs/auditService";
 import { GET as getHealth, POST as postHealth } from "@/app/api/admin/health/route";
+import { MarketDataAuthority } from "@/data/marketAuthority";
+import { openDatabase, openMigratedDatabase } from "@/db/sqlite.mjs";
+import {
+  currentHealthSnapshot,
+  durableRiskState,
+} from "@/obs/healthService";
+import { RiskPaperAuthority } from "@/paper/riskPaperAuthority";
 
-function request(path: string, init?: RequestInit): Request {
-  return new Request(`http://localhost:3100${path}`, {
+const roots: string[] = [];
+
+beforeEach(() => {
+  runtime.database = openMigratedDatabase();
+  const authority = new RiskPaperAuthority(
+    runtime.database,
+    new MarketDataAuthority(runtime.database, path.join(tmpdir(), "fdb-health-default-artifacts")),
+  );
+  authority.registerBaseline("2026-09-23T00:00:00.000Z");
+});
+
+afterEach(() => {
+  runtime.database?.close();
+  runtime.database = undefined;
+  while (roots.length) rmSync(roots.pop() as string, { recursive: true, force: true });
+});
+
+function request(pathname: string, init?: RequestInit): Request {
+  return new Request(`http://localhost:3100${pathname}`, {
     ...init,
     headers: {
       ...(init?.headers as Record<string, string> | undefined),
@@ -55,134 +78,66 @@ function request(path: string, init?: RequestInit): Request {
   });
 }
 
+function allGreenChecks(atUtc: string): readonly HealthCheck[] {
+  return (["feed", "queue", "api", "db", "cache", "risk"] as const).map(
+    (component) => ({
+      component,
+      status: "ok" as const,
+      observedAtUtc: atUtc,
+      reason: null,
+      metrics: {},
+    }),
+  );
+}
+
 describe("currentHealthSnapshot (default factory)", () => {
   it("fixture feed is explicitly degraded, never fabricated green", async () => {
-    const snapshot = await currentHealthSnapshot();
-    const feed = snapshot.checks.find((c) => c.component === "feed");
+    const snapshot = await currentHealthSnapshot(undefined, () => "green");
+    const feed = snapshot.checks.find((check) => check.component === "feed");
     expect(feed?.effectiveStatus).not.toBe("ok");
     expect(feed?.reason).toBe("feed_no_data");
     expect(["degraded", "fail_safe"]).toContain(snapshot.state);
   });
 
-  it("db down (mocked) drives fail_safe with denyNewEntries", async () => {
+  it("db down drives fail_safe with denyNewEntries", async () => {
     const { checkDatabaseHealth } = await import("@/db/client");
     vi.mocked(checkDatabaseHealth).mockResolvedValueOnce({
       status: "unavailable",
       latencyMs: 2001,
       errorCode: "ETIMEDOUT",
     });
-    const snapshot = await currentHealthSnapshot();
+    const snapshot = await currentHealthSnapshot(undefined, () => "green");
     expect(snapshot.state).toBe("fail_safe");
     expect(snapshot.failSafe.denyNewEntries).toBe(true);
     expect(snapshot.reasons).toContain("db_unreachable");
   });
 
-  it("risk state contributes: kill drives fail_safe with the explicit reason", async () => {
-    const store = new RiskStateStore();
-    store.applyOverride({
-      action: "engage_kill",
-      targetState: null,
-      actor: "owner",
-      reason: "halt",
-    });
-    // The default factory reads the global singleton; engage it the same way.
-    const { riskStateStore } = await import("@/obs/riskStateStore");
-    const previous = riskStateStore.state;
-    try {
-      // Swap state via the singleton itself (test-scoped).
-      riskStateStore.applyOverride({
-        action: "engage_kill",
-        targetState: null,
-        actor: "owner",
-        reason: "halt",
-      });
-      const snapshot = await currentHealthSnapshot();
-      expect(snapshot.state).toBe("fail_safe");
-      expect(snapshot.reasons).toContain("risk_kill_engaged");
-      expect(snapshot.failSafe.denyNewEntries).toBe(true);
-    } finally {
-      // Restore: release_kill lands in red, then force back to the previous.
-      riskStateStore.applyOverride({
-        action: "release_kill",
-        targetState: null,
-        actor: "owner",
-        reason: "test restore",
-      });
-      riskStateStore.applyOverride({
-        action: "force_state",
-        targetState: previous === "kill" ? "red" : previous,
-        actor: "owner",
-        reason: "test restore",
-      });
-      auditService.resetForTest();
-    }
-  });
-});
+  it("proves green -> kill -> reopen -> kill -> release -> red from a file-backed database", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "fdb-health-r011-"));
+    roots.push(root);
+    const databasePath = path.join(root, "fdbtrade.sqlite3");
+    let database = openMigratedDatabase(databasePath);
+    const market = new MarketDataAuthority(database, path.join(root, "artifacts", "market-data"));
+    let authority = new RiskPaperAuthority(database, market);
+    authority.registerBaseline("2026-09-23T00:00:00.000Z");
+    const baseTime = Date.now();
+    const checks = async () => allGreenChecks(new Date(baseTime).toISOString());
 
-describe("RiskStateStore", () => {
-  let store: RiskStateStore;
+    expect((await currentHealthSnapshot(checks, () => durableRiskState(database))).state).toBe("healthy");
+    authority.engageKill("owner", "durable incident halt", new Date(baseTime + 1).toISOString());
+    expect((await currentHealthSnapshot(checks, () => durableRiskState(database))).state).toBe("fail_safe");
 
-  beforeEach(() => {
-    store = new RiskStateStore();
-    auditService.resetForTest();
-  });
+    database.close();
+    database = openDatabase({ databasePath, mustExist: true });
+    const reopenedMarket = new MarketDataAuthority(database, path.join(root, "artifacts", "market-data"));
+    authority = new RiskPaperAuthority(database, reopenedMarket);
+    expect(durableRiskState(database)).toBe("kill");
+    expect((await currentHealthSnapshot(checks, () => durableRiskState(database))).state).toBe("fail_safe");
 
-  it("starts green; human engage_kill latches kill and is audited", () => {
-    expect(store.state).toBe("green");
-    const result = store.applyOverride({
-      action: "engage_kill",
-      targetState: null,
-      actor: "owner",
-      reason: "manual halt for incident",
-    });
-    expect(result.from).toBe("green");
-    expect(result.to).toBe("kill");
-    expect(store.state).toBe("kill");
-    const events = auditService.events();
-    expect(events).toHaveLength(1);
-    expect(events[0].subjectType).toBe("risk_override");
-    expect(events[0].before).toEqual({ state: "green" });
-    expect(events[0].after).toEqual({ state: "kill" });
-  });
-
-  it("kill is sticky — no auto-reset path exists (overrides only)", () => {
-    store.applyOverride({
-      action: "engage_kill",
-      targetState: null,
-      actor: "owner",
-      reason: "manual halt",
-    });
-    expect(store.state).toBe("kill");
-  });
-
-  it("release_kill lands in red (conservative)", () => {
-    store.applyOverride({
-      action: "engage_kill",
-      targetState: null,
-      actor: "owner",
-      reason: "halt",
-    });
-    const result = store.applyOverride({
-      action: "release_kill",
-      targetState: null,
-      actor: "owner",
-      reason: "incident reviewed",
-    });
-    expect(result.to).toBe("red");
-    expect(store.state).toBe("red");
-  });
-
-  it("invalid overrides change nothing (fail closed)", () => {
-    expect(() =>
-      store.applyOverride({
-        action: "release_kill",
-        targetState: null,
-        actor: "owner",
-        reason: "nothing to release",
-      }),
-    ).toThrow();
-    expect(store.state).toBe("green");
-    expect(auditService.events()).toHaveLength(0);
+    authority.releaseKill("owner", "incident reviewed", new Date(baseTime + 2).toISOString());
+    expect(durableRiskState(database)).toBe("red");
+    expect((await currentHealthSnapshot(checks, () => durableRiskState(database))).state).toBe("fail_safe");
+    database.close();
   });
 });
 
@@ -192,21 +147,16 @@ describe("GET /api/admin/health", () => {
     expect(response.status).toBe(200);
     const body = (await response.json()) as {
       ok: boolean;
-      data: {
-        state: string;
-        failSafe: { denyNewEntries: boolean; description: string };
-        checks: unknown[];
-        reasons: string[];
-      };
+      data: { state: string; failSafe: { denyNewEntries: boolean; description: string }; checks: unknown[]; reasons: string[] };
     };
     expect(body.ok).toBe(true);
-    expect(["healthy", "degraded", "fail_safe"]).toContain(body.data.state);
+    expect(["degraded", "fail_safe"]).toContain(body.data.state);
     expect(typeof body.data.failSafe.description).toBe("string");
     expect(Array.isArray(body.data.checks)).toBe(true);
     expect(Array.isArray(body.data.reasons)).toBe(true);
   });
 
-  it("missing session -> 401 (fail closed)", async () => {
+  it("missing session -> 401", async () => {
     const response = await getHealth(new Request("http://localhost:3100/api/admin/health"));
     expect(response.status).toBe(401);
   });
@@ -216,4 +166,3 @@ describe("GET /api/admin/health", () => {
     expect(response.status).toBe(405);
   });
 });
-

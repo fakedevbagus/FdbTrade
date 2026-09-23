@@ -22,10 +22,12 @@ import { utcNowIso } from "@/clock";
 import { checkDatabaseHealth, getDatabase } from "@/db/client";
 import { obsService } from "@/obs/service";
 import type { RiskState } from "@fdbtrade/contracts";
+import type { DatabaseSync } from "node:sqlite";
 
-function durableRiskState(): RiskState | null {
+export function durableRiskState(database?: DatabaseSync): RiskState | null {
   try {
-    const row = getDatabase().prepare(`
+    const authority = database ?? getDatabase();
+    const row = authority.prepare(`
       SELECT state FROM risk_state_events ORDER BY sequence_no DESC LIMIT 1
     `).get() as { state?: unknown } | undefined;
     const state = row?.state;
@@ -120,8 +122,9 @@ export const defaultCheckFactory: CheckFactory = async () => {
     metrics: {},
   });
 
-  // Risk: the latched P13 risk-state store is live in-process by
-  // construction; the STATE contribution comes from the snapshot input.
+  // Risk: the R0.9 SQLite event stream is the only state authority. A missing
+  // or unreadable durable row fails closed instead of falling back to process
+  // memory.
   checks.push({
     component: "risk",
     status: riskState === null ? "down" : "ok",
@@ -136,9 +139,10 @@ export const defaultCheckFactory: CheckFactory = async () => {
 /** Compute the current health snapshot (default runtime checks). */
 export async function currentHealthSnapshot(
   factory: CheckFactory = defaultCheckFactory,
+  riskStateReader: () => RiskState | null = durableRiskState,
 ): Promise<HealthSnapshot> {
   const checks = await factory();
-  const riskState = durableRiskState() ?? "kill";
+  const riskState = riskStateReader() ?? "kill";
   return computeHealthSnapshot({
     asOfUtc: utcNowIso(),
     riskState,
