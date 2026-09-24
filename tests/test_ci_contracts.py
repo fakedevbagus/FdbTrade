@@ -87,6 +87,7 @@ KNOWN_ADRS = {
     46: "r1-roadmap-and-promptpack-governance",
     47: "authoritative-signal-workbench-projection",
     48: "authoritative-research-api",
+    49: "projection-only-research-workbench",
 }
 
 

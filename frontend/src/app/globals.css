@@ -444,6 +444,12 @@ a:focus-visible {
   font-weight: 600;
 }
 
+.fdb-mono-wrap {
+  font-family: var(--fdb-font-mono);
+  overflow-wrap: anywhere;
+  white-space: normal !important;
+}
+
 .fdb-badge {
   display: inline-block;
   border-radius: 999px;

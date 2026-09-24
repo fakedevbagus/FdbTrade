@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "workUnit": "R1.3",
+  "status": "complete",
+  "recordedOn": "2026-09-24",
+  "repository": {
+    "branch": "rebuild/r0-preserve-current-state",
+    "baselineCommit": "afc0842bf84df6e4960361dc78ef020445f45854"
+  },
+  "authority": {
+    "uiAuthority": "projection-only",
+    "metadataAuthority": "SQLite via R1.2",
+    "artifactAuthority": "R0.8 immutable SHA-256-addressed JSON via R1.2",
+    "creationEndpoint": "POST /api/research/runs",
+    "listEndpoint": "GET /api/research/runs",
+    "detailEndpoint": "GET /api/research/runs/{id}",
+    "configId": "baseline-historical-evaluation",
+    "configVersion": "1.0.0",
+    "signalRuleId": "authoritative-momentum-baseline",
+    "migrationCount": 9,
+    "legacyBacktestApiAuthoritative": false
+  },
+  "behavior": {
+    "strictFrontendSchemas": "pass",
+    "eligibleR06DatasetSelection": "pass",
+    "exactPostPayload": "pass",
+    "sameOriginForwarding": "pass",
+    "successBlockedFailedEmptyProjection": "pass",
+    "duplicateReplay": "pass",
+    "staleSession": "pass",
+    "backendUnavailable": "pass",
+    "backendContractPreserved": "pass"
+  },
+  "backendSourceSha256": {
+    "backend/src/app/api/research/runs/route.ts": "09f3db2256fcb351baea09b1c3a4a196049167ea51de51a19e0040540145bc6d",
+    "backend/src/app/api/research/runs/[runId]/route.ts": "f3a7a5e053f6de9cf8dc894adb4e6c92131317ba03d7e102af791fa1b29dde76",
+    "backend/src/research/researchAuthority.ts": "5bb134752f36a3bc8c97ec3e55e0012e601be80654958319eb1ca29bbb3058b7",
+    "backend/src/app/api/backtest/runs/route.ts": "af8d52bfb271609856628fef56bdc93c6bf738d89078748489d0a7f3e4d90022"
+  },
+  "interpretation": {
+    "historicalOnly": true,
+    "signalConfidenceCalibrated": false,
+    "signalConfidenceValue": null,
+    "modelPromotionEligible": false,
+    "operationalOutcomeAuthority": false
+  },
+  "finalGate": {
+    "command": "make toolchain-gate",
+    "reportPath": "artifacts/toolchain/gate.json",
+    "status": "pass",
+    "summary": {
+      "total": 15,
+      "pass": 15,
+      "fail": 0,
+      "timeout": 0,
+      "environmentBlocked": 0,
+      "skipped": 0,
+      "planned": 0
+    },
+    "firstActionableFailure": null
+  },
+  "preservation": {
+    "m48FileCount": 10,
+    "m48Bytes": 55941,
+    "m48AggregateManifestDigest": "f7dc5aacade5078cf934be760651c2e59d9e340c7a096a25629006d8f8555fe6",
+    "m48HashVerification": "pass",
+    "m48RuntimeAuthority": false
+  },
+  "safety": {
+    "liveExecutionEnabled": false,
+    "demoExecutionEnabled": false,
+    "providerOrderTransportEnabled": false,
+    "externalProviderNetworkCallsEnabled": false,
+    "credentialedProviderSelected": false,
+    "schedulerAuthorityAdded": false,
+    "riskPaperAuthorityInvoked": false,
+    "legacyBacktestRewired": false,
+    "parameterOptimizationAdded": false,
+    "editableStrategyAdded": false,
+    "signalConfidenceCalibrated": false,
+    "modelPromotionAuthorityAdded": false,
+    "m48RuntimeAuthority": false
+  },
+  "nextWorkUnit": "R1.4 — Temporal Validation Authority (not authorized)"
+}

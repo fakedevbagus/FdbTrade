@@ -28,6 +28,12 @@ const AREAS: readonly Area[] = [
       "Verified R0.6 dataset metadata and immutable artifact provenance.",
     href: "/research/datasets",
   },
+  {
+    title: "Research workbench",
+    description:
+      "Run and inspect the frozen historical baseline with explicit metrics, costs, and immutable lineage.",
+    href: "/research/workbench",
+  },
 ];
 
 export default function HomePage(): JSX.Element {
