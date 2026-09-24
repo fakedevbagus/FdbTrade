@@ -110,3 +110,4 @@ not used.
 | [ADR-0047](ADR-0047-authoritative-signal-workbench-projection.md) | Authoritative signal workbench projection | Accepted |
 | [ADR-0048](ADR-0048-authoritative-research-api.md) | Authoritative research API | Accepted |
 | [ADR-0049](ADR-0049-projection-only-research-workbench.md) | Projection-only research workbench | Accepted |
+| [ADR-0050](ADR-0050-temporal-validation-authority.md) | Temporal validation authority | Accepted |

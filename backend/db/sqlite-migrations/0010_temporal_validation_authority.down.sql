@@ -1,0 +1,12 @@
+DROP TRIGGER IF EXISTS temporal_validation_results_no_delete;
+DROP TRIGGER IF EXISTS temporal_validation_results_no_update;
+DROP TRIGGER IF EXISTS temporal_validation_artifacts_no_delete;
+DROP TRIGGER IF EXISTS temporal_validation_artifacts_no_update;
+DROP TRIGGER IF EXISTS temporal_validation_runs_no_delete;
+DROP TRIGGER IF EXISTS temporal_validation_runs_terminal_immutable;
+DROP TRIGGER IF EXISTS temporal_validation_configs_no_delete;
+DROP TRIGGER IF EXISTS temporal_validation_configs_no_update;
+DROP TABLE IF EXISTS temporal_validation_results;
+DROP TABLE IF EXISTS temporal_validation_artifacts;
+DROP TABLE IF EXISTS temporal_validation_runs;
+DROP TABLE IF EXISTS temporal_validation_configs;

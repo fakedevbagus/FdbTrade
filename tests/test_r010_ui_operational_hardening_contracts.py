@@ -154,7 +154,10 @@ class R010BackupRestoreBehavior(unittest.TestCase):
                 manifest["integrityClaim"],
                 "sha256-integrity-evidence-not-cryptographic-authenticity",
             )
-            self.assertEqual(manifest["database"]["migrations"][-1]["id"], "0009_operational_hardening")
+            self.assertEqual(
+                manifest["database"]["migrations"][-1]["id"],
+                "0010_temporal_validation_authority",
+            )
             self.assertFalse(manifest["safety"]["liveExecutionEnabled"])
             self.assertFalse(manifest["safety"]["providerOrderTransportEnabled"])
             self.assertEqual(manifest["artifacts"][0]["digest"], digest)

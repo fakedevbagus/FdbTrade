@@ -313,7 +313,7 @@ class R011ManifestAndFilesystemBoundaries(unittest.TestCase):
         database_file = self.backup_dir / "fdbtrade.sqlite3"
         with sqlite3.connect(database_file) as database:
             database.execute(
-                "DELETE FROM schema_migrations WHERE id = '0009_operational_hardening'"
+                "DELETE FROM schema_migrations WHERE id = '0010_temporal_validation_authority'"
             )
             database.commit()
         manifest["database"]["sha256"] = hashlib.sha256(database_file.read_bytes()).hexdigest()

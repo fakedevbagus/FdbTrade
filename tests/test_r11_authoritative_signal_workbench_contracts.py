@@ -111,7 +111,7 @@ class R11AuthoritativeSignalWorkbenchContracts(unittest.TestCase):
         ):
             self.assertIn(marker, frontend)
 
-    def test_migration_count_and_order_remain_nine(self):
+    def test_migration_history_extends_in_order(self):
         migrations = []
         for path in sorted(MIGRATIONS.glob("*.sql")):
             match = re.fullmatch(r"(\d{4})_([a-z0-9_]+)\.sql", path.name)
@@ -127,6 +127,7 @@ class R11AuthoritativeSignalWorkbenchContracts(unittest.TestCase):
             "0007_research_backtest_authority",
             "0008_risk_paper_outcomes_authority",
             "0009_operational_hardening",
+            "0010_temporal_validation_authority",
         ])
 
     def test_m48_preservation_and_safety_remain_locked(self):

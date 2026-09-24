@@ -71,6 +71,10 @@ export function evaluateWalkforward(
   },
   request: WalkforwardRequest,
   makeSubject: () => BacktestSubject,
+  datasetForFold?: (
+    testCandles: readonly Candle[],
+    foldIndex: number,
+  ) => { datasetId: string; digest: string },
 ): WalkforwardSummary {
   if (candles.length !== request.barCount) {
     throw new WalkforwardRunnerError(
@@ -99,6 +103,7 @@ export function evaluateWalkforward(
         seed: `${baseConfig.seed}:fold${fold.foldIndex}`,
       },
       makeSubject(),
+      datasetForFold?.(testCandles, fold.foldIndex),
     );
     const metrics = computeBacktestMetrics(result);
     return {

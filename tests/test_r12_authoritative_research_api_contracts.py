@@ -96,7 +96,7 @@ class R12AuthoritativeResearchApiContracts(unittest.TestCase):
         self.assertNotIn("researchBacktestAuthority", legacy)
         self.assertNotIn("research_backtest_runs", legacy)
 
-    def test_migration_count_and_order_remain_nine(self):
+    def test_migration_history_extends_in_order(self):
         migrations = []
         for path in sorted(MIGRATIONS.glob("*.sql")):
             match = re.fullmatch(r"(\d{4})_([a-z0-9_]+)\.sql", path.name)
@@ -112,6 +112,7 @@ class R12AuthoritativeResearchApiContracts(unittest.TestCase):
             "0007_research_backtest_authority",
             "0008_risk_paper_outcomes_authority",
             "0009_operational_hardening",
+            "0010_temporal_validation_authority",
         ])
 
     def test_m48_preservation_and_safety_remain_locked(self):
@@ -140,15 +141,15 @@ class R12AuthoritativeResearchApiContracts(unittest.TestCase):
         self.assertEqual(authority["preservation"]["m48HashVerification"], "pass")
         self.assertTrue(all(value is False for value in authority["safety"].values()))
 
-    def test_r12_handoff_was_consumed_only_by_the_authorized_r13_unit(self):
+    def test_r12_handoff_progressed_only_through_authorized_units(self):
         authority = json.loads(AUTHORITY.read_text(encoding="utf-8"))
         self.assertIn("R1.3", authority["nextWorkUnit"])
         text = NEXT.read_text(encoding="utf-8")
-        self.assertIn("Current completed unit: **R1.3", text)
-        self.assertIn("Next planned unit: **R1.4", text)
+        self.assertIn("Current completed unit: **R1.4", text)
+        self.assertIn("Next planned unit: **R1.5", text)
         self.assertIn("Authorization state: **not authorized**", text)
-        self.assertIn("Otorisasi implementasi HANYA R1.4", text)
-        self.assertIn("Do not infer R1.5", text)
+        self.assertIn("Otorisasi implementasi HANYA R1.5", text)
+        self.assertIn("Do not infer R1.6", text)
 
 
 if __name__ == "__main__":

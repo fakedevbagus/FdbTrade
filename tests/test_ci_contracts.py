@@ -88,6 +88,7 @@ KNOWN_ADRS = {
     47: "authoritative-signal-workbench-projection",
     48: "authoritative-research-api",
     49: "projection-only-research-workbench",
+    50: "temporal-validation-authority",
 }
 
 
