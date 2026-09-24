@@ -106,3 +106,5 @@ not used.
 | [ADR-0043](ADR-0043-ui-and-operational-hardening.md) | UI and operational hardening | Accepted |
 | [ADR-0044](ADR-0044-crash-consistent-local-recovery.md) | Crash-consistent local recovery | Accepted |
 | [ADR-0045](ADR-0045-operator-triggered-authoritative-signal-evaluation.md) | Operator-triggered authoritative signal evaluation | Accepted |
+| [ADR-0046](ADR-0046-r1-roadmap-and-promptpack-governance.md) | R1 roadmap and prompt-pack governance | Accepted |
+| [ADR-0047](ADR-0047-authoritative-signal-workbench-projection.md) | Authoritative signal workbench projection | Accepted |

@@ -15,6 +15,7 @@ import {
   SIGNAL_RULE_LOGIC_VERSION,
   SignalIntelligenceAuthority,
 } from "@/signals/signalAuthority";
+import { SignalWorkbenchProjection } from "@/signals/signalWorkbench";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,10 @@ const evaluationRequestSchema = z
 
 export const POST = withApi(async (request, { requestId }) => {
   await requireSession(request);
+  const url = new URL(request.url);
+  if ([...url.searchParams.keys()].length > 0) {
+    throw ApiError.validation("Signal evaluation submission accepts no query parameters.");
+  }
   const body = await parseJsonBody(request, evaluationRequestSchema);
   const database = getDatabase();
 
@@ -76,11 +81,41 @@ export const POST = withApi(async (request, { requestId }) => {
   );
 });
 
-const denied = withApi(async () => {
-  throw ApiError.methodNotAllowed(["POST"]);
+export const GET = withApi(async (request, { requestId }) => {
+  await requireSession(request);
+  const url = new URL(request.url);
+  if ([...url.searchParams.keys()].length > 0) {
+    throw ApiError.validation("Signal evaluation list accepts no query parameters.");
+  }
+  const database = getDatabase();
+  const projection = new SignalWorkbenchProjection(
+    database,
+    marketDataAuthority(database),
+  );
+  return jsonOk(
+    {
+      schemaVersion: 1,
+      authority: "sqlite",
+      datasets: projection.listDatasets(),
+      evaluations: projection.listRuns(),
+      ordering: "assessedAtUtc desc, createdAtUtc desc, runId desc",
+      safety: {
+        uiAuthority: false,
+        legacyScannerAuthoritative: false,
+        researchAuthorityInvoked: false,
+        riskPaperAuthorityInvoked: false,
+        liveExecutionEnabled: false,
+        providerOrderTransportEnabled: false,
+      },
+    },
+    { requestId },
+  );
 });
 
-export const GET = denied;
+const denied = withApi(async () => {
+  throw ApiError.methodNotAllowed(["GET", "POST"]);
+});
+
 export const PUT = denied;
 export const PATCH = denied;
 export const DELETE = denied;

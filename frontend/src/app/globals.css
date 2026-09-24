@@ -402,6 +402,26 @@ a:focus-visible {
   filter: brightness(1.1);
 }
 
+.fdb-button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.fdb-workbench-form {
+  display: grid;
+  gap: var(--fdb-space-2);
+}
+
+.fdb-workbench-form select {
+  font: inherit;
+  max-width: 42rem;
+  padding: var(--fdb-space-2);
+  border: 1px solid var(--fdb-border);
+  border-radius: 0.5rem;
+  background: var(--fdb-surface-strong);
+  color: var(--fdb-fg);
+}
+
 /* Command-center surfaces (P07-01) ---------------------------------------- */
 
 .fdb-table {

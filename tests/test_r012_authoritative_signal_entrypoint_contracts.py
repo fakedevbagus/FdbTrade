@@ -48,16 +48,16 @@ class AuthoritativeSignalEntrypointContracts(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, text)
 
-    def test_boundary_is_authenticated_strict_and_post_only(self):
+    def test_creation_boundary_remains_authenticated_strict_and_post_only(self):
         text = ROUTE.read_text(encoding="utf-8")
         for marker in (
             "await requireSession(request)",
             ".strict()",
             "datasetId:",
             "assessedAtUtc:",
-            'ApiError.methodNotAllowed(["POST"])',
+            'ApiError.methodNotAllowed(["GET", "POST"])',
             "export const POST",
-            "export const GET = denied",
+            "export const GET = withApi",
         ):
             self.assertIn(marker, text)
         for forbidden_request_field in (

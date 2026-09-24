@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "workUnit": "R1.1",
+  "status": "complete",
+  "recordedOn": "2026-09-24",
+  "repository": {
+    "branch": "rebuild/r0-preserve-current-state",
+    "baselineCommit": "11c60979252aa4b966265cfb2e0a236fc82686b2"
+  },
+  "authority": {
+    "metadataEngine": "SQLite via Node 24 node:sqlite",
+    "migration": "0009_operational_hardening",
+    "migrationCount": 9,
+    "creationEndpoint": "POST /api/signals/evaluations",
+    "listEndpoint": "GET /api/signals/evaluations",
+    "detailEndpoint": "GET /api/signals/evaluations/{runId}",
+    "workbenchRoute": "/signals/workbench",
+    "signalRuleId": "authoritative-momentum-baseline",
+    "signalRuleLogicVersion": "1.0.0",
+    "signalRuleConfigVersion": "1.0.0",
+    "listLimit": 100,
+    "listOrdering": "assessedAtUtc desc, createdAtUtc desc, runId desc"
+  },
+  "scope": {
+    "instruments": ["EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD"],
+    "timeframes": ["15m", "1h", "4h"],
+    "source": "existing registered R0.6 datasets only",
+    "authentication": "private local session required",
+    "credentialedProviderSelected": false
+  },
+  "behavior": {
+    "authenticatedStrictReadProjection": "pass",
+    "registeredDatasetSelection": "pass",
+    "existingR012PostSubmission": "pass",
+    "candidateWaitBlockedFailedProjection": "pass",
+    "datasetRuleTimestampLineage": "pass",
+    "deterministicListDetailOrdering": "pass",
+    "truthfulEmptyAndErrorStates": "pass",
+    "duplicateReplay": "pass",
+    "fileBackedReopen": "pass",
+    "terminalEvidenceIntegrityVerification": "pass",
+    "crossAuthorityNonMutation": "pass"
+  },
+  "interpretation": {
+    "sqliteMetadataAuthority": true,
+    "uiProjectionOnly": true,
+    "legacyScannerAuthoritative": false,
+    "researchAuthorityInvoked": false,
+    "riskPaperAuthorityInvoked": false,
+    "liveEvidence": false,
+    "signalConfidenceCalibrated": false,
+    "modelPromotionEligible": false,
+    "sha256CryptographicAuthenticityClaimed": false
+  },
+  "finalGate": {
+    "command": "make toolchain-gate",
+    "reportPath": "artifacts/toolchain/gate.json",
+    "status": "pass",
+    "summary": {
+      "total": 15,
+      "pass": 15,
+      "fail": 0,
+      "timeout": 0,
+      "environmentBlocked": 0,
+      "skipped": 0,
+      "planned": 0
+    },
+    "firstActionableFailure": null
+  },
+  "preservation": {
+    "m48FileCount": 10,
+    "m48Bytes": 55941,
+    "m48AggregateManifestDigest": "f7dc5aacade5078cf934be760651c2e59d9e340c7a096a25629006d8f8555fe6",
+    "m48HashVerification": "pass",
+    "m48RuntimeAuthority": false
+  },
+  "safety": {
+    "liveExecutionEnabled": false,
+    "demoExecutionEnabled": false,
+    "providerOrderTransportEnabled": false,
+    "externalProviderNetworkCallsEnabled": false,
+    "schedulerAuthorityAdded": false,
+    "researchAuthorityInvoked": false,
+    "riskPaperAuthorityInvoked": false,
+    "modelPromotionAuthorityAdded": false,
+    "m48RuntimeAuthority": false
+  },
+  "nextWorkUnit": "R1.2 — Authoritative Research API (not authorized)"
+}

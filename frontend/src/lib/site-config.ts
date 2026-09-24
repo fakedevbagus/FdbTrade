@@ -41,6 +41,7 @@ const rawSiteConfig = {
   nav: [
     { label: "Overview", href: "/" },
     { label: "Operations", href: "/operations" },
+    { label: "Signal workbench", href: "/signals/workbench" },
     { label: "Historical datasets", href: "/research/datasets" },
     { label: "Risk controls", href: "/admin/controls" },
     { label: "Health", href: "/admin/health" },

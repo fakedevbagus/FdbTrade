@@ -52,6 +52,10 @@ import {
   GET as getEvaluation,
   POST as postEvaluation,
 } from "@/app/api/signals/evaluations/route";
+import {
+  GET as getEvaluationDetail,
+  POST as postEvaluationDetail,
+} from "@/app/api/signals/evaluations/[runId]/route";
 import { buildDatasetManifest } from "@/data/manifest";
 import { MarketDataAuthority, type StoredDataset } from "@/data/marketAuthority";
 import { openDatabase, openMigratedDatabase } from "@/db/sqlite.mjs";
@@ -327,6 +331,21 @@ describe("POST /api/signals/evaluations", () => {
       assessedAtUtc: dataset.latestBarCloseUtc,
     }, false));
     expect(unauthenticated.status).toBe(401);
+    const extendedQuery = await postEvaluation(new Request(
+      "http://localhost:3100/api/signals/evaluations?legacy=true",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: `fdb_session=${SESSION_TOKEN}`,
+        },
+        body: JSON.stringify({
+          datasetId: dataset.manifest.datasetId,
+          assessedAtUtc: dataset.latestBarCloseUtc,
+        }),
+      },
+    ));
+    expect(extendedQuery.status).toBe(400);
     expect(count("signal_rule_registry")).toBe(0);
     expect(count("signal_evaluation_runs")).toBe(0);
     expect(count("signal_candidates")).toBe(0);
@@ -334,10 +353,215 @@ describe("POST /api/signals/evaluations", () => {
   });
 
   it("denies read and other mutation methods", async () => {
-    const response = await getEvaluation(
-      new Request("http://localhost:3100/api/signals/evaluations"),
+    const response = await postEvaluationDetail(
+      new Request("http://localhost:3100/api/signals/evaluations/sir_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {
+        method: "POST",
+        headers: { cookie: `fdb_session=${SESSION_TOKEN}` },
+      }),
     );
     expect(response.status).toBe(405);
-    expect(response.headers.get("allow")).toBe("POST");
+    expect(response.headers.get("allow")).toBe("GET");
+  });
+});
+
+describe("R1.1 signal workbench read projection", () => {
+  it("returns an authenticated empty projection and rejects query extensions", async () => {
+    const empty = await getEvaluation(
+      new Request("http://localhost:3100/api/signals/evaluations", {
+        headers: { cookie: `fdb_session=${SESSION_TOKEN}` },
+      }),
+    );
+    expect(empty.status).toBe(200);
+    expect(await empty.json()).toMatchObject({
+      data: {
+        authority: "sqlite",
+        datasets: [],
+        evaluations: { total: 0, limit: 100, runs: [] },
+        safety: {
+          uiAuthority: false,
+          legacyScannerAuthoritative: false,
+          researchAuthorityInvoked: false,
+          riskPaperAuthorityInvoked: false,
+          liveExecutionEnabled: false,
+          providerOrderTransportEnabled: false,
+        },
+      },
+    });
+
+    const extended = await getEvaluation(
+      new Request("http://localhost:3100/api/signals/evaluations?sort=oldest", {
+        headers: { cookie: `fdb_session=${SESSION_TOKEN}` },
+      }),
+    );
+    expect(extended.status).toBe(400);
+    const unauthenticated = await getEvaluation(
+      new Request("http://localhost:3100/api/signals/evaluations"),
+    );
+    expect(unauthenticated.status).toBe(401);
+  });
+
+  it("orders list rows newest-first and reopens full candidate lineage from SQLite", async () => {
+    const older = publish({ instrument: "AUDUSD", count: 80 });
+    const newer = publish({ instrument: "NZDUSD", count: 90 });
+    const olderResponse = await postEvaluation(request({
+      datasetId: older.manifest.datasetId,
+      assessedAtUtc: older.latestBarCloseUtc,
+    }));
+    const newerResponse = await postEvaluation(request({
+      datasetId: newer.manifest.datasetId,
+      assessedAtUtc: newer.latestBarCloseUtc,
+    }));
+    const olderBody = (await olderResponse.json()) as { data: { result: { runId: string } } };
+    const newerBody = (await newerResponse.json()) as { data: { result: { runId: string } } };
+
+    runtime.database?.close();
+    runtime.database = openDatabase({ databasePath, mustExist: true });
+    const list = await getEvaluation(
+      new Request("http://localhost:3100/api/signals/evaluations", {
+        headers: { cookie: `fdb_session=${SESSION_TOKEN}` },
+      }),
+    );
+    expect(list.status).toBe(200);
+    const listBody = (await list.json()) as {
+      data: {
+        datasets: { datasetId: string }[];
+        evaluations: { total: number; runs: { runId: string; outcome: string }[] };
+      };
+    };
+    expect(listBody.data.datasets.map((entry) => entry.datasetId)).toEqual([
+      older.manifest.datasetId,
+      newer.manifest.datasetId,
+    ]);
+    expect(listBody.data.evaluations.total).toBe(2);
+    expect(listBody.data.evaluations.runs.map((run) => run.runId)).toEqual([
+      newerBody.data.result.runId,
+      olderBody.data.result.runId,
+    ]);
+    expect(listBody.data.evaluations.runs.map((run) => run.outcome)).toEqual([
+      "candidate",
+      "candidate",
+    ]);
+
+    const detail = await getEvaluationDetail(
+      new Request(
+        `http://localhost:3100/api/signals/evaluations/${newerBody.data.result.runId}`,
+        { headers: { cookie: `fdb_session=${SESSION_TOKEN}` } },
+      ),
+      { params: Promise.resolve({ runId: newerBody.data.result.runId }) },
+    );
+    expect(detail.status).toBe(200);
+    expect(await detail.json()).toMatchObject({
+      data: {
+        authority: "sqlite",
+        run: {
+          runId: newerBody.data.result.runId,
+          outcome: "candidate",
+          dataset: {
+            datasetId: newer.manifest.datasetId,
+            artifactDigest: newer.manifest.checksum.digest,
+            instrument: "NZDUSD",
+            timeframe: "1h",
+          },
+          rule: {
+            ruleId: "authoritative-momentum-baseline",
+            logicVersion: "1.0.0",
+            configVersion: "1.0.0",
+          },
+          evidence: { reasons: expect.any(Array) },
+          candidate: {
+            lifecycleState: "identified",
+            lifecycle: [{ state: "identified" }],
+          },
+        },
+      },
+    });
+    for (const table of [
+      "research_backtest_runs",
+      "risk_paper_runs",
+      "paper_orders",
+      "paper_outcomes",
+      "operational_events",
+    ]) {
+      expect(count(table)).toBe(0);
+    }
+  });
+
+  it("projects wait, blocked and failed states without inventing candidates", async () => {
+    const short = publish({ instrument: "AUDUSD", count: 30 });
+    const gapped = publish({ instrument: "GBPUSD", gaps: 1 });
+    const damaged = publish({ instrument: "USDCAD", count: 70 });
+    await postEvaluation(request({
+      datasetId: short.manifest.datasetId,
+      assessedAtUtc: short.latestBarCloseUtc,
+    }));
+    await postEvaluation(request({
+      datasetId: gapped.manifest.datasetId,
+      assessedAtUtc: gapped.latestBarCloseUtc,
+    }));
+    const artifact = path.join(
+      runtime.artifactRoot,
+      "sha256",
+      damaged.manifest.checksum.digest.slice(0, 2),
+      `${damaged.manifest.checksum.digest}.candles`,
+    );
+    rmSync(artifact);
+    const failed = await postEvaluation(request({
+      datasetId: damaged.manifest.datasetId,
+      assessedAtUtc: damaged.latestBarCloseUtc,
+    }));
+    const failedBody = (await failed.json()) as {
+      data: { result: { runId: string; status: string; outcome: null } };
+    };
+    expect(failedBody.data.result).toMatchObject({ status: "failed", outcome: null });
+
+    const detail = await getEvaluationDetail(
+      new Request(
+        `http://localhost:3100/api/signals/evaluations/${failedBody.data.result.runId}`,
+        { headers: { cookie: `fdb_session=${SESSION_TOKEN}` } },
+      ),
+      { params: Promise.resolve({ runId: failedBody.data.result.runId }) },
+    );
+    expect(detail.status).toBe(200);
+    expect(await detail.json()).toMatchObject({
+      data: {
+        run: {
+          status: "failed",
+          outcome: "failed",
+          evidence: null,
+          candidate: null,
+          failureReason: expect.any(String),
+        },
+      },
+    });
+  });
+
+  it("rejects malformed, unknown, extended and unauthenticated detail reads", async () => {
+    const malformed = await getEvaluationDetail(
+      new Request("http://localhost:3100/api/signals/evaluations/not-a-run", {
+        headers: { cookie: `fdb_session=${SESSION_TOKEN}` },
+      }),
+      { params: Promise.resolve({ runId: "not-a-run" }) },
+    );
+    expect(malformed.status).toBe(404);
+    const unknownId = `sir_${"a".repeat(32)}`;
+    const unknown = await getEvaluationDetail(
+      new Request(`http://localhost:3100/api/signals/evaluations/${unknownId}`, {
+        headers: { cookie: `fdb_session=${SESSION_TOKEN}` },
+      }),
+      { params: Promise.resolve({ runId: unknownId }) },
+    );
+    expect(unknown.status).toBe(404);
+    const extended = await getEvaluationDetail(
+      new Request(`http://localhost:3100/api/signals/evaluations/${unknownId}?raw=true`, {
+        headers: { cookie: `fdb_session=${SESSION_TOKEN}` },
+      }),
+      { params: Promise.resolve({ runId: unknownId }) },
+    );
+    expect(extended.status).toBe(400);
+    const unauthenticated = await getEvaluationDetail(
+      new Request(`http://localhost:3100/api/signals/evaluations/${unknownId}`),
+      { params: Promise.resolve({ runId: unknownId }) },
+    );
+    expect(unauthenticated.status).toBe(401);
   });
 });

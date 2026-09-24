@@ -73,13 +73,15 @@ class R10BlueprintPromptPackContracts(unittest.TestCase):
         self.assertFalse(authority["safety"]["macroProviderSelected"])
         self.assertFalse(authority["safety"]["externalProviderNetworkCallsEnabled"])
 
-    def test_next_names_only_r11_and_requires_separate_authorization(self):
+    def test_next_names_one_unit_and_requires_separate_authorization(self):
         text = NEXT.read_text(encoding="utf-8")
-        self.assertIn("Current completed unit: **R1.0", text)
-        self.assertIn("Next planned unit: **R1.1", text)
+        match = re.search(r"Next planned unit: \*\*(R1\.(\d+))", text)
+        self.assertIsNotNone(match)
+        unit = match.group(1)
+        following = f"R1.{int(match.group(2)) + 1}"
         self.assertIn("Authorization state: **not authorized**", text)
-        self.assertIn("Otorisasi implementasi HANYA R1.1", text)
-        self.assertIn("Do not infer R1.2", text)
+        self.assertIn(f"Otorisasi implementasi HANYA {unit}", text)
+        self.assertIn(f"Do not infer {following}", text)
 
     def test_m48_preservation_bytes_still_match(self):
         manifest = json.loads(PRESERVATION.read_text(encoding="utf-8"))
