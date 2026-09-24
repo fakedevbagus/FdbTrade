@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "workUnit": "R1.5",
+  "status": "complete",
+  "recordedOn": "2026-09-24",
+  "repository": {
+    "branch": "rebuild/r0-preserve-current-state",
+    "baselineCommit": "aaf2589f28fa2393697b94125659d523a5d19195"
+  },
+  "authority": {
+    "metadataEngine": "SQLite via Node 24 node:sqlite",
+    "artifactAuthority": "immutable SHA-256-addressed JSON below FDB_DATA_ROOT",
+    "migration": "0011_robustness_selection_bias_authority",
+    "migrationCount": 11,
+    "configId": "frozen-baseline-robustness-selection-bias",
+    "configVersion": "1.0.0",
+    "temporalConfigId": "frozen-baseline-temporal-validation",
+    "temporalConfigVersion": "1.0.0",
+    "deterministicSeed": "r1.5-predeclared-robustness-grid",
+    "trialCount": 6,
+    "trials": [
+      "baseline",
+      "spread-mid",
+      "spread-adverse",
+      "slippage-mid",
+      "slippage-adverse",
+      "combined-adverse"
+    ],
+    "sensitivityRanges": {
+      "spreadPips": [0.6, 1.2, 2.4],
+      "slippagePips": [0.1, 0.3, 0.6]
+    },
+    "sampleRequirements": {
+      "minimumDatasetBars": 120,
+      "minimumWalkForwardFolds": 3,
+      "minimumClosedTrades": 3,
+      "minimumKnownRegimeClosedTrades": 1
+    },
+    "decisionThresholds": {
+      "minimumAdverseNetReturnRetention": 0.5,
+      "maximumWorstDrawdown": 0.25,
+      "maximumNetReturnRangeToBaseline": 1.5
+    },
+    "conclusions": [
+      "pass",
+      "insufficient-evidence",
+      "rejected"
+    ]
+  },
+  "behavior": {
+    "predeclaredCompleteTrialLedger": "pass",
+    "boundedCostSlippageStress": "pass",
+    "sensitivityRanges": "pass",
+    "minimumSampleRequirements": "pass",
+    "regimeAndTimeframeBreakdown": "pass",
+    "explicitConclusionsWithLimitations": "pass",
+    "sparseEvidence": "pass",
+    "unstableEvidence": "pass",
+    "adverseCostAndDrawdown": "pass",
+    "duplicateExperimentReplay": "pass",
+    "restartRecovery": "pass",
+    "inputArtifactTamperRejection": "pass",
+    "outputArtifactTamperRejection": "pass",
+    "immutableTerminalEvidence": "pass",
+    "migrationRollbackReapply": "pass"
+  },
+  "sourceSha256": {
+    "backend/src/research/robustnessSelectionAuthority.ts": "6b7a61778c970054515e1b1c77e55bd3f1d3de9c1a154197352b8bb88e5534d9",
+    "backend/src/research/__tests__/robustnessSelectionAuthority.test.ts": "7daacab7551247611f0356a7e9e610345cc51f4efa216ae6623251a21d61f156",
+    "backend/db/sqlite-migrations/0011_robustness_selection_bias_authority.sql": "39d1e1afb0592d25767d5201a65c47ed286d16a5b2be0ff372aee55b52eb2c67",
+    "backend/db/sqlite-migrations/0011_robustness_selection_bias_authority.down.sql": "809f91d3ce760cf5badc5bae92990ad314cdabcef43d551f7ef3da07243f19b8"
+  },
+  "preservedSourceSha256": {
+    "backend/src/research/temporalValidationAuthority.ts": "d452a594420d9b8e7e7a9dc73cad5aaeb2446a03ef552e9ecf7b0e2e3acf3821",
+    "backend/src/research/researchAuthority.ts": "5bb134752f36a3bc8c97ec3e55e0012e601be80654958319eb1ca29bbb3058b7",
+    "backend/src/signals/signalAuthority.ts": "21ef13b39bbc4649c9f7b42fc91402c3e36694ef6879e225b0c83cf8fb7d8154",
+    "backend/src/app/api/backtest/runs/route.ts": "af8d52bfb271609856628fef56bdc93c6bf738d89078748489d0a7f3e4d90022"
+  },
+  "interpretation": {
+    "historicalOnly": true,
+    "signalConfidenceCalibrated": false,
+    "signalConfidenceValue": null,
+    "modelPromotionEligible": false,
+    "operationalOutcomeAuthority": false,
+    "parameterOptimizationPerformed": false,
+    "favorableTrialSelectionAllowed": false
+  },
+  "finalGate": {
+    "command": "make toolchain-gate",
+    "reportPath": "artifacts/toolchain/gate.json",
+    "status": "pass",
+    "summary": {
+      "total": 15,
+      "pass": 15,
+      "fail": 0,
+      "timeout": 0,
+      "environmentBlocked": 0,
+      "skipped": 0,
+      "planned": 0
+    },
+    "firstActionableFailure": null
+  },
+  "preservation": {
+    "m48FileCount": 10,
+    "m48Bytes": 55941,
+    "m48AggregateManifestDigest": "f7dc5aacade5078cf934be760651c2e59d9e340c7a096a25629006d8f8555fe6",
+    "m48HashVerification": "pass",
+    "m48RuntimeAuthority": false
+  },
+  "safety": {
+    "liveExecutionEnabled": false,
+    "demoExecutionEnabled": false,
+    "providerOrderTransportEnabled": false,
+    "externalProviderNetworkCallsEnabled": false,
+    "credentialedProviderSelected": false,
+    "schedulerAuthorityAdded": false,
+    "riskPaperAuthorityInvoked": false,
+    "legacyBacktestRewired": false,
+    "parameterOptimizationAdded": false,
+    "signalRuleChanged": false,
+    "signalConfidenceCalibrated": false,
+    "modelPromotionAuthorityAdded": false,
+    "mlAuthorityAdded": false,
+    "m48RuntimeAuthority": false
+  },
+  "nextWorkUnit": "R1.6 — Paper Input Resolution (not authorized)"
+}

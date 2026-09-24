@@ -111,3 +111,4 @@ not used.
 | [ADR-0048](ADR-0048-authoritative-research-api.md) | Authoritative research API | Accepted |
 | [ADR-0049](ADR-0049-projection-only-research-workbench.md) | Projection-only research workbench | Accepted |
 | [ADR-0050](ADR-0050-temporal-validation-authority.md) | Temporal validation authority | Accepted |
+| [ADR-0051](ADR-0051-robustness-and-selection-bias-evidence.md) | Robustness and selection-bias evidence | Accepted |

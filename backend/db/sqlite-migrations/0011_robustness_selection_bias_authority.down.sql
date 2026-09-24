@@ -1,0 +1,15 @@
+DROP TRIGGER IF EXISTS robustness_experiment_results_no_delete;
+DROP TRIGGER IF EXISTS robustness_experiment_results_no_update;
+DROP TRIGGER IF EXISTS robustness_experiment_artifacts_no_delete;
+DROP TRIGGER IF EXISTS robustness_experiment_artifacts_no_update;
+DROP TRIGGER IF EXISTS robustness_experiment_trials_no_delete;
+DROP TRIGGER IF EXISTS robustness_experiment_trials_completed_immutable;
+DROP TRIGGER IF EXISTS robustness_experiment_runs_no_delete;
+DROP TRIGGER IF EXISTS robustness_experiment_runs_terminal_immutable;
+DROP TRIGGER IF EXISTS robustness_experiment_configs_no_delete;
+DROP TRIGGER IF EXISTS robustness_experiment_configs_no_update;
+DROP TABLE IF EXISTS robustness_experiment_results;
+DROP TABLE IF EXISTS robustness_experiment_artifacts;
+DROP TABLE IF EXISTS robustness_experiment_trials;
+DROP TABLE IF EXISTS robustness_experiment_runs;
+DROP TABLE IF EXISTS robustness_experiment_configs;

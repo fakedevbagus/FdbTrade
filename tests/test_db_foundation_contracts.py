@@ -59,6 +59,7 @@ class MigrationFileContract(unittest.TestCase):
                 "0008_risk_paper_outcomes_authority",
                 "0009_operational_hardening",
                 "0010_temporal_validation_authority",
+                "0011_robustness_selection_bias_authority",
             ],
         )
 
@@ -122,7 +123,7 @@ class HermeticLifecycleTest(unittest.TestCase):
             root = pathlib.Path(tmp) / "data"
             first = self._runner("migrate", root)
             self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
-            self.assertIn("applied=10", first.stdout)
+            self.assertIn("applied=11", first.stdout)
 
             second = self._runner("migrate", root)
             self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
@@ -130,11 +131,11 @@ class HermeticLifecycleTest(unittest.TestCase):
 
             rollback = self._runner("rollback", root)
             self.assertEqual(rollback.returncode, 0, rollback.stdout + rollback.stderr)
-            self.assertIn("rolled back 0010_temporal_validation_authority", rollback.stdout)
+            self.assertIn("rolled back 0011_robustness_selection_bias_authority", rollback.stdout)
 
             reapply = self._runner("migrate", root)
             self.assertEqual(reapply.returncode, 0, reapply.stdout + reapply.stderr)
-            self.assertIn("applied 0010_temporal_validation_authority", reapply.stdout)
+            self.assertIn("applied 0011_robustness_selection_bias_authority", reapply.stdout)
 
             database_path = root / "fdbtrade.sqlite3"
             self.assertTrue(database_path.is_file())
@@ -144,7 +145,7 @@ class HermeticLifecycleTest(unittest.TestCase):
                 applied = database.execute(
                     "SELECT id FROM schema_migrations ORDER BY id"
                 ).fetchall()
-                self.assertEqual(len(applied), 10)
+                self.assertEqual(len(applied), 11)
                 self.assertEqual(database.execute("PRAGMA integrity_check").fetchone()[0], "ok")
 
     def test_relative_data_root_fails_closed_without_creating_state(self):

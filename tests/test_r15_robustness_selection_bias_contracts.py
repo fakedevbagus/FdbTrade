@@ -1,4 +1,4 @@
-"""R1.4 temporal validation authority wiring and preservation contracts."""
+"""R1.5 robustness and selection-bias authority wiring contracts."""
 
 from __future__ import annotations
 
@@ -10,98 +10,95 @@ import unittest
 
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-SOURCE = ROOT / "backend/src/research/temporalValidationAuthority.ts"
-RUNNER = ROOT / "backend/src/research/walkforwardRunner.ts"
-BEHAVIOR_TEST = ROOT / "backend/src/research/__tests__/temporalValidationAuthority.test.ts"
-MIGRATION = ROOT / "backend/db/sqlite-migrations/0010_temporal_validation_authority.sql"
-DOWN = ROOT / "backend/db/sqlite-migrations/0010_temporal_validation_authority.down.sql"
+SOURCE = ROOT / "backend/src/research/robustnessSelectionAuthority.ts"
+BEHAVIOR = ROOT / "backend/src/research/__tests__/robustnessSelectionAuthority.test.ts"
+MIGRATION = ROOT / "backend/db/sqlite-migrations/0011_robustness_selection_bias_authority.sql"
+DOWN = ROOT / "backend/db/sqlite-migrations/0011_robustness_selection_bias_authority.down.sql"
 MIGRATIONS = ROOT / "backend/db/sqlite-migrations"
-AUTHORITY = ROOT / "artifacts/rebuild/r1.4/temporal-validation-authority.json"
-CHECKPOINT = ROOT / "docs/rebuild/checkpoints/R1.4_TEMPORAL_VALIDATION_AUTHORITY.md"
-ADR = ROOT / "docs/adr/ADR-0050-temporal-validation-authority.md"
+AUTHORITY = ROOT / "artifacts/rebuild/r1.5/robustness-selection-bias-authority.json"
+CHECKPOINT = ROOT / "docs/rebuild/checkpoints/R1.5_ROBUSTNESS_SELECTION_BIAS_EVIDENCE.md"
+ADR = ROOT / "docs/adr/ADR-0051-robustness-and-selection-bias-evidence.md"
 ADR_REGISTRY = ROOT / "docs/adr/README.md"
 NEXT = ROOT / "docs/rebuild/NEXT.md"
 PRESERVATION = ROOT / "artifacts/rebuild/r0.1/preservation.json"
 
 
-class R14TemporalValidationAuthorityContracts(unittest.TestCase):
+class R15RobustnessSelectionBiasContracts(unittest.TestCase):
     def test_authority_checkpoint_adr_registry_and_handoff_exist(self):
         for path in (AUTHORITY, CHECKPOINT, ADR, NEXT):
             self.assertTrue(path.is_file(), path)
         self.assertIn(
-            "ADR-0050-temporal-validation-authority.md",
+            "ADR-0051-robustness-and-selection-bias-evidence.md",
             ADR_REGISTRY.read_text(encoding="utf-8"),
         )
 
-    def test_sqlite_authority_is_separate_immutable_and_reversible(self):
+    def test_sqlite_ledger_is_predeclared_immutable_and_reversible(self):
         up = MIGRATION.read_text(encoding="utf-8")
         down = DOWN.read_text(encoding="utf-8")
         for table in (
-            "temporal_validation_configs",
-            "temporal_validation_runs",
-            "temporal_validation_artifacts",
-            "temporal_validation_results",
+            "robustness_experiment_configs",
+            "robustness_experiment_runs",
+            "robustness_experiment_trials",
+            "robustness_experiment_artifacts",
+            "robustness_experiment_results",
         ):
             self.assertIn(f"CREATE TABLE {table}", up)
             self.assertIn(f"DROP TABLE IF EXISTS {table}", down)
         for marker in (
-            "dataset_artifact_digest",
-            "config_digest",
-            "split_digest",
-            "walkforward_digest",
-            "costs_digest",
-            "deterministic_seed",
-            "temporal_validation_runs_terminal_immutable",
-            "temporal_validation_results_no_update",
-            "temporal_validation_results_no_delete",
+            "trial_plan_digest",
+            "declaration_digest",
+            "completed_trial_count",
+            "robustness_experiment_trials_completed_immutable",
+            "robustness_experiment_runs_terminal_immutable",
+            "robustness_experiment_results_no_update",
+            "robustness_experiment_results_no_delete",
         ):
             self.assertIn(marker, up)
 
-    def test_authority_pins_frozen_lineage_and_verifies_recovery_and_replay(self):
+    def test_authority_pins_bounded_trials_samples_breakdowns_and_conclusions(self):
         source = SOURCE.read_text(encoding="utf-8")
         for marker in (
-            'TEMPORAL_VALIDATION_CONFIG_ID = "frozen-baseline-temporal-validation"',
-            'seed: "r1.4-frozen-temporal-baseline"',
-            "trainRatio: 0.5",
-            "validateRatio: 0.25",
-            "testRatio: 0.25",
-            "embargoBars: 2",
-            "assertTemporalPlanIntegrity",
-            "chronological split overlap or future leakage detected",
-            "walk-forward overlap or future leakage detected",
-            "walk-forward test embargo overlap detected",
-            "this.marketData.load",
-            "temporal validation input dataset integrity failure",
-            "temporal validation result artifact integrity failure",
-            "temporal validation engine evidence mismatch",
-            "parameterSearchPerformed: false",
+            'ROBUSTNESS_CONFIG_ID = "frozen-baseline-robustness-selection-bias"',
+            'deterministicSeed: "r1.5-predeclared-robustness-grid"',
+            "minimumDatasetBars: 120",
+            "minimumClosedTrades: 3",
+            'scenarioId: "combined-adverse"',
+            "predeclaredTrials",
+            "predeclaredBeforeEvaluation: true",
+            "all predeclared robustness trials must complete before conclusion",
+            'conclusion: "insufficient-evidence"',
+            'conclusion: "rejected"',
+            'conclusion: "pass"',
+            "regimeBreakdown",
+            "robustness input dataset integrity failure",
+            "robustness result artifact integrity failure",
+            "robustness trial result integrity failure",
+            "trialsMayNotBeOmitted: true",
         ):
             self.assertIn(marker, source)
-        self.assertIn("datasetForFold", RUNNER.read_text(encoding="utf-8"))
         for forbidden in (
             "RiskPaperAuthority",
             "providers/shadow",
             "/api/backtest/runs",
             "modelPromotionEligible: true",
-            "parameterSearchPerformed: true",
+            "signalConfidenceCalibrated: true",
         ):
             self.assertNotIn(forbidden, source)
 
-    def test_behavior_suite_covers_temporal_failures_restart_and_tamper(self):
-        behavior = BEHAVIOR_TEST.read_text(encoding="utf-8")
+    def test_behavior_suite_covers_selection_sparse_unstable_adverse_restart_and_tamper(self):
+        behavior = BEHAVIOR.read_text(encoding="utf-8")
         for marker in (
-            "chronological OOS and rolling walk-forward evidence with pinned lineage",
-            "overlapping, future-leaking, and embargo-violating plans",
-            "rejected quality and insufficient history",
-            "recovers interrupted work",
-            "output artifact tamper during recovery and replay",
-            "input dataset tamper during recovery and replay",
-            "configs, results, artifacts, and terminal runs immutable",
+            "predeclares every bounded trial before evaluation",
+            "explicit pass, insufficient-evidence, and rejected decisions",
+            "unstable sensitivity and adverse drawdown",
+            "recovers after declared trials complete",
+            "output and R1.4 input artifact tampering",
+            "configs, completed trials, results, artifacts, and terminal runs immutable",
             "openDatabase({ databasePath, mustExist: true })",
         ):
             self.assertIn(marker, behavior)
 
-    def test_migration_count_and_order_are_ten(self):
+    def test_migration_count_and_order_are_eleven(self):
         migrations = []
         for path in sorted(MIGRATIONS.glob("*.sql")):
             match = re.fullmatch(r"(\d{4})_([a-z0-9_]+)\.sql", path.name)
@@ -127,7 +124,7 @@ class R14TemporalValidationAuthorityContracts(unittest.TestCase):
                 actual = hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
                 self.assertEqual(actual, expected, relative)
 
-    def test_m48_preservation_and_safety_remain_locked(self):
+    def test_m48_preservation_safety_and_gate_remain_locked(self):
         preservation = json.loads(PRESERVATION.read_text(encoding="utf-8"))
         expected = preservation["quarantinedWork"]
         self.assertEqual(expected["fileCount"], 10)
@@ -135,17 +132,16 @@ class R14TemporalValidationAuthorityContracts(unittest.TestCase):
         for entry in expected["files"]:
             payload = (ROOT / entry["path"]).read_bytes()
             self.assertEqual(len(payload), entry["bytes"], entry["path"])
-            self.assertEqual(
-                hashlib.sha256(payload).hexdigest(),
-                entry["sha256"],
-                entry["path"],
-            )
+            self.assertEqual(hashlib.sha256(payload).hexdigest(), entry["sha256"], entry["path"])
 
         authority = json.loads(AUTHORITY.read_text(encoding="utf-8"))
-        self.assertEqual(authority["workUnit"], "R1.4")
-        self.assertEqual(authority["repository"]["baselineCommit"],
-                         "8fca3a96b58a31e0112d9659dfe9809d68a45505")
-        self.assertEqual(authority["authority"]["migrationCount"], 10)
+        self.assertEqual(authority["workUnit"], "R1.5")
+        self.assertEqual(
+            authority["repository"]["baselineCommit"],
+            "aaf2589f28fa2393697b94125659d523a5d19195",
+        )
+        self.assertEqual(authority["authority"]["migrationCount"], 11)
+        self.assertEqual(authority["authority"]["trialCount"], 6)
         self.assertEqual(authority["finalGate"]["summary"], {
             "total": 15, "pass": 15, "fail": 0, "timeout": 0,
             "environmentBlocked": 0, "skipped": 0, "planned": 0,
@@ -153,7 +149,7 @@ class R14TemporalValidationAuthorityContracts(unittest.TestCase):
         self.assertEqual(authority["preservation"]["m48HashVerification"], "pass")
         self.assertTrue(all(value is False for value in authority["safety"].values()))
 
-    def test_next_stops_at_r15_and_requires_fresh_authorization(self):
+    def test_next_stops_at_r16_and_requires_fresh_authorization(self):
         text = NEXT.read_text(encoding="utf-8")
         self.assertIn("Current completed unit: **R1.5", text)
         self.assertIn("Next planned unit: **R1.6", text)
