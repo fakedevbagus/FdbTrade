@@ -154,13 +154,10 @@ class R11AuthoritativeSignalWorkbenchContracts(unittest.TestCase):
         self.assertEqual(authority["preservation"]["m48HashVerification"], "pass")
         self.assertTrue(all(value is False for value in authority["safety"].values()))
 
-    def test_next_stops_at_r12_and_requires_fresh_authorization(self):
-        text = NEXT.read_text(encoding="utf-8")
-        self.assertIn("Current completed unit: **R1.1", text)
-        self.assertIn("Next planned unit: **R1.2", text)
-        self.assertIn("Authorization state: **not authorized**", text)
-        self.assertIn("Otorisasi implementasi HANYA R1.2", text)
-        self.assertIn("Do not infer R1.3", text)
+    def test_checkpoint_preserves_r12_handoff_and_fresh_authorization(self):
+        text = CHECKPOINT.read_text(encoding="utf-8")
+        self.assertIn("Next planned unit: R1.2", text)
+        self.assertIn("R1.2 and every later unit require a separate explicit", text)
 
 
 if __name__ == "__main__":

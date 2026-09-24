@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "workUnit": "R1.2",
+  "status": "complete",
+  "recordedOn": "2026-09-24",
+  "repository": {
+    "branch": "rebuild/r0-preserve-current-state",
+    "baselineCommit": "311f2df17459f6b669d65a38d263e8a63fe9659b"
+  },
+  "authority": {
+    "metadataEngine": "SQLite via Node 24 node:sqlite",
+    "artifactAuthority": "immutable SHA-256-addressed JSON below FDB_DATA_ROOT",
+    "migration": "0009_operational_hardening",
+    "migrationCount": 9,
+    "creationEndpoint": "POST /api/research/runs",
+    "listEndpoint": "GET /api/research/runs",
+    "detailEndpoint": "GET /api/research/runs/{id}",
+    "configId": "baseline-historical-evaluation",
+    "configVersion": "1.0.0",
+    "signalRuleId": "authoritative-momentum-baseline",
+    "signalLogicVersion": "1.0.0",
+    "signalConfigVersion": "1.0.0",
+    "listLimit": 100,
+    "listOrdering": "createdAtUtc desc, authorityRunId desc",
+    "legacyBacktestApiAuthoritative": false
+  },
+  "scope": {
+    "instruments": ["EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD"],
+    "timeframes": ["15m", "1h", "4h"],
+    "source": "existing registered R0.6 datasets only",
+    "authentication": "private local session required",
+    "credentialedProviderSelected": false
+  },
+  "behavior": {
+    "authenticatedStrictPostListDetail": "pass",
+    "frozenBaselineRegistrationVerification": "pass",
+    "qualityBlocking": "pass",
+    "requestIdempotency": "pass",
+    "restartRecovery": "pass",
+    "sqliteArtifactBackedProjection": "pass",
+    "artifactTamperRejection": "pass",
+    "r07EvaluationNonMutation": "pass",
+    "r09RiskPaperNonMutation": "pass"
+  },
+  "interpretation": {
+    "historicalOnly": true,
+    "signalConfidenceCalibrated": false,
+    "signalConfidenceValue": null,
+    "modelPromotionEligible": false,
+    "operationalOutcomeAuthority": false
+  },
+  "finalGate": {
+    "command": "make toolchain-gate",
+    "reportPath": "artifacts/toolchain/gate.json",
+    "status": "pass",
+    "summary": {
+      "total": 15,
+      "pass": 15,
+      "fail": 0,
+      "timeout": 0,
+      "environmentBlocked": 0,
+      "skipped": 0,
+      "planned": 0
+    },
+    "firstActionableFailure": null
+  },
+  "preservation": {
+    "m48FileCount": 10,
+    "m48Bytes": 55941,
+    "m48AggregateManifestDigest": "f7dc5aacade5078cf934be760651c2e59d9e340c7a096a25629006d8f8555fe6",
+    "m48HashVerification": "pass",
+    "m48RuntimeAuthority": false
+  },
+  "safety": {
+    "liveExecutionEnabled": false,
+    "demoExecutionEnabled": false,
+    "providerOrderTransportEnabled": false,
+    "externalProviderNetworkCallsEnabled": false,
+    "schedulerAuthorityAdded": false,
+    "riskPaperAuthorityInvoked": false,
+    "legacyBacktestRewired": false,
+    "parameterSweepAuthorityAdded": false,
+    "researchAssumptionsChanged": false,
+    "modelPromotionAuthorityAdded": false,
+    "m48RuntimeAuthority": false
+  },
+  "nextWorkUnit": "R1.3 — Research Workbench UI (not authorized)"
+}

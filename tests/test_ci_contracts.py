@@ -86,6 +86,7 @@ KNOWN_ADRS = {
     45: "operator-triggered-authoritative-signal-evaluation",
     46: "r1-roadmap-and-promptpack-governance",
     47: "authoritative-signal-workbench-projection",
+    48: "authoritative-research-api",
 }
 
 

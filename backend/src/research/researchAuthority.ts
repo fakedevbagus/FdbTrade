@@ -59,7 +59,7 @@ type Row = Record<string, unknown>;
 type TerminalStatus = "succeeded" | "blocked" | "failed";
 type FaultStage = "after_run_started" | "after_artifact_publish" | "after_terminal_commit";
 
-interface ResearchArtifact {
+export interface ResearchArtifact {
   schemaVersion: 1;
   authorityRunId: string;
   status: "succeeded" | "blocked";
@@ -115,6 +115,36 @@ export interface ResearchRecoveryReport {
   verifiedResults: number;
   corruptResults: string[];
   orphanArtifacts: number;
+}
+
+export const RESEARCH_RUN_LIST_LIMIT = 100;
+
+export type ResearchRunStatus = "pending" | "running" | TerminalStatus;
+
+export interface ResearchRunProjection {
+  authorityRunId: string;
+  status: ResearchRunStatus;
+  attempts: number;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  failureReason: string | null;
+  dataset: ResearchArtifact["dataset"];
+  researchConfig: ResearchArtifact["researchConfig"];
+  artifact: {
+    resultId: string;
+    engineRunId: string | null;
+    digest: string;
+    byteCount: number;
+    summaryDigest: string;
+    createdAtUtc: string;
+  } | null;
+  evidence: ResearchArtifact | null;
+}
+
+export interface ResearchRunListProjection {
+  total: number;
+  limit: number;
+  runs: ResearchRunProjection[];
 }
 
 function sha256(value: string): string {
@@ -444,6 +474,37 @@ export class ResearchBacktestAuthority {
     return { recoveredRuns, verifiedResults, corruptResults, orphanArtifacts };
   }
 
+  /**
+   * Read-only, integrity-checked projection for the production research API.
+   * It never registers configuration, recovers work, or advances a run.
+   */
+  listRuns(limit = RESEARCH_RUN_LIST_LIMIT): ResearchRunListProjection {
+    if (!Number.isInteger(limit) || limit < 1 || limit > RESEARCH_RUN_LIST_LIMIT) {
+      throw new Error("invalid research run list limit");
+    }
+    const count = this.database.prepare(
+      "SELECT COUNT(*) AS count FROM research_backtest_runs",
+    ).get() as Row;
+    const rows = this.database.prepare(`
+      ${this.projectionQuery()}
+      ORDER BY run.created_at_utc DESC, run.authority_run_id DESC
+      LIMIT ?
+    `).all(limit) as Row[];
+    return {
+      total: Number(count.count),
+      limit,
+      runs: rows.map((row) => this.projectRun(row)),
+    };
+  }
+
+  getRun(authorityRunId: string): ResearchRunProjection | null {
+    const row = this.database.prepare(`
+      ${this.projectionQuery()}
+      WHERE run.authority_run_id = ?
+    `).get(authorityRunId) as Row | undefined;
+    return row ? this.projectRun(row) : null;
+  }
+
   private buildSucceededArtifact(run: Row, dataset: StoredDataset): ResearchArtifact {
     const first = dataset.candles[0];
     if (!first) throw new Error("research backtest dataset has no candles");
@@ -622,6 +683,148 @@ export class ResearchBacktestAuthority {
     };
   }
 
+  private projectionQuery(): string {
+    return `
+      SELECT
+        run.*,
+        config.config_digest AS registered_config_digest,
+        config.config_json AS registered_config_json,
+        config.rule_id AS registered_rule_id,
+        config.rule_logic_version AS registered_rule_logic_version,
+        config.rule_config_version AS registered_rule_config_version,
+        dataset.artifact_digest AS dataset_artifact_digest,
+        dataset.provider_id AS dataset_provider_id,
+        dataset.source_mode AS dataset_source_mode,
+        dataset.instrument AS dataset_instrument,
+        dataset.timeframe AS dataset_timeframe,
+        dataset.record_count AS dataset_record_count,
+        dataset.quality_state AS dataset_quality_state,
+        result.result_id AS stored_result_id,
+        result.engine_run_id AS stored_engine_run_id,
+        result.artifact_digest AS result_artifact_digest,
+        result.summary_digest AS result_summary_digest,
+        result.summary_json AS result_summary_json,
+        result.created_at_utc AS result_created_at_utc,
+        artifact.relative_path AS result_relative_path,
+        artifact.byte_count AS result_byte_count
+      FROM research_backtest_runs AS run
+      JOIN research_backtest_configs AS config
+        ON config.config_id = run.config_id
+       AND config.config_version = run.config_version
+      JOIN market_data_datasets AS dataset ON dataset.dataset_id = run.dataset_id
+      LEFT JOIN research_backtest_results AS result
+        ON result.result_id = run.result_id
+      LEFT JOIN research_backtest_artifacts AS artifact
+        ON artifact.digest = result.artifact_digest
+    `;
+  }
+
+  private projectRun(row: Row): ResearchRunProjection {
+    this.verifyFrozenConfigRow(row);
+    const datasetId = String(row.dataset_id);
+    const expectedRequest = JSON.stringify({
+      datasetId,
+      configId: RESEARCH_CONFIG_ID,
+      configVersion: RESEARCH_CONFIG_VERSION,
+    });
+    if (
+      String(row.dedup_key) !== expectedRequest ||
+      String(row.request_hash) !== sha256(expectedRequest) ||
+      String(row.authority_run_id) !== authorityRunIdFor(expectedRequest)
+    ) {
+      throw new Error("research backtest request identity mismatch");
+    }
+
+    const status = String(row.status) as ResearchRunStatus;
+    let evidence: ResearchArtifact | null = null;
+    let artifact: ResearchRunProjection["artifact"] = null;
+    if (status === "succeeded" || status === "blocked") {
+      if (
+        !row.stored_result_id ||
+        !row.result_artifact_digest ||
+        !row.result_relative_path ||
+        row.result_byte_count === null ||
+        row.result_byte_count === undefined
+      ) {
+        throw new Error("terminal research backtest projection is incomplete");
+      }
+      evidence = this.verifyResultRow({
+        result_id: row.stored_result_id,
+        authority_run_id: row.authority_run_id,
+        engine_run_id: row.stored_engine_run_id,
+        dataset_id: row.dataset_id,
+        artifact_digest: row.result_artifact_digest,
+        summary_digest: row.result_summary_digest,
+        summary_json: row.result_summary_json,
+        created_at_utc: row.result_created_at_utc,
+        relative_path: row.result_relative_path,
+        byte_count: row.result_byte_count,
+      });
+      if (
+        evidence.status !== status ||
+        evidence.researchConfig.configDigest !== String(row.registered_config_digest)
+      ) {
+        throw new Error("research backtest terminal lineage mismatch");
+      }
+      artifact = {
+        resultId: String(row.stored_result_id),
+        engineRunId: row.stored_engine_run_id === null
+          ? null
+          : String(row.stored_engine_run_id),
+        digest: String(row.result_artifact_digest),
+        byteCount: Number(row.result_byte_count),
+        summaryDigest: String(row.result_summary_digest),
+        createdAtUtc: String(row.result_created_at_utc),
+      };
+    } else if (row.result_id !== null) {
+      throw new Error("non-terminal research backtest references a result");
+    }
+
+    return {
+      authorityRunId: String(row.authority_run_id),
+      status,
+      attempts: Number(row.attempts),
+      createdAtUtc: String(row.created_at_utc),
+      updatedAtUtc: String(row.updated_at_utc),
+      failureReason: row.failure_reason === null ? null : String(row.failure_reason),
+      dataset: {
+        datasetId,
+        artifactDigest: String(row.dataset_artifact_digest),
+        providerId: String(row.dataset_provider_id),
+        sourceMode: String(row.dataset_source_mode),
+        instrument: String(row.dataset_instrument),
+        timeframe: String(row.dataset_timeframe),
+        recordCount: Number(row.dataset_record_count),
+        qualityState: String(row.dataset_quality_state),
+      },
+      researchConfig: {
+        configId: String(row.config_id),
+        configVersion: String(row.config_version),
+        configDigest: String(row.registered_config_digest),
+        signalRuleId: String(row.registered_rule_id),
+        signalLogicVersion: String(row.registered_rule_logic_version),
+        signalConfigVersion: String(row.registered_rule_config_version),
+      },
+      artifact,
+      evidence,
+    };
+  }
+
+  private verifyFrozenConfigRow(row: Row): void {
+    if (
+      String(row.config_id) !== RESEARCH_CONFIG_ID ||
+      String(row.config_version) !== RESEARCH_CONFIG_VERSION ||
+      String(row.registered_config_json) !== configJson() ||
+      String(row.registered_config_digest) !== configDigest() ||
+      sha256(String(row.registered_config_json)) !== String(row.registered_config_digest) ||
+      String(row.registered_rule_id) !== SIGNAL_RULE_ID ||
+      String(row.registered_rule_logic_version) !== SIGNAL_RULE_LOGIC_VERSION ||
+      String(row.registered_rule_config_version) !== SIGNAL_RULE_CONFIG_VERSION
+    ) {
+      throw new Error("research backtest frozen configuration mismatch");
+    }
+  }
+
   private verifyResultRow(row: Row): ResearchArtifact {
     const file = path.join(this.artifactRoot, String(row.relative_path));
     const content = readFileSync(file, "utf8");
@@ -634,7 +837,10 @@ export class ResearchBacktestAuthority {
     const artifact = JSON.parse(content) as ResearchArtifact;
     if (
       artifact.authorityRunId !== String(row.authority_run_id) ||
-      artifact.dataset.datasetId !== String(row.dataset_id)
+      artifact.dataset.datasetId !== String(row.dataset_id) ||
+      artifact.researchConfig.configId !== RESEARCH_CONFIG_ID ||
+      artifact.researchConfig.configVersion !== RESEARCH_CONFIG_VERSION ||
+      artifact.researchConfig.configDigest !== configDigest()
     ) {
       throw new Error("research result provenance mismatch");
     }
