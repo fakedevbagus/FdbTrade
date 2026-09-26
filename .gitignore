@@ -30,7 +30,7 @@ venv/
 backend/.fdbtrade/
 
 # Logs, artifacts, scratch
-logs/
+/logs/
 *.log
 # Build scratch under artifacts/ stays ignored, but the M44 private-beta
 # acceptance evidence is an authority file and MUST be committable.
