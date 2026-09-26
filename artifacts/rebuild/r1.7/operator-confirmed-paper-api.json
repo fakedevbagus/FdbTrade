@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "workUnit": "R1.7",
+  "status": "complete",
+  "recordedOn": "2026-09-27",
+  "repository": {
+    "branch": "rebuild/r0-preserve-current-state",
+    "baselineCommit": "afd41536ef05181a1de8e3037c2c245c102c15b2"
+  },
+  "authority": {
+    "metadataEngine": "SQLite via Node 24 node:sqlite",
+    "migrationCount": 12,
+    "postRoute": "/api/paper/runs",
+    "listRoute": "/api/paper/runs",
+    "detailRoute": "/api/paper/runs/{runId}",
+    "authenticationRequired": true,
+    "explicitConfirmationLiteral": "confirm-paper-run",
+    "acceptedAuthoritativeInput": "R1.6 inputResolutionId only",
+    "callerSuppliedCostOrConversionAccepted": false,
+    "durableRiskApprovalRequired": true
+  },
+  "behavior": {
+    "authenticatedStrictBoundary": "pass",
+    "explicitOperatorConfirmation": "pass",
+    "r16ResolutionOnly": "pass",
+    "recoveryBeforeNewWork": "pass",
+    "ledgerReconciliation": "pass",
+    "approvedRiskBeforePaper": "pass",
+    "killRejectedWithoutFills": "pass",
+    "releaseRemainsExplicit": "pass",
+    "idempotentReplay": "pass",
+    "divergentReplayRejection": "pass",
+    "restartRecovery": "pass",
+    "resolutionMissingBlocking": "pass",
+    "resolutionTamperBlocking": "pass",
+    "blockedRejectedFailedProjection": "pass",
+    "authenticatedListAndDetail": "pass"
+  },
+  "sourceSha256": {
+    "backend/src/app/api/paper/runs/route.ts": "21e4ff6e3b0e020312e87cd9fe608194fc505d89c6cc22ccd0616e32d3e0f6f9",
+    "backend/src/app/api/paper/runs/[runId]/route.ts": "e2c69ef24cc52194114682cfc62f18bd056405a3d6f93430d07525c0a2af1856",
+    "backend/src/app/api/paper/runs/__tests__/route.test.ts": "658cd3953054a68191574ac38ee72d5537b69cf2d1a81bbb400c0704c1427b85",
+    "backend/src/paper/paperRunProjection.ts": "47593963721f2429da31569ae7b161446f26832517b077bdc6325391344a233f"
+  },
+  "preservedSourceSha256": {
+    "backend/src/paper/riskPaperAuthority.ts": "b64b8116c4bdd666d0c542aa106e1a3a47982c42f124d230a94639e1bb818687",
+    "backend/src/paper/paperInputResolutionAuthority.ts": "4a4b1a92d64d5119f54f684934ad9088fe9d67e252fe4620d6f2094fd7159154",
+    "backend/src/signals/signalAuthority.ts": "21ef13b39bbc4649c9f7b42fc91402c3e36694ef6879e225b0c83cf8fb7d8154",
+    "backend/src/app/api/backtest/runs/route.ts": "af8d52bfb271609856628fef56bdc93c6bf738d89078748489d0a7f3e4d90022"
+  },
+  "interpretation": {
+    "paperOnly": true,
+    "onePostIsExplicitOperatorConfirmation": true,
+    "browserIsAuthority": false,
+    "signalConfidenceCalibrated": false,
+    "modelPromotionEligible": false,
+    "providerObservationAvailable": false
+  },
+  "finalGate": {
+    "command": "make toolchain-gate",
+    "reportPath": "artifacts/toolchain/gate.json",
+    "status": "pass",
+    "summary": {
+      "total": 15,
+      "pass": 15,
+      "fail": 0,
+      "timeout": 0,
+      "environmentBlocked": 0,
+      "skipped": 0,
+      "planned": 0
+    },
+    "firstActionableFailure": null
+  },
+  "preservation": {
+    "m48FileCount": 10,
+    "m48Bytes": 55941,
+    "m48AggregateManifestDigest": "f7dc5aacade5078cf934be760651c2e59d9e340c7a096a25629006d8f8555fe6",
+    "m48HashVerification": "pass",
+    "m48RuntimeAuthority": false
+  },
+  "safety": {
+    "liveExecutionEnabled": false,
+    "demoExecutionEnabled": false,
+    "providerOrderTransportEnabled": false,
+    "externalProviderNetworkCallsEnabled": false,
+    "credentialedProviderSelected": false,
+    "schedulerAuthorityAdded": false,
+    "automaticPaperExecutionAdded": false,
+    "publicUnauthenticatedPaperRouteAdded": false,
+    "uiAuthorityAdded": false,
+    "riskRequirementWeakened": false,
+    "signalRuleChanged": false,
+    "modelPromotionAuthorityAdded": false,
+    "legacyBacktestRewired": false,
+    "m48RuntimeAuthority": false
+  },
+  "nextWorkUnit": "R1.8 — Paper and Outcome Workbench (not authorized)"
+}

@@ -145,13 +145,13 @@ class R16PaperInputResolutionContracts(unittest.TestCase):
         self.assertEqual(authority["preservation"]["m48HashVerification"], "pass")
         self.assertTrue(all(value is False for value in authority["safety"].values()))
 
-    def test_next_stops_at_r17_and_requires_fresh_authorization(self):
+    def test_next_stops_at_r18_and_requires_fresh_authorization(self):
         text = NEXT.read_text(encoding="utf-8")
-        self.assertIn("Current completed unit: **R1.6", text)
-        self.assertIn("Next planned unit: **R1.7", text)
+        self.assertIn("Current completed unit: **R1.7", text)
+        self.assertIn("Next planned unit: **R1.8", text)
         self.assertIn("Authorization state: **not authorized**", text)
-        self.assertIn("Otorisasi implementasi HANYA R1.7", text)
-        self.assertIn("Do not infer R1.8", text)
+        self.assertIn("Otorisasi implementasi HANYA R1.8", text)
+        self.assertIn("Do not infer R1.9", text)
 
 
 if __name__ == "__main__":

@@ -113,3 +113,4 @@ not used.
 | [ADR-0050](ADR-0050-temporal-validation-authority.md) | Temporal validation authority | Accepted |
 | [ADR-0051](ADR-0051-robustness-and-selection-bias-evidence.md) | Robustness and selection-bias evidence | Accepted |
 | [ADR-0052](ADR-0052-paper-input-resolution-authority.md) | Paper input resolution authority | Accepted |
+| [ADR-0053](ADR-0053-operator-confirmed-paper-api.md) | Operator-confirmed paper API | Accepted |

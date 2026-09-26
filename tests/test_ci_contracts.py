@@ -91,6 +91,7 @@ KNOWN_ADRS = {
     50: "temporal-validation-authority",
     51: "robustness-and-selection-bias-evidence",
     52: "paper-input-resolution-authority",
+    53: "operator-confirmed-paper-api",
 }
 
 
