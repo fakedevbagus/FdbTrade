@@ -156,7 +156,7 @@ class R010BackupRestoreBehavior(unittest.TestCase):
             )
             self.assertEqual(
                 manifest["database"]["migrations"][-1]["id"],
-                "0011_robustness_selection_bias_authority",
+                "0012_paper_input_resolution",
             )
             self.assertFalse(manifest["safety"]["liveExecutionEnabled"])
             self.assertFalse(manifest["safety"]["providerOrderTransportEnabled"])

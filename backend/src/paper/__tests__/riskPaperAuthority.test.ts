@@ -9,6 +9,7 @@ import { TIMEFRAME_MS, type Candle, type Timeframe } from "@fdbtrade/contracts";
 import { buildDatasetManifest } from "@/data/manifest";
 import { MarketDataAuthority, type StoredDataset } from "@/data/marketAuthority";
 import { openDatabase, openMigratedDatabase } from "@/db/sqlite.mjs";
+import { PaperInputResolutionAuthority } from "@/paper/paperInputResolutionAuthority";
 import { RiskPaperAuthority } from "@/paper/riskPaperAuthority";
 import { SignalIntelligenceAuthority } from "@/signals/signalAuthority";
 
@@ -22,12 +23,14 @@ function fresh() {
   const artifactRoot = path.join(root, "artifacts", "market-data");
   const market = new MarketDataAuthority(database, artifactRoot);
   const signals = new SignalIntelligenceAuthority(database, market);
+  const inputs = new PaperInputResolutionAuthority(database, market);
   const authority = new RiskPaperAuthority(database, market);
   roots.push(root);
   databases.push(database);
   signals.registerBaselineRule("2026-09-01T00:00:00.000Z");
+  inputs.registerBaseline("2026-09-01T00:00:00.000Z");
   authority.registerBaseline("2026-09-01T00:00:00.000Z");
-  return { root, databasePath, database, artifactRoot, market, signals, authority };
+  return { root, databasePath, database, artifactRoot, market, signals, inputs, authority };
 }
 
 afterEach(() => {
@@ -86,29 +89,35 @@ function arrangeCandidate(env: ReturnType<typeof fresh>) {
   );
   if (!signalResult.signal) throw new Error("fixture did not create a signal candidate");
   const execution = publish(env.market, "r09-paper-cascade", 96);
-  return { source, execution, signal: signalResult.signal };
+  return { env, source, execution, signal: signalResult.signal };
 }
 
 function requestFor(fixture: ReturnType<typeof arrangeCandidate>) {
-  return {
+  const resolved = fixture.env.inputs.resolve({
     signalId: fixture.signal.signalId,
     executionDatasetId: fixture.execution.manifest.datasetId,
     checkedAtUtc: fixture.source.latestBarCloseUtc,
+  });
+  if (!resolved.resolution) throw new Error(`input resolution blocked: ${resolved.reason}`);
+  return {
+    inputResolutionId: resolved.resolution.resolutionId,
     requestedQuantityUnits: 10_000,
-    observedSpreadPips: 0.6,
-    estimatedSlippagePips: 0.1,
-    conversion: {
-      quoteCurrency: "USD",
-      accountCurrency: "USD",
-      conversionRate: 1,
-      rateAtUtc: fixture.signal.eventTimeUtc,
-      rateSource: "r09-fixture",
-    },
-    createdAtUtc: fixture.source.latestBarCloseUtc,
   };
 }
 
 describe("R0.9 risk, paper broker and outcomes authority", () => {
+  it("rejects caller-supplied paper costs and conversion fields", () => {
+    const env = fresh();
+    const fixture = arrangeCandidate(env);
+    const request = requestFor(fixture);
+    expect(() => env.authority.run({
+      ...request,
+      observedSpreadPips: 0,
+      estimatedSlippagePips: 0,
+      conversion: { conversionRate: 999 },
+    } as typeof request)).toThrow("unknown fields");
+  });
+
   it("requires durable risk approval, appends a reconciled paper ledger and attributes outcome", () => {
     const env = fresh();
     const fixture = arrangeCandidate(env);

@@ -1,0 +1,9 @@
+DROP TRIGGER IF EXISTS paper_input_resolutions_no_delete;
+DROP TRIGGER IF EXISTS paper_input_resolutions_no_update;
+DROP TRIGGER IF EXISTS paper_input_resolution_runs_no_delete;
+DROP TRIGGER IF EXISTS paper_input_resolution_runs_terminal_immutable;
+DROP TRIGGER IF EXISTS paper_input_configs_no_delete;
+DROP TRIGGER IF EXISTS paper_input_configs_no_update;
+DROP TABLE IF EXISTS paper_input_resolutions;
+DROP TABLE IF EXISTS paper_input_resolution_runs;
+DROP TABLE IF EXISTS paper_input_configs;

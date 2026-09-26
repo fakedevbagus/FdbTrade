@@ -41,12 +41,14 @@ class RiskPaperOutcomeAuthorityContracts(unittest.TestCase):
         ):
             self.assertIn(trigger, migration)
 
-    def test_authority_reopens_only_verified_signal_and_market_authority(self):
+    def test_authority_reopens_only_verified_signal_resolution_and_market_authority(self):
         authority = AUTHORITY.read_text(encoding="utf-8")
         for marker in (
             "this.loadCandidate",
+            "loadVerifiedPaperInputResolution(",
+            "this.database, this.marketData, request.inputResolutionId",
             "this.marketData.load(candidate.datasetId)",
-            "this.marketData.load(request.executionDatasetId)",
+            "this.marketData.load(resolvedInputs.executionDataset.datasetId)",
             "assertDatasetAccepted(signalDataset",
             "assertDatasetAccepted(executionDataset",
             "evaluateRisk(riskRequest, DEFAULT_RISK_LIMITS)",
@@ -56,6 +58,14 @@ class RiskPaperOutcomeAuthorityContracts(unittest.TestCase):
             "computeAttributionReport",
         ):
             self.assertIn(marker, authority)
+
+        for forbidden in (
+            "request.executionDatasetId",
+            "request.quoteToAccountRate",
+            "request.observedSpreadPips",
+            "request.estimatedSlippagePips",
+        ):
+            self.assertNotIn(forbidden, authority)
 
     def test_risk_is_mandatory_and_kill_state_is_latched(self):
         migration = MIGRATION.read_text(encoding="utf-8")

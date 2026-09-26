@@ -1,4 +1,4 @@
-"""R1.5 robustness and selection-bias authority wiring contracts."""
+"""R1.6 paper-input resolution authority wiring contracts."""
 
 from __future__ import annotations
 
@@ -10,104 +10,104 @@ import unittest
 
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-SOURCE = ROOT / "backend/src/research/robustnessSelectionAuthority.ts"
-BEHAVIOR = ROOT / "backend/src/research/__tests__/robustnessSelectionAuthority.test.ts"
-MIGRATION = ROOT / "backend/db/sqlite-migrations/0011_robustness_selection_bias_authority.sql"
-DOWN = ROOT / "backend/db/sqlite-migrations/0011_robustness_selection_bias_authority.down.sql"
+SOURCE = ROOT / "backend/src/paper/paperInputResolutionAuthority.ts"
+PAPER = ROOT / "backend/src/paper/riskPaperAuthority.ts"
+BEHAVIOR = ROOT / "backend/src/paper/__tests__/paperInputResolutionAuthority.test.ts"
+MIGRATION = ROOT / "backend/db/sqlite-migrations/0012_paper_input_resolution.sql"
+DOWN = ROOT / "backend/db/sqlite-migrations/0012_paper_input_resolution.down.sql"
 MIGRATIONS = ROOT / "backend/db/sqlite-migrations"
-AUTHORITY = ROOT / "artifacts/rebuild/r1.5/robustness-selection-bias-authority.json"
-CHECKPOINT = ROOT / "docs/rebuild/checkpoints/R1.5_ROBUSTNESS_SELECTION_BIAS_EVIDENCE.md"
-ADR = ROOT / "docs/adr/ADR-0051-robustness-and-selection-bias-evidence.md"
+AUTHORITY = ROOT / "artifacts/rebuild/r1.6/paper-input-resolution-authority.json"
+CHECKPOINT = ROOT / "docs/rebuild/checkpoints/R1.6_PAPER_INPUT_RESOLUTION.md"
+ADR = ROOT / "docs/adr/ADR-0052-paper-input-resolution-authority.md"
 ADR_REGISTRY = ROOT / "docs/adr/README.md"
 NEXT = ROOT / "docs/rebuild/NEXT.md"
 PRESERVATION = ROOT / "artifacts/rebuild/r0.1/preservation.json"
 
 
-class R15RobustnessSelectionBiasContracts(unittest.TestCase):
+class R16PaperInputResolutionContracts(unittest.TestCase):
     def test_authority_checkpoint_adr_registry_and_handoff_exist(self):
         for path in (AUTHORITY, CHECKPOINT, ADR, NEXT):
             self.assertTrue(path.is_file(), path)
         self.assertIn(
-            "ADR-0051-robustness-and-selection-bias-evidence.md",
+            "ADR-0052-paper-input-resolution-authority.md",
             ADR_REGISTRY.read_text(encoding="utf-8"),
         )
 
-    def test_sqlite_ledger_is_predeclared_immutable_and_reversible(self):
+    def test_sqlite_authority_is_immutable_and_reversible(self):
         up = MIGRATION.read_text(encoding="utf-8")
         down = DOWN.read_text(encoding="utf-8")
         for table in (
-            "robustness_experiment_configs",
-            "robustness_experiment_runs",
-            "robustness_experiment_trials",
-            "robustness_experiment_artifacts",
-            "robustness_experiment_results",
+            "paper_input_configs",
+            "paper_input_resolution_runs",
+            "paper_input_resolutions",
         ):
             self.assertIn(f"CREATE TABLE {table}", up)
             self.assertIn(f"DROP TABLE IF EXISTS {table}", down)
         for marker in (
-            "trial_plan_digest",
-            "declaration_digest",
-            "completed_trial_count",
-            "robustness_experiment_trials_completed_immutable",
-            "robustness_experiment_runs_terminal_immutable",
-            "robustness_experiment_results_no_update",
-            "robustness_experiment_results_no_delete",
+            "paper_input_configs_no_update",
+            "paper_input_resolution_runs_terminal_immutable",
+            "paper_input_resolution_runs_no_delete",
+            "paper_input_resolutions_no_update",
+            "paper_input_resolutions_no_delete",
         ):
             self.assertIn(marker, up)
 
-    def test_authority_pins_bounded_trials_samples_breakdowns_and_conclusions(self):
+    def test_resolution_is_deterministic_closed_scope_and_fail_closed(self):
         source = SOURCE.read_text(encoding="utf-8")
         for marker in (
-            'ROBUSTNESS_CONFIG_ID = "frozen-baseline-robustness-selection-bias"',
-            'deterministicSeed: "r1.5-predeclared-robustness-grid"',
-            "minimumDatasetBars: 120",
-            "minimumClosedTrades: 3",
-            'scenarioId: "combined-adverse"',
-            "predeclaredTrials",
-            "predeclaredBeforeEvaluation: true",
-            "all predeclared robustness trials must complete before conclusion",
-            'conclusion: "insufficient-evidence"',
-            'conclusion: "rejected"',
-            'conclusion: "pass"',
-            "regimeBreakdown",
-            "robustness input dataset integrity failure",
-            "robustness result artifact integrity failure",
-            "robustness trial result integrity failure",
-            "trialsMayNotBeOmitted: true",
+            'PAPER_INPUT_CONFIG_ID = "registered-baseline-paper-inputs"',
+            'accountCurrency: "USD"',
+            "maximumInputAgeBars: 2",
+            "providerAuthorityAvailable: false",
+            'costSource: "registered-baseline-assumption-no-provider-observation"',
+            'method: "identity" | "inverse"',
+            'crossInstruments: readonly []',
+            '"input_stale"',
+            '"event_bar_missing"',
+            '"event_bar_ambiguous"',
+            '"config_drift"',
+            "paper input resolution replay diverged",
         ):
             self.assertIn(marker, source)
         for forbidden in (
-            "RiskPaperAuthority",
-            "providers/shadow",
-            "/api/backtest/runs",
-            "modelPromotionEligible: true",
-            "signalConfidenceCalibrated: true",
+            "fetch(", "axios", "providers/shadow", "RiskPaperAuthority",
+            "liveExecutionEnabled" + ": " + "true",
+            "providerOrderTransportEnabled" + ": " + "true",
         ):
             self.assertNotIn(forbidden, source)
 
-    def test_behavior_suite_covers_selection_sparse_unstable_adverse_restart_and_tamper(self):
+    def test_r09_consumes_resolution_not_ui_cost_or_conversion(self):
+        paper = PAPER.read_text(encoding="utf-8")
+        self.assertIn("loadVerifiedPaperInputResolution", paper)
+        request = paper[paper.index("export interface PaperRunRequest"):paper.index("export interface PaperRunResult")]
+        self.assertIn("inputResolutionId", request)
+        for forbidden in ("observedSpreadPips", "estimatedSlippagePips", "conversion:"):
+            self.assertNotIn(forbidden, request)
+        self.assertIn("evaluateRisk(riskRequest, DEFAULT_RISK_LIMITS)", paper)
+        self.assertIn("paper_fill_requires_approval", MIGRATION.parent.joinpath(
+            "0008_risk_paper_outcomes_authority.sql"
+        ).read_text(encoding="utf-8"))
+
+    def test_behavior_covers_seven_pairs_failure_restart_and_tamper(self):
         behavior = BEHAVIOR.read_text(encoding="utf-8")
+        for pair in ("EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD"):
+            self.assertIn(pair, behavior)
         for marker in (
-            "predeclares every bounded trial before evaluation",
-            "explicit pass, insufficient-evidence, and rejected decisions",
-            "unstable sensitivity and adverse drawdown",
-            "recovers after declared trials complete",
-            "output and R1.4 input artifact tampering",
-            "configs, completed trials, results, artifacts, and terminal runs immutable",
-            "openDatabase({ databasePath, mustExist: true })",
+            "explicit quote-to-USD direction and no hidden cross",
+            "stale, missing, ambiguous, scope-mismatched, and corrupt inputs",
+            "recovers interrupted work, survives restart, and rejects config/result tamper",
+            "blocks registry drift instead of accepting caller-selected cost assumptions",
+            "openDatabase({ databasePath: env.databasePath, mustExist: true })",
         ):
             self.assertIn(marker, behavior)
 
-    def test_migration_count_and_order_are_eleven(self):
+    def test_migration_count_and_order_are_twelve(self):
         migrations = []
         for path in sorted(MIGRATIONS.glob("*.sql")):
             match = re.fullmatch(r"(\d{4})_([a-z0-9_]+)\.sql", path.name)
             if match:
                 migrations.append(f"{match.group(1)}_{match.group(2)}")
-                self.assertTrue(
-                    MIGRATIONS.joinpath(f"{path.stem}.down.sql").is_file(),
-                    path.name,
-                )
+                self.assertTrue(MIGRATIONS.joinpath(f"{path.stem}.down.sql").is_file())
         self.assertEqual(migrations, [
             "0001_foundation", "0002_auth_foundation", "0003_audit_authority",
             "0004_runtime_lifecycle", "0005_market_data_artifacts",
@@ -134,15 +134,10 @@ class R15RobustnessSelectionBiasContracts(unittest.TestCase):
             payload = (ROOT / entry["path"]).read_bytes()
             self.assertEqual(len(payload), entry["bytes"], entry["path"])
             self.assertEqual(hashlib.sha256(payload).hexdigest(), entry["sha256"], entry["path"])
-
         authority = json.loads(AUTHORITY.read_text(encoding="utf-8"))
-        self.assertEqual(authority["workUnit"], "R1.5")
-        self.assertEqual(
-            authority["repository"]["baselineCommit"],
-            "aaf2589f28fa2393697b94125659d523a5d19195",
-        )
-        self.assertEqual(authority["authority"]["migrationCount"], 11)
-        self.assertEqual(authority["authority"]["trialCount"], 6)
+        self.assertEqual(authority["repository"]["baselineCommit"],
+                         "87743915140e21a1220139364a7291aa2601b229")
+        self.assertEqual(authority["authority"]["migrationCount"], 12)
         self.assertEqual(authority["finalGate"]["summary"], {
             "total": 15, "pass": 15, "fail": 0, "timeout": 0,
             "environmentBlocked": 0, "skipped": 0, "planned": 0,
@@ -150,7 +145,7 @@ class R15RobustnessSelectionBiasContracts(unittest.TestCase):
         self.assertEqual(authority["preservation"]["m48HashVerification"], "pass")
         self.assertTrue(all(value is False for value in authority["safety"].values()))
 
-    def test_next_stops_at_r16_and_requires_fresh_authorization(self):
+    def test_next_stops_at_r17_and_requires_fresh_authorization(self):
         text = NEXT.read_text(encoding="utf-8")
         self.assertIn("Current completed unit: **R1.6", text)
         self.assertIn("Next planned unit: **R1.7", text)

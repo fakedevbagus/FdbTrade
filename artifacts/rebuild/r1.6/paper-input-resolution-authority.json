@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "workUnit": "R1.6",
+  "status": "complete",
+  "recordedOn": "2026-09-24",
+  "repository": {
+    "branch": "rebuild/r0-preserve-current-state",
+    "baselineCommit": "87743915140e21a1220139364a7291aa2601b229"
+  },
+  "authority": {
+    "metadataEngine": "SQLite via Node 24 node:sqlite",
+    "migration": "0012_paper_input_resolution",
+    "migrationCount": 12,
+    "configId": "registered-baseline-paper-inputs",
+    "configVersion": "1.0.0",
+    "accountCurrency": "USD",
+    "maximumInputAgeBars": 2,
+    "providerAuthorityAvailable": false,
+    "baselineAssumptions": {
+      "spreadPips": 0.6,
+      "slippagePips": 0.1,
+      "providerObservation": false
+    },
+    "conversionDirections": {
+      "EURUSD": "USD-to-USD identity",
+      "GBPUSD": "USD-to-USD identity",
+      "USDJPY": "JPY-to-USD inverse USDJPY event bar",
+      "USDCHF": "CHF-to-USD inverse USDCHF event bar",
+      "AUDUSD": "USD-to-USD identity",
+      "USDCAD": "CAD-to-USD inverse USDCAD event bar",
+      "NZDUSD": "USD-to-USD identity"
+    },
+    "crossConversionInstruments": []
+  },
+  "behavior": {
+    "sevenPairConversionDirection": "pass",
+    "eventTimeAndDatasetLineage": "pass",
+    "registeredCostAssumptions": "pass",
+    "uiSuppliedCostAndConversionRemoved": "pass",
+    "staleInputBlocking": "pass",
+    "missingInputBlocking": "pass",
+    "ambiguousInputBlocking": "pass",
+    "scopeMismatchBlocking": "pass",
+    "artifactTamperBlocking": "pass",
+    "configDriftBlocking": "pass",
+    "deterministicDuplicateReplay": "pass",
+    "interruptedRunRecovery": "pass",
+    "sqliteReopenVerification": "pass",
+    "resolutionTamperRejection": "pass",
+    "mandatoryApprovedRiskPreserved": "pass",
+    "migrationRollbackReapply": "pass"
+  },
+  "sourceSha256": {
+    "backend/src/paper/paperInputResolutionAuthority.ts": "4a4b1a92d64d5119f54f684934ad9088fe9d67e252fe4620d6f2094fd7159154",
+    "backend/src/paper/__tests__/paperInputResolutionAuthority.test.ts": "6e78ac8814bf6d5c20ee8380531bc0eab3d474d4a0d0ed48b935cfc2a5223fc5",
+    "backend/src/paper/riskPaperAuthority.ts": "b64b8116c4bdd666d0c542aa106e1a3a47982c42f124d230a94639e1bb818687",
+    "backend/src/paper/__tests__/riskPaperAuthority.test.ts": "2fb990cfb56ac6af21877c41795b00b58eb788505ca6e885145996493cdec139",
+    "backend/db/sqlite-migrations/0012_paper_input_resolution.sql": "c3920a5bd1481aa4b8ff500e3b56243f335076ea099f994c9393fb64fa20eff9",
+    "backend/db/sqlite-migrations/0012_paper_input_resolution.down.sql": "e669cf13ad6bac1c630053e2a399b382738684f745efcfc92a02450d96582a6f"
+  },
+  "preservedSourceSha256": {
+    "backend/src/signals/signalAuthority.ts": "21ef13b39bbc4649c9f7b42fc91402c3e36694ef6879e225b0c83cf8fb7d8154",
+    "backend/src/research/robustnessSelectionAuthority.ts": "6b7a61778c970054515e1b1c77e55bd3f1d3de9c1a154197352b8bb88e5534d9",
+    "backend/src/app/api/backtest/runs/route.ts": "af8d52bfb271609856628fef56bdc93c6bf738d89078748489d0a7f3e4d90022"
+  },
+  "interpretation": {
+    "paperOnly": true,
+    "baselineCostsAreProviderObservations": false,
+    "signalConfidenceCalibrated": false,
+    "modelPromotionEligible": false,
+    "researchEvidenceUsedAsOperationalConfidence": false
+  },
+  "finalGate": {
+    "command": "make toolchain-gate",
+    "reportPath": "artifacts/toolchain/gate.json",
+    "status": "pass",
+    "summary": {
+      "total": 15,
+      "pass": 15,
+      "fail": 0,
+      "timeout": 0,
+      "environmentBlocked": 0,
+      "skipped": 0,
+      "planned": 0
+    },
+    "firstActionableFailure": null
+  },
+  "preservation": {
+    "m48FileCount": 10,
+    "m48Bytes": 55941,
+    "m48AggregateManifestDigest": "f7dc5aacade5078cf934be760651c2e59d9e340c7a096a25629006d8f8555fe6",
+    "m48HashVerification": "pass",
+    "m48RuntimeAuthority": false
+  },
+  "safety": {
+    "liveExecutionEnabled": false,
+    "demoExecutionEnabled": false,
+    "providerOrderTransportEnabled": false,
+    "externalProviderNetworkCallsEnabled": false,
+    "credentialedProviderSelected": false,
+    "schedulerAuthorityAdded": false,
+    "automaticPaperExecutionAdded": false,
+    "publicPaperRouteAdded": false,
+    "uiAuthorityAdded": false,
+    "riskRequirementWeakened": false,
+    "signalRuleChanged": false,
+    "modelPromotionAuthorityAdded": false,
+    "legacyBacktestRewired": false,
+    "m48RuntimeAuthority": false
+  },
+  "nextWorkUnit": "R1.7 — Operator-Confirmed Paper API (not authorized)"
+}

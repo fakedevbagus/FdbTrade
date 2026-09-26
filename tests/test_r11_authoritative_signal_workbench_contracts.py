@@ -129,6 +129,7 @@ class R11AuthoritativeSignalWorkbenchContracts(unittest.TestCase):
             "0009_operational_hardening",
             "0010_temporal_validation_authority",
             "0011_robustness_selection_bias_authority",
+            "0012_paper_input_resolution",
         ])
 
     def test_m48_preservation_and_safety_remain_locked(self):

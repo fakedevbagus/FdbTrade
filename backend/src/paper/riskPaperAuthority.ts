@@ -39,6 +39,7 @@ import {
   type PaperLedgerState,
   type PaperOrder,
   type RiskCheckRequest,
+  type RiskConversionMetadata,
   type RiskDecision,
   type RiskOverrideAction,
   type RiskState,
@@ -47,6 +48,7 @@ import {
 
 import { MarketDataAuthority, type StoredDataset } from "@/data/marketAuthority";
 import { withImmediateTransaction } from "@/db/sqlite.mjs";
+import { loadVerifiedPaperInputResolution } from "@/paper/paperInputResolutionAuthority";
 
 export const RISK_PAPER_CONFIG_ID = "baseline-risk-paper-authority";
 export const RISK_PAPER_CONFIG_VERSION = "1.0.0";
@@ -70,20 +72,8 @@ type Row = Record<string, unknown>;
 type FaultStage = "after_run_started" | "after_risk_decision" | "after_terminal_commit";
 
 export interface PaperRunRequest {
-  signalId: string;
-  executionDatasetId: string;
-  checkedAtUtc: string;
+  inputResolutionId: string;
   requestedQuantityUnits: number;
-  observedSpreadPips: number;
-  estimatedSlippagePips: number;
-  conversion: {
-    quoteCurrency: string;
-    accountCurrency: string;
-    conversionRate: number;
-    rateAtUtc: string;
-    rateSource: string;
-  };
-  createdAtUtc?: string;
 }
 
 export interface PaperRunResult {
@@ -116,6 +106,7 @@ export interface RiskPaperRecoveryReport {
 
 interface RunEnvelope {
   request: Required<PaperRunRequest>;
+  inputResolutionDigest: string;
   riskRequest: RiskCheckRequest;
   signalDatasetId: string;
   signalArtifactDigest: string;
@@ -138,6 +129,11 @@ function canonicalUtc(value: string, field: string): string {
   utcInstantSchema.parse(value);
   if (new Date(value).toISOString() !== value) throw new Error(`${field} must be canonical UTC`);
   return value;
+}
+
+function assertExactKeys(value: object, allowed: readonly string[], boundary: string): void {
+  const unknown = Object.keys(value).filter((key) => !allowed.includes(key));
+  if (unknown.length > 0) throw new Error(`${boundary} contains unknown fields: ${unknown.sort().join(", ")}`);
 }
 
 function configJson(): string {
@@ -300,17 +296,32 @@ export class RiskPaperAuthority {
   }
 
   run(request: PaperRunRequest, fault?: (stage: FaultStage) => void): PaperRunResult {
-    const createdAtUtc = canonicalUtc(request.createdAtUtc ?? request.checkedAtUtc, "createdAtUtc");
-    const checkedAtUtc = canonicalUtc(request.checkedAtUtc, "checkedAtUtc");
+    assertExactKeys(request, ["inputResolutionId", "requestedQuantityUnits"], "paper run request");
+    const resolvedInputs = loadVerifiedPaperInputResolution(
+      this.database, this.marketData, request.inputResolutionId,
+    );
+    const createdAtUtc = canonicalUtc(resolvedInputs.checkedAtUtc, "createdAtUtc");
+    const checkedAtUtc = canonicalUtc(resolvedInputs.checkedAtUtc, "checkedAtUtc");
+    const conversion = {
+      quoteCurrency: resolvedInputs.conversion.quoteCurrency,
+      accountCurrency: resolvedInputs.conversion.accountCurrency,
+      conversionRate: resolvedInputs.conversion.conversionRate,
+      rateAtUtc: resolvedInputs.conversion.rateAtUtc,
+      rateSource: resolvedInputs.conversion.rateSource,
+    };
     if (!Number.isFinite(request.requestedQuantityUnits) || request.requestedQuantityUnits <= 0) {
       throw new Error("requestedQuantityUnits must be positive");
     }
-    const candidate = this.loadCandidate(request.signalId);
+    if (
+      resolvedInputs.costs.observedSpreadPips !== RISK_PAPER_CONFIG.fillPolicy.spreadPips ||
+      resolvedInputs.costs.estimatedSlippagePips !== RISK_PAPER_CONFIG.fillPolicy.slippagePips
+    ) throw new Error("resolved paper costs do not match the registered fill policy");
+    const candidate = this.loadCandidate(resolvedInputs.signalId);
     if (candidate.lifecycleState !== "identified" || checkedAtUtc >= candidate.signal.expiresAtUtc) {
       throw new Error("signal candidate is expired or not active");
     }
     const signalDataset = this.marketData.load(candidate.datasetId);
-    const executionDataset = this.marketData.load(request.executionDatasetId);
+    const executionDataset = this.marketData.load(resolvedInputs.executionDataset.datasetId);
     if (!signalDataset || !executionDataset) throw new Error("risk paper dataset provenance missing");
     assertDatasetAccepted(signalDataset, "signal source");
     assertDatasetAccepted(executionDataset, "execution");
@@ -322,17 +333,17 @@ export class RiskPaperAuthority {
       (candle) => candle.timestamp === candidate.signal.eventTimeUtc,
     );
     if (submitBarIndex < 0) throw new Error("execution dataset does not contain the signal bar");
-    canonicalUtc(request.conversion.rateAtUtc, "conversion.rateAtUtc");
+    canonicalUtc(resolvedInputs.conversion.rateAtUtc, "conversion.rateAtUtc");
     if (
-      request.conversion.quoteCurrency !== candidate.signal.instrument.slice(3) ||
-      request.conversion.accountCurrency !== RISK_PAPER_CONFIG.account.currency ||
-      request.conversion.rateAtUtc > checkedAtUtc
+      resolvedInputs.conversion.quoteCurrency !== candidate.signal.instrument.slice(3) ||
+      resolvedInputs.conversion.accountCurrency !== RISK_PAPER_CONFIG.account.currency ||
+      resolvedInputs.conversion.rateAtUtc > checkedAtUtc
     ) {
       throw new Error("conversion provenance does not match the paper account decision");
     }
 
-    const runId = runIdFor(request.signalId);
-    const normalized: Required<PaperRunRequest> = { ...request, checkedAtUtc, createdAtUtc };
+    const runId = runIdFor(resolvedInputs.signalId);
+    const normalized: Required<PaperRunRequest> = { ...request };
     let run = this.runRow(runId);
     if (run && ["succeeded", "blocked", "failed"].includes(String(run.status))) {
       const storedEnvelope = JSON.parse(String(run.request_json)) as RunEnvelope;
@@ -348,7 +359,7 @@ export class RiskPaperAuthority {
     const inflight = this.database.prepare(`
       SELECT run_id FROM risk_paper_runs
       WHERE status IN ('pending', 'running') AND signal_id <> ? LIMIT 1
-    `).get(request.signalId);
+    `).get(resolvedInputs.signalId);
     if (inflight) throw new Error("another risk paper run requires recovery");
 
     let envelope: RunEnvelope;
@@ -362,6 +373,7 @@ export class RiskPaperAuthority {
         envelope.signalDatasetId !== candidate.datasetId ||
         envelope.signalArtifactDigest !== signalDataset.manifest.checksum.digest ||
         envelope.executionArtifactDigest !== executionDataset.manifest.checksum.digest ||
+        envelope.inputResolutionDigest !== resolvedInputs.resolutionDigest ||
         envelope.configDigest !== configDigest()
       ) {
         throw new Error("risk paper recovery provenance drift");
@@ -401,15 +413,16 @@ export class RiskPaperAuthority {
           providerHealth: "healthy",
           barTimeframe: candidate.signal.timeframe,
           lastClosedBarOpenUtc: signalDataset.candles.at(-1)?.timestamp,
-          observedSpreadPips: request.observedSpreadPips,
-          estimatedSlippagePips: request.estimatedSlippagePips,
-          conversion: request.conversion,
+          observedSpreadPips: resolvedInputs.costs.observedSpreadPips,
+          estimatedSlippagePips: resolvedInputs.costs.estimatedSlippagePips,
+          conversion,
         },
         riskState: state.state,
         activeOverrideId: state.overrideId,
       });
       envelope = {
         request: normalized,
+        inputResolutionDigest: resolvedInputs.resolutionDigest,
         riskRequest,
         signalDatasetId: candidate.datasetId,
         signalArtifactDigest: signalDataset.manifest.checksum.digest,
@@ -432,7 +445,7 @@ export class RiskPaperAuthority {
             risk_state_event_id, status, attempts, created_at_utc, updated_at_utc
           ) VALUES (?, ?, ?, ?, ?, ?, 'pending', 0, ?, ?)
         `).run(
-          runId, request.signalId, request.executionDatasetId, requestHash, requestJson,
+          runId, resolvedInputs.signalId, resolvedInputs.executionDataset.datasetId, requestHash, requestJson,
           envelope.riskStateEventId, createdAtUtc, createdAtUtc,
         );
       });
@@ -475,7 +488,7 @@ export class RiskPaperAuthority {
             checked_at_utc, created_at_utc
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
-          decision.decisionId, runId, request.signalId, envelope.riskStateEventId, decision.outcome,
+          decision.decisionId, runId, resolvedInputs.signalId, envelope.riskStateEventId, decision.outcome,
           decision.requestDigest, JSON.stringify(riskRequest), sha256(decisionJson), decisionJson,
           checkedAtUtc, createdAtUtc,
         );
@@ -509,7 +522,7 @@ export class RiskPaperAuthority {
         this.commitRoundTrip(
           runId, candidate.signal, decision, order,
           [...roundTrip.entryFills, roundTrip.exitFill], roundTrip.exitReason,
-          request.conversion, createdAtUtc,
+          conversion, createdAtUtc,
         );
       }
     }
@@ -705,7 +718,7 @@ export class RiskPaperAuthority {
   private commitRoundTrip(
     runId: string, signal: Signal, decision: RiskDecision, order: PaperOrder,
     fills: PaperFill[], exitReason: "stop" | "target" | "end_of_simulation",
-    conversion: PaperRunRequest["conversion"], createdAtUtc: string,
+    conversion: RiskConversionMetadata, createdAtUtc: string,
   ): void {
     const context = paperFillContextSchema.parse({ pipSize: pipSize(order.instrument), conversion });
     const entryFills = fills.filter((fill) => fill.side === "entry");

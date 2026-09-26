@@ -120,6 +120,7 @@ class AuthoritativeSignalEntrypointContracts(unittest.TestCase):
                 "0009_operational_hardening",
                 "0010_temporal_validation_authority",
                 "0011_robustness_selection_bias_authority",
+                "0012_paper_input_resolution",
             ],
         )
 

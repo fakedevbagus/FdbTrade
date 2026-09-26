@@ -90,6 +90,7 @@ KNOWN_ADRS = {
     49: "projection-only-research-workbench",
     50: "temporal-validation-authority",
     51: "robustness-and-selection-bias-evidence",
+    52: "paper-input-resolution-authority",
 }
 
 

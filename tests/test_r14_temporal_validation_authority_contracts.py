@@ -118,6 +118,7 @@ class R14TemporalValidationAuthorityContracts(unittest.TestCase):
             "0008_risk_paper_outcomes_authority", "0009_operational_hardening",
             "0010_temporal_validation_authority",
             "0011_robustness_selection_bias_authority",
+            "0012_paper_input_resolution",
         ])
 
     def test_recorded_source_hashes_and_predecessor_boundaries_match(self):
@@ -155,11 +156,11 @@ class R14TemporalValidationAuthorityContracts(unittest.TestCase):
 
     def test_next_stops_at_r15_and_requires_fresh_authorization(self):
         text = NEXT.read_text(encoding="utf-8")
-        self.assertIn("Current completed unit: **R1.5", text)
-        self.assertIn("Next planned unit: **R1.6", text)
+        self.assertIn("Current completed unit: **R1.6", text)
+        self.assertIn("Next planned unit: **R1.7", text)
         self.assertIn("Authorization state: **not authorized**", text)
-        self.assertIn("Otorisasi implementasi HANYA R1.6", text)
-        self.assertIn("Do not infer R1.7", text)
+        self.assertIn("Otorisasi implementasi HANYA R1.7", text)
+        self.assertIn("Do not infer R1.8", text)
 
 
 if __name__ == "__main__":
