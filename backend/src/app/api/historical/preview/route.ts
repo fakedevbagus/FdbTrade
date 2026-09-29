@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { requireSession } from "@/auth/guard";
 import { previewImport } from "@/data/historical/importService";
+import { APPROVED_MARKET_INSTRUMENTS, APPROVED_MARKET_TIMEFRAMES } from "@/data/marketAuthority";
 import { withApi } from "@/http/handler";
 import { ApiError } from "@/http/errors";
 import { jsonOk } from "@/http/responses";
@@ -9,8 +10,8 @@ import { parseJsonBody } from "@/http/validate";
 
 const requestSchema = z.object({
   csvText: z.string().min(1).max(10 * 1024 * 1024),
-  instrument: z.string().min(1).max(32),
-  timeframe: z.enum(["5m", "15m", "1h", "4h", "1d"]),
+  instrument: z.enum(APPROVED_MARKET_INSTRUMENTS),
+  timeframe: z.enum(APPROVED_MARKET_TIMEFRAMES),
   providerId: z.string().min(1).max(128),
   license: z.object({ status: z.enum(["verified", "unverified", "synthetic"]), source: z.string().min(1), evidenceUrl: z.string().url().nullable(), note: z.string() }).strict(),
   createdAtUtc: z.string().datetime({ offset: true }),

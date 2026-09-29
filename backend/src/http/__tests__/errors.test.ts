@@ -36,6 +36,7 @@ describe("ApiError", () => {
       INTERNAL_ERROR: 500,
       RATE_LIMITED: 429,
       REPLAY_DETECTED: 409,
+      LEGACY_SURFACE_RETIRED: 410,
     };
     expect([...API_ERROR_CODES].sort()).toEqual(Object.keys(expected).sort());
     for (const code of API_ERROR_CODES) {
@@ -93,6 +94,7 @@ describe("ApiError", () => {
     expect(ApiError.replayDetected().message).toBe(
       "Duplicate request detected. Please retry with a new request ID.",
     );
+    expect(ApiError.legacySurfaceRetired().message).toBe("This legacy surface is retired.");
   });
 
   it("supports rate-limited and replay-detected helpers with correct statuses", () => {
@@ -103,5 +105,6 @@ describe("ApiError", () => {
     const replayed = ApiError.replayDetected();
     expect(replayed.code).toBe("REPLAY_DETECTED");
     expect(replayed.status).toBe(409);
+    expect(ApiError.legacySurfaceRetired().status).toBe(410);
   });
 });

@@ -93,6 +93,7 @@ KNOWN_ADRS = {
     52: "paper-input-resolution-authority",
     53: "operator-confirmed-paper-api",
     54: "paper-and-outcome-workbench",
+    55: "legacy-surface-retirement",
 }
 
 

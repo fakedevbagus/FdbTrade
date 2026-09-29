@@ -115,3 +115,4 @@ not used.
 | [ADR-0052](ADR-0052-paper-input-resolution-authority.md) | Paper input resolution authority | Accepted |
 | [ADR-0053](ADR-0053-operator-confirmed-paper-api.md) | Operator-confirmed paper API | Accepted |
 | [ADR-0054](ADR-0054-paper-and-outcome-workbench.md) | Projection-only paper and outcome workbench | Accepted |
+| [ADR-0055](ADR-0055-legacy-surface-retirement.md) | Legacy surface retirement | Accepted |

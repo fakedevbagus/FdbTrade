@@ -1,38 +1,8 @@
-/**
- * Backtest API route tests (P08-05): strict request validation at the
- * boundary (the handler wiring — session guard + method policy — mirrors
- * the tested route pattern of P07).
- */
-import { describe, expect, it } from "vitest";
-
-import { backtestRunRequestSchema } from "@/backtest/apiSchema";
-
-describe("backtest API route contract (P08-05)", () => {
-  it("request schema is strict (fail closed at the boundary)", () => {
-    const base = {
-      instrument: "EURUSD",
-      timeframe: "1h" as const,
-      periodStartUtc: "2026-09-08T00:00:00.000Z",
-      periodEndUtc: "2026-09-09T00:00:00.000Z",
-      initialEquity: 10_000,
-      warmupBars: 0,
-      fillPolicy: {
-        policyId: "next-bar-open" as const,
-        latencyBars: 1,
-        spreadPips: 0,
-        slippagePips: 0,
-        commissionPips: 0,
-        maxFillFraction: 1,
-        exitPriority: "stop-first" as const,
-      },
-      seed: "route-test",
-      subject: "noop" as const,
-      createdAtUtc: "2026-09-10T12:00:00.000Z",
-    };
-    expect(backtestRunRequestSchema.parse(base).instrument).toBe("EURUSD");
-    expect(() =>
-      backtestRunRequestSchema.parse({ ...base, subject: "sweep" as never }),
-    ).toThrow();
-    expect(() => backtestRunRequestSchema.parse({ ...base, unknown: true })).toThrow();
-  });
-});
+import { describe, expect, it, vi } from "vitest";
+import type { AuthResult } from "@/auth/store";
+const TOKEN = "r19-session";
+const AUTH: AuthResult = { session: { id: "s", userId: "u", createdAt: "2026-09-29T00:00:00.000Z", expiresAt: "2099-01-01T00:00:00.000Z" }, user: { id: "u", username: "owner", isActive: true, mfaEnabled: false } };
+vi.mock("@/auth/store", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/auth/store")>()), getSessionByToken: vi.fn(async (token: string) => token === TOKEN ? AUTH : null) }));
+import { GET, POST, PUT } from "@/app/api/backtest/runs/route";
+const req=(method="GET",auth=true)=>new Request("http://localhost:3100/api/backtest/runs",{method,headers:auth?{cookie:`fdb_session=${TOKEN}`}:{}});
+describe("retired backtest",()=>{it.each(["GET","POST"])("%s returns 410",async m=>{const r=m==="GET"?await GET(req()):await POST(req("POST"));expect(r.status).toBe(410);const b=await r.json();expect(b.error.code).toBe("LEGACY_SURFACE_RETIRED");expect(b.error.details.replacement.ui).toBe("/research/workbench");});it("requires authentication",async()=>expect((await GET(req("GET",false))).status).toBe(401));it("closes unsupported methods",async()=>expect((await PUT(req("PUT"))).status).toBe(405));});

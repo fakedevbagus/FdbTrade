@@ -18,6 +18,7 @@ export const API_ERROR_CODES = [
   "INTERNAL_ERROR",
   "RATE_LIMITED",
   "REPLAY_DETECTED",
+  "LEGACY_SURFACE_RETIRED",
 ] as const;
 
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];
@@ -34,6 +35,7 @@ export const STATUS_BY_CODE: Readonly<Record<ApiErrorCode, number>> = {
   INTERNAL_ERROR: 500,
   RATE_LIMITED: 429,
   REPLAY_DETECTED: 409,
+  LEGACY_SURFACE_RETIRED: 410,
 };
 
 
@@ -132,5 +134,9 @@ export class ApiError extends Error {
     message = "Duplicate request detected. Please retry with a new request ID.",
   ): ApiError {
     return new ApiError("REPLAY_DETECTED", message, { status: 409 });
+  }
+
+  static legacySurfaceRetired(message = "This legacy surface is retired.", details?: unknown): ApiError {
+    return new ApiError("LEGACY_SURFACE_RETIRED", message, { details });
   }
 }

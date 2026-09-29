@@ -57,12 +57,10 @@ class M47SevenMajorContracts(unittest.TestCase):
         self.assertIn("quarantined: report.quarantined", worker)
         self.assertIn("quarantined: []", worker)
 
-    def test_dashboard_pair_filter_fails_closed_and_orders_by_config(self):
+    def test_dashboard_fixture_projection_is_retired(self):
         route = (BACKEND / "app" / "api" / "dashboard" / "route.ts").read_text(encoding="utf-8")
-        self.assertIn("SEVEN_MAJOR_PAIRS", route)
-        self.assertIn("must not repeat", route)
-        self.assertIn("requestedPairs.includes(entry.pair)", route)
-        self.assertIn("SEVEN_MAJOR_CONFIG.filter", route)
+        self.assertIn("rejectRetiredSurface", route)
+        self.assertNotIn("buildDashboardSnapshot", route)
 
     def test_pipeline_never_improvises_universe_and_labels_provenance(self):
         pipeline = (BACKEND / "signals" / "pipeline.ts").read_text(encoding="utf-8")
@@ -71,14 +69,11 @@ class M47SevenMajorContracts(unittest.TestCase):
         self.assertIn("SEVEN_MAJOR_CONFIG.map", pipeline)
         self.assertNotIn("INSTRUMENTS.keys()", pipeline)
 
-    def test_ui_derives_pairs_from_contract_and_shows_pair_provenance(self):
+    def test_ui_no_longer_projects_fixture_pair_provenance(self):
         page = (FRONTEND / "app" / "(app)" / "dashboard" / "page.tsx").read_text(encoding="utf-8")
-        self.assertIn("CONFIGURED_PAIRS", page)
-        self.assertIn("CONFIGURED_PAIRS.map", page)
-        self.assertIn("Unknown pair filter", page)
-        content = (FRONTEND / "components" / "dashboard" / "DashboardContent.tsx").read_text(encoding="utf-8")
-        self.assertIn("row.configuredPair", content)
-        self.assertIn("row.provenance", content)
+        self.assertIn("Legacy dashboard retired", page)
+        self.assertIn("/signals/workbench", page)
+        self.assertNotIn("DashboardContent", page)
 
     def test_no_live_or_provider_order_authority_added(self):
         for path in list(RUNTIME.glob("*.ts")) + [BACKEND / "signals" / "pipeline.ts"]:

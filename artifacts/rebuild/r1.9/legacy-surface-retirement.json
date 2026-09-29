@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "workUnit": "R1.9",
+  "status": "complete",
+  "recordedOn": "2026-09-29",
+  "repository": {
+    "branch": "rebuild/r0-preserve-current-state",
+    "baselineCommit": "334276edf7c1b9dda13c4dc7cdca203adfc5e456"
+  },
+  "authority": {
+    "retiredHttpStatus": 410,
+    "retiredErrorCode": "LEGACY_SURFACE_RETIRED",
+    "authenticationRequired": true,
+    "signalReplacementApi": "/api/signals/evaluations",
+    "signalReplacementUi": "/signals/workbench",
+    "researchReplacementApi": "/api/research/runs",
+    "researchReplacementUi": "/research/workbench",
+    "approvedInstruments": [
+      "EURUSD",
+      "GBPUSD",
+      "USDJPY",
+      "USDCHF",
+      "AUDUSD",
+      "USDCAD",
+      "NZDUSD"
+    ],
+    "approvedTimeframes": [
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "migrationCount": 12
+  },
+  "behavior": {
+    "authenticatedTerminalRetirement": "pass",
+    "unauthenticatedFailClosed": "pass",
+    "legacyPayloadUnavailable": "pass",
+    "legacyPipelineNotProductionWired": "pass",
+    "legacyBacktestNotProductionWired": "pass",
+    "truthfulRetirementUi": "pass",
+    "exactSevenPairBoundary": "pass",
+    "exactThreeTimeframeBoundary": "pass",
+    "negativeRouteAndScopeTests": "pass"
+  },
+  "sourceSha256": {
+    "backend/src/http/errors.ts": "cda1cc8857c73a3a6ac81a13ecff8483d9034c54b6d1197c1b13e09257c117b3",
+    "backend/src/http/retiredSurface.ts": "11d26c8f2d6d9a3dd5f8f77b695ca7336ab62df257499213d3551ea1a61d69e4",
+    "backend/src/app/api/dashboard/route.ts": "4ba43ebe00b3793b46b9cc1f2c214acb6f563c14b23ef2354bc01bacf81e3d94",
+    "backend/src/app/api/signals/scanner/route.ts": "a6ca89322345ff04b392526b0e743fb7b475f922fe47e8e5cf894cd71bcc7cac",
+    "backend/src/app/api/signals/[id]/route.ts": "69105feb86cdc4f607f57571cb657e72963563c449fa05fa5bb9edeb8e44fc3d",
+    "backend/src/app/api/signals/[id]/chart/route.ts": "c9521bd8123c0396ef12472baf853f667a232a905e7210fa60e1e8624a15467a",
+    "backend/src/app/api/backtest/runs/route.ts": "a6445c1f2ff72f4bd12fceffb7fe8182ba1808b7dd6adaba64208e7d344d1d16",
+    "backend/src/app/api/backtest/runs/[runId]/route.ts": "2174bfec4357b2729c023feb2afef81f4319fcb6ffe314e410c77a8373fbdda3",
+    "backend/src/app/api/historical/preview/route.ts": "ebf9127e9944ff1f1b4514eca6367f9229e7ab5fae74facf8c54c8bea873032d",
+    "backend/src/app/api/historical/datasets/route.ts": "5780960afcbb28ac6e81cd4065ea224b05fb4e36c7b52bb527a3b37502706e47",
+    "frontend/src/app/(app)/dashboard/page.tsx": "08af951c9f1811089e9fd04f162c640aeb0a5bb09dad5aeef36b7e2ca4a6313f",
+    "frontend/src/app/(app)/scanner/page.tsx": "e55e81fdffb02804f25300cc570b5e32d9fb9311c0c6601ae5d85de1edf7d74f",
+    "frontend/src/app/(app)/signals/[id]/page.tsx": "078ccdf42396adb62d0f8a9f680c7426bf3b6bc8e5889ca1d8f216fb112166cc"
+  },
+  "preservedSourceSha256": {
+    "backend/src/signals/signalAuthority.ts": "21ef13b39bbc4649c9f7b42fc91402c3e36694ef6879e225b0c83cf8fb7d8154",
+    "backend/src/research/researchAuthority.ts": "5bb134752f36a3bc8c97ec3e55e0012e601be80654958319eb1ca29bbb3058b7",
+    "backend/src/paper/paperInputResolutionAuthority.ts": "4a4b1a92d64d5119f54f684934ad9088fe9d67e252fe4620d6f2094fd7159154",
+    "backend/src/paper/riskPaperAuthority.ts": "b64b8116c4bdd666d0c542aa106e1a3a47982c42f124d230a94639e1bb818687"
+  },
+  "finalGate": {
+    "command": "make toolchain-gate",
+    "reportPath": "artifacts/toolchain/gate.json",
+    "status": "pass",
+    "summary": {
+      "total": 15,
+      "pass": 15,
+      "fail": 0,
+      "timeout": 0,
+      "environmentBlocked": 0,
+      "skipped": 0,
+      "planned": 0
+    },
+    "firstActionableFailure": null
+  },
+  "preservation": {
+    "migrationCount": 12,
+    "m48FileCount": 10,
+    "m48Bytes": 55941,
+    "m48AggregateManifestDigest": "f7dc5aacade5078cf934be760651c2e59d9e340c7a096a25629006d8f8555fe6",
+    "m48HashVerification": "pass",
+    "m48RuntimeAuthority": false
+  },
+  "safety": {
+    "liveExecutionEnabled": false,
+    "demoExecutionEnabled": false,
+    "providerOrderTransportEnabled": false,
+    "externalProviderNetworkCallsEnabled": false,
+    "credentialedProviderSelected": false,
+    "schedulerAuthorityAdded": false,
+    "automaticPaperExecutionAdded": false,
+    "publicUnauthenticatedRouteAdded": false,
+    "browserAuthorityAdded": false,
+    "riskRequirementWeakened": false,
+    "signalRuleChanged": false,
+    "modelPromotionAuthorityAdded": false,
+    "legacyBacktestRewired": false,
+    "m48RuntimeAuthority": false
+  },
+  "nextWorkUnit": "R1.10 — Durable Operational Health (not authorized)"
+}

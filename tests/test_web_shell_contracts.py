@@ -140,11 +140,11 @@ class ShellStructureContract(unittest.TestCase):
         self.assertIn("P01-04", text)
         self.assertIn('role="note"', text)
 
-    def test_dashboard_renders_honest_empty_states(self):
-        text = (APP / "(app)" / "dashboard" / "page.tsx").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn("<EmptyState", text)
+    def test_dashboard_is_explicitly_retired_without_fixture_projection(self):
+        text = (APP / "(app)" / "dashboard" / "page.tsx").read_text(encoding="utf-8")
+        self.assertIn("Legacy dashboard retired", text)
+        self.assertIn("/signals/workbench", text)
+        self.assertNotIn("fetchLatestDashboardSnapshot", text)
 
     def test_ui_primitives_are_typed_and_exported(self):
         for name in ("Loading", "EmptyState", "ErrorState"):

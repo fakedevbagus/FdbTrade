@@ -50,12 +50,10 @@ class SignalPipelineContract(unittest.TestCase):
         # Placeholder discipline documented (no tuning before P8/P9).
         self.assertRegex(text, r"PLACEHOLDER")
 
-    def test_route_is_get_only_with_validated_query(self):
+    def test_route_is_retired_and_get_only(self):
         text = ROUTE.read_text(encoding="utf-8")
-        self.assertIn("requireSession", text)
-        self.assertIn("dashboardQuerySchema", text)
-        self.assertIn('ApiError.methodNotAllowed(["GET"])', text)
-        self.assertIn("asOfUtc", text)
+        self.assertIn("rejectRetiredSurface", text)
+        self.assertNotIn("buildDashboardSnapshot", text)
 
 
 class DashboardUiContract(unittest.TestCase):
@@ -76,12 +74,10 @@ class DashboardUiContract(unittest.TestCase):
         # Heat is a labeled placeholder, never a fabricated number.
         self.assertRegex(text, r"Placeholder")
 
-    def test_page_validates_at_the_boundary_and_fails_closed(self):
+    def test_page_is_an_explicit_retirement_notice(self):
         text = DASH_PAGE.read_text(encoding="utf-8")
-        self.assertIn("fetchLatestDashboardSnapshot", text)
-        self.assertIn("ErrorState", text)
-        # No client-side pipeline re-implementation.
-        self.assertNotIn("evaluateEnsemble", text)
+        self.assertIn("Legacy dashboard retired", text)
+        self.assertNotIn("fetchLatestDashboardSnapshot", text)
 
     def test_client_schema_validates_snapshot(self):
         text = DASH_LIB.read_text(encoding="utf-8")
@@ -143,20 +139,16 @@ class ScannerContract(unittest.TestCase):
         self.assertNotIn("Date.now()", text)
         self.assertNotIn("Math.random", text)
 
-    def test_route_is_get_only_and_session_guarded(self):
+    def test_route_is_retired_and_get_only(self):
         text = self.ROUTE.read_text(encoding="utf-8")
-        self.assertIn("requireSession", text)
+        self.assertIn("rejectRetiredSurface", text)
         self.assertIn('ApiError.methodNotAllowed(["GET"])', text)
 
-    def test_page_url_state_is_reproducible_and_has_no_order_button(self):
+    def test_page_is_retired_without_result_or_order_surface(self):
         text = self.PAGE.read_text(encoding="utf-8")
-        # URL carries the filter state (reproducible views).
-        self.assertIn("canonicalParams", text)
-        # Non-goal: no order button anywhere in the scanner UI.
+        self.assertIn("Legacy scanner retired", text)
+        self.assertNotIn("fetchScannerView", text)
         self.assertNotRegex(text, r"(?i)place\s*order|submit\s*order|order\s*button")
-        # Filter set present.
-        for token in ("direction", "regime", "minConfidence", "minEdgePips", "freshOnly", "maxAgeBars"):
-            self.assertIn(token, text)
 
     def test_scanner_tests_cover_required_cases(self):
         test = (
@@ -191,32 +183,13 @@ class SignalDetailContract(unittest.TestCase):
     PAGE = FRONTEND_SRC / "app" / "(app)" / "signals" / "[id]" / "page.tsx"
     TEST = BACKEND_SRC / "signals" / "__tests__" / "detail.test.ts"
 
-    def test_route_is_get_only_session_guarded_with_strict_id(self):
-        text = self.ROUTE.read_text(encoding="utf-8")
-        self.assertIn("requireSession", text)
-        self.assertIn('ApiError.methodNotAllowed(["GET"])', text)
-        self.assertIn("DECISION_ID_RE", text)
-        self.assertIn("notFound", text)
-
-    def test_page_shows_required_surfaces_with_derived_labels(self):
-        text = self.PAGE.read_text(encoding="utf-8")
-        for token in (
-            "BUY",  # BUY/SELL/WAIT headline
-            "stopLoss",  # SL
-            "takeProfit",  # TP
-            "derived",  # R:R + expected move labeled derived
-            "expectedMovePips",
-            "confidence",  # model confidence
-            "empiricalHitRate",  # calibration separated from confidence
-            "reasonCodes",
-            "regimeContext",  # regime
-            "dataQuality",  # data quality
-            "performanceContext",  # strategy performance context (honest)
-            "expiresAtUtc",  # expiry
-        ):
-            self.assertIn(token, text)
-        # No misleading certainty: the win-probability disclaimer is present.
-        self.assertRegex(text, r"NOT a win probability")
+    def test_route_and_page_are_retired(self):
+        route = self.ROUTE.read_text(encoding="utf-8")
+        page = self.PAGE.read_text(encoding="utf-8")
+        self.assertIn("rejectRetiredSurface", route)
+        self.assertNotIn("buildSignalDetail", route)
+        self.assertIn("Legacy signal detail retired", page)
+        self.assertNotIn("fetchSignalDetail", page)
 
     def test_detail_tests_cover_required_cases(self):
         text = self.TEST.read_text(encoding="utf-8")
@@ -248,10 +221,11 @@ class ChartOverlayContract(unittest.TestCase):
     COMPONENT = FRONTEND_SRC / "components" / "chart" / "CandleChart.tsx"
     TEST = BACKEND_SRC / "signals" / "__tests__" / "chart.test.ts"
 
-    def test_route_is_get_only_session_guarded(self):
+    def test_route_is_retired_and_get_only(self):
         text = self.ROUTE.read_text(encoding="utf-8")
-        self.assertIn("requireSession", text)
+        self.assertIn("rejectRetiredSurface", text)
         self.assertIn('ApiError.methodNotAllowed(["GET"])', text)
+        self.assertNotIn("buildSignalChart", text)
 
     def test_component_geometry_is_pure_market_coordinates(self):
         text = self.COMPONENT.read_text(encoding="utf-8")
