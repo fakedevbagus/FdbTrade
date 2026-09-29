@@ -94,6 +94,7 @@ KNOWN_ADRS = {
     53: "operator-confirmed-paper-api",
     54: "paper-and-outcome-workbench",
     55: "legacy-surface-retirement",
+    56: "durable-operational-health",
 }
 
 

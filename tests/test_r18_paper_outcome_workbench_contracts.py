@@ -88,10 +88,10 @@ class R18PaperOutcomeWorkbenchContracts(unittest.TestCase):
         self.assertEqual(len(ordered), 12)
         self.assertEqual(ordered[-1].name, "0012_paper_input_resolution.sql")
         text = NEXT.read_text()
-        self.assertIn("Current completed unit: **R1.9", text)
-        self.assertIn("Next planned unit: **R1.10", text)
+        self.assertIn("Current completed unit: **R1.10", text)
+        self.assertIn("Next planned unit: **R1.11", text)
         self.assertIn("Authorization state: **not authorized**", text)
-        self.assertIn("Do not start R1.10", text)
+        self.assertIn("Do not start R1.11", text)
 
     def test_authority_hashes_gate_and_safety_are_locked(self):
         authority = json.loads(AUTHORITY.read_text())

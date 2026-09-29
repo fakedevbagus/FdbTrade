@@ -20,7 +20,8 @@ import {
 
 import { utcNowIso } from "@/clock";
 import { checkDatabaseHealth, getDatabase } from "@/db/client";
-import { obsService } from "@/obs/service";
+import { MARKET_DATA_ARTIFACT_ROOT } from "@/data/historical/storeDir";
+import { durableHealthEvidence } from "@/obs/durableHealthProjection";
 import type { RiskState } from "@fdbtrade/contracts";
 import type { DatabaseSync } from "node:sqlite";
 
@@ -52,88 +53,41 @@ export const HEALTH_BUDGETS: Readonly<
 
 export type CheckFactory = () => Promise<readonly HealthCheck[]>;
 
-/** Default check factory (real runtime; no secrets in metrics). */
+/** Default read-only factory over durable operational evidence. */
 export const defaultCheckFactory: CheckFactory = async () => {
   const atUtc = utcNowIso();
-  const checks: HealthCheck[] = [];
-  const riskState = durableRiskState();
-
-  // Feed: fixture provider is deterministic and always serves in-session
-  // bars; without a live provider the check is degraded with the explicit
-  // fixture reason (never fabricated healthy).
-  checks.push({
-    component: "feed",
-    status: "degraded",
-    observedAtUtc: atUtc,
-    reason: "feed_no_data",
-    metrics: { providerId: "fixture", liveProvider: false },
-  });
-
-  // Queue: the ingestion worker is explicit-driven (no hidden scheduler);
-  // backlog is the pending/running job count surface — 0 without a runtime
-  // sweep, observed now.
-  checks.push({
-    component: "queue",
-    status: "ok",
-    observedAtUtc: atUtc,
-    reason: null,
-    metrics: { backlog: 0, running: 0 },
-  });
-
-  // API: process-alive self-report; error-rate surface is the obs log.
-  const recentErrors = obsService
-    .records()
-    .filter((r) => r.level === "error" && r.stage === "admin").length;
-  checks.push({
-    component: "api",
-    status: recentErrors > 0 ? "degraded" : "ok",
-    observedAtUtc: atUtc,
-    reason: recentErrors > 0 ? "api_error_rate" : null,
-    metrics: { recentErrors },
-  });
-
-  // DB: the P01-03 health check (status ok | unavailable + latencyMs).
-  try {
-    const database = await checkDatabaseHealth();
-    checks.push({
-      component: "db",
-      status: database.status === "ok" ? "ok" : "down",
+  const databaseHealth = await checkDatabaseHealth();
+  if (databaseHealth.status !== "ok") {
+    const unavailable: HealthCheck[] = (["feed", "queue", "api", "cache", "risk"] as const).map((component) => ({
+      component,
+      status: "unknown",
       observedAtUtc: atUtc,
-      reason: database.status === "ok" ? null : "db_unreachable",
-      metrics: { latencyMs: database.latencyMs },
-    });
-  } catch {
-    checks.push({
+      reason: "check_missing",
+      metrics: { authority: "unavailable" },
+    }));
+    unavailable.push({
       component: "db",
       status: "down",
       observedAtUtc: atUtc,
       reason: "db_unreachable",
-      metrics: {},
+      metrics: { latencyMs: databaseHealth.latencyMs },
     });
+    return unavailable;
   }
-
-  // Cache: the P02-04 market-data cache is in-process; no separate
-  // deployment to check, so it reports ok with its size (bounded).
-  checks.push({
-    component: "cache",
-    status: "ok",
-    observedAtUtc: atUtc,
-    reason: null,
-    metrics: {},
-  });
-
-  // Risk: the R0.9 SQLite event stream is the only state authority. A missing
-  // or unreadable durable row fails closed instead of falling back to process
-  // memory.
-  checks.push({
-    component: "risk",
-    status: riskState === null ? "down" : "ok",
-    observedAtUtc: atUtc,
-    reason: riskState === null ? "risk_authority_uninitialized" : null,
-    metrics: { state: riskState ?? "uninitialized", authority: "sqlite" },
-  });
-
-  return checks;
+  try {
+    return durableHealthEvidence(getDatabase(), {
+      artifactRoot: MARKET_DATA_ARTIFACT_ROOT,
+      observedAtUtc: atUtc,
+    }).checks;
+  } catch {
+    return (["feed", "queue", "api", "db", "cache", "risk"] as const).map((component) => ({
+      component,
+      status: "unknown" as const,
+      observedAtUtc: atUtc,
+      reason: "check_missing" as const,
+      metrics: { authority: "durable-health-projection" },
+    }));
+  }
 };
 
 /** Compute the current health snapshot (default runtime checks). */

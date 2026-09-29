@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "workUnit": "R1.10",
+  "status": "complete",
+  "recordedOn": "2026-09-29",
+  "repository": {
+    "branch": "rebuild/r0-preserve-current-state",
+    "baselineCommit": "99746bb2244a389a3ec69abc43549e2fb564759e"
+  },
+  "authority": {
+    "readOnly": true,
+    "metadata": "SQLite",
+    "artifactVerification": "SHA-256 and byte count",
+    "diskMinimumBytes": 536870912,
+    "migrationCount": 12
+  },
+  "behavior": {
+    "durableQueue": "pass",
+    "acceptedDataFreshness": "pass",
+    "artifactIntegrity": "pass",
+    "diskBudget": "pass",
+    "durableFailureAudit": "pass",
+    "riskLatch": "pass",
+    "unknownFailsClosed": "pass",
+    "restart": "pass",
+    "uiPropagation": "pass"
+  },
+  "sourceSha256": {
+    "backend/src/obs/durableHealthProjection.ts": "c784abaa55e82c92f2dd9b72ab1c34bcbdf247e2537140e7f2dd090d8aa42c66",
+    "backend/src/obs/healthService.ts": "61c9fe91b0b194322280fd1b8c90284a6bbae3d0be9a7fd5b8bac5880d39c262",
+    "backend/src/obs/__tests__/healthService.test.ts": "190279eb6025d0f5b6a7de546d7cca5dd54bd8f00fb786c6ef90b44cc525b9d1",
+    "frontend/src/app/(app)/admin/health/page.tsx": "b9ae2ece94939f56b8354e569167c00845d04fa629dedb6977ed78b6b4b32374",
+    "frontend/src/lib/health.ts": "29c285ddb431fcbae73cb082809244ce9203aaeb58edf1ce76f7b8d5fc3422bf"
+  },
+  "finalGate": {
+    "command": "make toolchain-gate",
+    "reportPath": "artifacts/toolchain/gate.json",
+    "status": "pass",
+    "summary": {
+      "total": 15,
+      "pass": 15,
+      "fail": 0,
+      "timeout": 0,
+      "environmentBlocked": 0,
+      "skipped": 0,
+      "planned": 0
+    }
+  },
+  "preservation": {
+    "migrationCount": 12,
+    "m48FileCount": 10,
+    "m48Bytes": 55941,
+    "m48HashVerification": "pass"
+  },
+  "safety": {
+    "liveExecutionEnabled": false,
+    "providerOrderTransportEnabled": false,
+    "externalProviderNetworkCallsEnabled": false,
+    "credentialedProviderSelected": false,
+    "schedulerAuthorityAdded": false,
+    "healthMutationAdded": false,
+    "signalRuleChanged": false,
+    "m48RuntimeAuthority": false
+  },
+  "nextWorkUnit": "R1.11 \u2014 Local Web Security Hardening (not authorized)"
+}

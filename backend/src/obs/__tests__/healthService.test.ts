@@ -49,6 +49,7 @@ import {
   currentHealthSnapshot,
   durableRiskState,
 } from "@/obs/healthService";
+import { durableHealthEvidence } from "@/obs/durableHealthProjection";
 import { RiskPaperAuthority } from "@/paper/riskPaperAuthority";
 
 const roots: string[] = [];
@@ -89,6 +90,34 @@ function allGreenChecks(atUtc: string): readonly HealthCheck[] {
     }),
   );
 }
+
+describe("durableHealthEvidence", () => {
+  it("fails closed on absent data and reports real zero backlog", () => {
+    const evidence = durableHealthEvidence(runtime.database as DatabaseSync, {
+      artifactRoot: mkdtempSync(path.join(tmpdir(), "fdb-health-artifacts-")),
+      observedAtUtc: "2026-09-29T16:00:00.000Z",
+      diskFreeBytes: () => 1024 * 1024 * 1024,
+    });
+    expect(evidence.checks.find((check) => check.component === "feed")).toMatchObject({ status: "down", reason: "feed_no_data" });
+    expect(evidence.checks.find((check) => check.component === "queue")?.metrics).toMatchObject({ backlog: 0, running: 0 });
+  });
+
+  it("projects durable queue backlog and corrupt artifact evidence", () => {
+    const db = runtime.database as DatabaseSync;
+    db.prepare(`INSERT INTO market_data_ingestion_jobs (job_id,dedup_key,request_hash,status,attempts,dataset_id,failure_reason,created_at_utc,updated_at_utc) VALUES ('job-health','dedup-health',?,'pending',0,NULL,NULL,?,?)`).run("a".repeat(64), "2026-09-29T15:00:00.000Z", "2026-09-29T15:00:00.000Z");
+    db.prepare(`INSERT INTO market_data_artifacts (digest,relative_path,byte_count,media_type,created_at_utc) VALUES (?, 'missing.candles', 1, 'application/vnd.fdbtrade.candles', ?)` ).run("b".repeat(64), "2026-09-29T15:00:00.000Z");
+    const root = mkdtempSync(path.join(tmpdir(), "fdb-health-corrupt-")); roots.push(root);
+    const evidence = durableHealthEvidence(db, { artifactRoot: root, observedAtUtc: "2026-09-29T16:00:00.000Z", diskFreeBytes: () => 1024 * 1024 * 1024 });
+    expect(evidence.checks.find((check) => check.component === "queue")).toMatchObject({ status: "degraded", reason: "queue_backlog" });
+    expect(evidence.checks.find((check) => check.component === "cache")).toMatchObject({ status: "down", reason: "cache_unreachable" });
+  });
+
+  it("degrades on measured low disk budget", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "fdb-health-disk-")); roots.push(root);
+    const evidence = durableHealthEvidence(runtime.database as DatabaseSync, { artifactRoot: root, observedAtUtc: "2026-09-29T16:00:00.000Z", diskFreeBytes: () => 1, minimumFreeBytes: 2 });
+    expect(evidence.checks.find((check) => check.component === "cache")).toMatchObject({ status: "degraded", reason: "cache_stale" });
+  });
+});
 
 describe("currentHealthSnapshot (default factory)", () => {
   it("fixture feed is explicitly degraded, never fabricated green", async () => {

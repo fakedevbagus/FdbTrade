@@ -116,3 +116,4 @@ not used.
 | [ADR-0053](ADR-0053-operator-confirmed-paper-api.md) | Operator-confirmed paper API | Accepted |
 | [ADR-0054](ADR-0054-paper-and-outcome-workbench.md) | Projection-only paper and outcome workbench | Accepted |
 | [ADR-0055](ADR-0055-legacy-surface-retirement.md) | Legacy surface retirement | Accepted |
+| [ADR-0056](ADR-0056-durable-operational-health.md) | Durable operational health | Accepted |

@@ -61,7 +61,7 @@ export default async function HealthPage(): Promise<JSX.Element> {
     <div className="fdb-page">
       <h1>System health</h1>
       <p className="fdb-page__lead">
-        As of {snapshot.asOfUtc} (UTC). Risk state:{" "}
+        Durable SQLite, artifact, disk, queue, failure/audit and risk evidence as of {snapshot.asOfUtc} (UTC). Risk state:{" "}
         <span className={`fdb-badge ${RISK_BADGES[snapshot.riskState] ?? ""}`}>
           {snapshot.riskState}
         </span>
@@ -124,9 +124,10 @@ export default async function HealthPage(): Promise<JSX.Element> {
           </tbody>
         </table>
         <p className="fdb-page__lead">
-          Stale checks degrade automatically; feed/db/risk failures fail
-          closed for new entries. Health is never green without fresh
-          evidence.
+          Missing, stale or corrupt evidence degrades or fails closed. Queue
+          backlog, artifact verification, disk budget, durable failures/audit
+          records and SQLite risk state propagate verbatim in component metrics.
+          Health is never green without fresh durable evidence.
         </p>
       </section>
     </div>
