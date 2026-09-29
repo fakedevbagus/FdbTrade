@@ -19,6 +19,7 @@ import {
   sessionCookieAttributes,
 } from "@/auth/store";
 import { withApi } from "@/http/handler";
+import { assertLoginAllowed, recordLoginFailure, recordLoginSuccess } from "@/auth/loginThrottle";
 import { ApiError } from "@/http/errors";
 import { jsonOk } from "@/http/responses";
 import { parseJsonBody } from "@/http/validate";
@@ -42,19 +43,23 @@ function clearedCookieHeader(): string {
 
 export const POST = withApi(async (request, { requestId }) => {
   const body = await parseJsonBody(request, loginSchema);
+  assertLoginAllowed(body.username);
 
   let result;
   try {
     result = await login(body.username, body.password);
   } catch (error) {
+    recordLoginFailure(body.username);
     // Database outage during login: fail closed with a generic 401 so no
     // outage/state oracle is exposed (health endpoint reports the outage).
     throw ApiError.unauthorized();
   }
   if (!result) {
+    recordLoginFailure(body.username);
     // Bad username or bad password: identical response.
     throw ApiError.unauthorized();
   }
+  recordLoginSuccess(body.username);
 
   const response = jsonOk(
     {

@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "workUnit": "R1.11",
+  "status": "complete",
+  "recordedOn": "2026-09-30",
+  "repository": {
+    "branch": "rebuild/r0-preserve-current-state",
+    "baselineCommit": "2fc328f605bd46c0bec6182520537c7eb8152f2c"
+  },
+  "authority": {
+    "deployment": "single-user-loopback",
+    "mutationOrigin": "same-origin loopback",
+    "loginThrottle": {
+      "maxFailures": 5,
+      "windowSeconds": 60,
+      "key": "sha256 normalized username"
+    },
+    "sessionPolicy": "atomic single-active-session rotation",
+    "passwordRotationRevokesSessions": true,
+    "dataDirectoryMode": "0700",
+    "sensitiveFileMode": "0600"
+  },
+  "behavior": {
+    "crossOriginRejected": "pass",
+    "crossSiteRejected": "pass",
+    "nonLoopbackRejected": "pass",
+    "loginThrottled": "pass",
+    "sessionRotated": "pass",
+    "restartRevocationPreserved": "pass",
+    "responseHeadersHardened": "pass",
+    "secretDetailsRedacted": "pass",
+    "permissionsChecked": "pass"
+  },
+  "sourceSha256": {
+    "backend/src/security/localWebSecurity.ts": "4b51246ea98259ded505a8aaf7fc9f190545cacd944d01aebe45bcee81aec62f",
+    "backend/src/auth/loginThrottle.ts": "908ae9974754879e41f29b725e826e90dd5e786a8bf4da4fb59bb1898cab9c87",
+    "backend/src/auth/store.ts": "126c75504d88994970d065422c4f8c3532dafb3b41c957d0909d612873c3b88c",
+    "backend/src/auth/provision.mjs": "98b9e974de09b808fe2f954d6473e139e7013151b76baf935421b9e0624e5aab",
+    "backend/src/http/handler.ts": "a6c0a77261944156a8152632a42ae5f4b5dae19605d7f7627fa0a4dfc0c9bfed",
+    "frontend/next.config.ts": "5fa04a810adc1aaac0575af373dd8b43b61690efb2e13f6a116c270782c6f791"
+  },
+  "finalGate": {
+    "command": "make toolchain-gate",
+    "reportPath": "artifacts/toolchain/gate.json",
+    "status": "pass",
+    "summary": {
+      "total": 15,
+      "pass": 15,
+      "fail": 0,
+      "timeout": 0,
+      "environmentBlocked": 0,
+      "skipped": 0,
+      "planned": 0
+    },
+    "firstActionableFailure": null
+  },
+  "preservation": {
+    "migrationCount": 12,
+    "m48FileCount": 10,
+    "m48Bytes": 55941,
+    "m48HashVerification": "pass",
+    "m48RuntimeAuthority": false
+  },
+  "safety": {
+    "remoteOrLanExposureAdded": false,
+    "oauthOrCloudIdentityAdded": false,
+    "mfaTheaterAdded": false,
+    "providerCredentialsAdded": false,
+    "externalNetworkCallsAdded": false,
+    "tradingBehaviorChanged": false,
+    "liveExecutionEnabled": false,
+    "schedulerAuthorityAdded": false,
+    "migrationAdded": false,
+    "m48RuntimeAuthority": false
+  },
+  "nextWorkUnit": "R1.12 \u2014 Upgrade and Rollback Safety (not authorized)"
+}

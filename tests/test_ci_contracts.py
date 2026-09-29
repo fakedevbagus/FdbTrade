@@ -95,6 +95,7 @@ KNOWN_ADRS = {
     54: "paper-and-outcome-workbench",
     55: "legacy-surface-retirement",
     56: "durable-operational-health",
+    57: "local-web-security-hardening",
 }
 
 

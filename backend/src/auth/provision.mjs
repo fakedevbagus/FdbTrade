@@ -83,6 +83,8 @@ async function main() {
              updated_at_utc = excluded.updated_at_utc`,
         )
         .run(id, username, now, now);
+      // Password rotation revokes all durable sessions before returning.
+      database.prepare("DELETE FROM sessions WHERE user_id = ?").run(id);
       return id;
     });
     console.log(

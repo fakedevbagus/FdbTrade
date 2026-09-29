@@ -20,6 +20,7 @@ import { promisify } from "node:util";
 
 import { getDatabase } from "@/db/client";
 import { apiEnv } from "@/env";
+import { withImmediateTransaction } from "@/db/sqlite.mjs";
 import { assertServerOnly } from "@/server-only";
 
 assertServerOnly();
@@ -213,20 +214,25 @@ export async function login(
   const createdAt = new Date();
   const expiresAt = new Date(createdAt.getTime() + SESSION_TTL_SECONDS * 1_000);
   const sessionId = randomUUID();
-  getDatabase()
-    .prepare(
-      `INSERT INTO sessions
-         (id, token_hash, user_id, created_at_utc, expires_at_utc, last_used_at_utc)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-    )
-    .run(
-      sessionId,
-      hashSessionToken(token),
-      user.id,
-      createdAt.toISOString(),
-      expiresAt.toISOString(),
-      createdAt.toISOString(),
-    );
+  const database = getDatabase();
+  withImmediateTransaction(database, () => {
+    // Single-user rotation: a successful login revokes every older session.
+    database.prepare("DELETE FROM sessions WHERE user_id = ?").run(user.id);
+    database
+      .prepare(
+        `INSERT INTO sessions
+           (id, token_hash, user_id, created_at_utc, expires_at_utc, last_used_at_utc)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        sessionId,
+        hashSessionToken(token),
+        user.id,
+        createdAt.toISOString(),
+        expiresAt.toISOString(),
+        createdAt.toISOString(),
+      );
+  });
   return {
     token,
     user,

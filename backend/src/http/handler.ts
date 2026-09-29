@@ -14,6 +14,7 @@ import {
   getOrCreateRequestId,
 } from "@/http/request-context";
 import { jsonError } from "@/http/responses";
+import { applyLocalSecurityHeaders, assertLocalMutationRequest, redactSensitive } from "@/security/localWebSecurity";
 
 export interface RequestContext {
   requestId: string;
@@ -32,27 +33,28 @@ export function withApi(handler: ApiHandler): WrappedApiHandler {
     const requestId = getOrCreateRequestId(request);
     const correlationId = getOrCreateCorrelationId(request, requestId);
     try {
-      return await handler(request, { requestId, correlationId });
+      assertLocalMutationRequest(request);
+      return applyLocalSecurityHeaders(await handler(request, { requestId, correlationId }));
     } catch (error) {
       if (error instanceof ApiError) {
-        return jsonError(
+        return applyLocalSecurityHeaders(jsonError(
           {
             code: error.code,
             message: error.message,
-            details: error.details,
+            details: redactSensitive(error.details),
           },
           {
             requestId,
             status: error.status,
             headers: error.headers,
           },
-        );
+        ));
       }
       // Unknown failure: fail closed with a generic message (no leak).
-      return jsonError(
+      return applyLocalSecurityHeaders(jsonError(
         { code: "INTERNAL_ERROR", message: "Internal server error." },
         { requestId, status: 500 },
-      );
+      ));
     }
   };
 }
