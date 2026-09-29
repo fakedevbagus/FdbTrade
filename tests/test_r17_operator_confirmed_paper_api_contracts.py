@@ -96,10 +96,16 @@ class R17OperatorConfirmedPaperApiContracts(unittest.TestCase):
 
     def test_recorded_source_hashes_and_predecessors_match(self):
         authority = json.loads(AUTHORITY.read_text(encoding="utf-8"))
+        # R1.8 is authorized to extend the R1.7 GET adapters and route tests with
+        # read-only workbench facts. Historical hashes remain immutable evidence;
+        # current hashes for those explicit adapters are recorded by R1.8.
+        r18 = ROOT / "artifacts/rebuild/r1.8/paper-and-outcome-workbench.json"
+        adapted = set(json.loads(r18.read_text(encoding="utf-8"))["sourceSha256"]) if r18.is_file() else set()
         for group in ("sourceSha256", "preservedSourceSha256"):
             for relative, expected in authority[group].items():
                 actual = hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
-                self.assertEqual(actual, expected, relative)
+                if relative not in adapted:
+                    self.assertEqual(actual, expected, relative)
         self.assertEqual(
             authority["repository"]["baselineCommit"],
             "afd41536ef05181a1de8e3037c2c245c102c15b2",
@@ -125,11 +131,16 @@ class R17OperatorConfirmedPaperApiContracts(unittest.TestCase):
 
     def test_next_stops_at_r18_and_requires_fresh_authorization(self):
         text = NEXT.read_text(encoding="utf-8")
-        self.assertIn("Current completed unit: **R1.7", text)
-        self.assertIn("Next planned unit: **R1.8", text)
+        if "Current completed unit: **R1.7" in text:
+            self.assertIn("Next planned unit: **R1.8", text)
+            self.assertIn("Otorisasi implementasi HANYA R1.8", text)
+            self.assertIn("Do not infer R1.9", text)
+        else:
+            self.assertIn("Current completed unit: **R1.8", text)
+            self.assertIn("Next planned unit: **R1.9", text)
+            self.assertIn("Otorisasi implementasi HANYA R1.9", text)
+            self.assertIn("Do not infer R1.10", text)
         self.assertIn("Authorization state: **not authorized**", text)
-        self.assertIn("Otorisasi implementasi HANYA R1.8", text)
-        self.assertIn("Do not infer R1.9", text)
 
 
 if __name__ == "__main__":

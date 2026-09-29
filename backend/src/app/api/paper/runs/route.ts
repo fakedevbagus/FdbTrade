@@ -17,9 +17,9 @@ import {
   type PaperRunResult,
 } from "@/paper/riskPaperAuthority";
 import {
-  DurablePaperRunProjection,
   type PaperRunProjection,
 } from "@/paper/paperRunProjection";
+import { DurablePaperWorkbenchProjection } from "@/paper/paperWorkbenchProjection";
 
 export const dynamic = "force-dynamic";
 
@@ -135,10 +135,15 @@ export const GET = withApi(async (request, { requestId }) => {
   }
   const database = getDatabase();
   const market = marketDataAuthority(database);
+  const inputs = new PaperInputResolutionAuthority(database, market);
+  const inputRecovery = inputs.recover();
+  if (inputRecovery.corruptRecords.length > 0) {
+    throw ApiError.replayDetected("Paper input recovery found corrupt evidence.");
+  }
   const authority = new RiskPaperAuthority(database, market);
-  const projection = new DurablePaperRunProjection(database);
-  const runs = projection.listRuns();
-  const recovery = runs.length === 0
+  const projection = new DurablePaperWorkbenchProjection(database);
+  const durableRuns = database.prepare("SELECT run_id FROM risk_paper_runs LIMIT 1").all();
+  const recovery = durableRuns.length === 0
     ? {
         recoveredRuns: 0,
         verifiedDecisions: 0,
@@ -152,14 +157,20 @@ export const GET = withApi(async (request, { requestId }) => {
   if (recovery.corruptRecords.length > 0 || !recovery.reconciliationOk) {
     throw ApiError.replayDetected("Paper ledger recovery or reconciliation failed.");
   }
+  const riskState = database.prepare("SELECT event_id FROM risk_state_events LIMIT 1").get()
+    ? authority.currentRiskState()
+    : null;
+  const workbench = projection.project(riskState);
   return jsonOk(
     {
       schemaVersion: 1,
       authority: "sqlite-risk-paper-authority",
-      recovery,
-      runs: projection.listRuns().map(project),
+      recovery: { inputs: inputRecovery, paper: recovery },
+      activeCandidate: workbench.activeCandidate,
+      riskState: workbench.riskState,
+      runs: workbench.runs.map(project),
       ordering: "createdAtUtc desc, runId desc",
-      safety,
+      safety: { ...safety, projectionOnly: true },
     },
     { requestId },
   );

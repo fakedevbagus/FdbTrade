@@ -114,3 +114,4 @@ not used.
 | [ADR-0051](ADR-0051-robustness-and-selection-bias-evidence.md) | Robustness and selection-bias evidence | Accepted |
 | [ADR-0052](ADR-0052-paper-input-resolution-authority.md) | Paper input resolution authority | Accepted |
 | [ADR-0053](ADR-0053-operator-confirmed-paper-api.md) | Operator-confirmed paper API | Accepted |
+| [ADR-0054](ADR-0054-paper-and-outcome-workbench.md) | Projection-only paper and outcome workbench | Accepted |

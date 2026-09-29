@@ -5,7 +5,8 @@ import { marketDataAuthority } from "@/data/historical/storeDir";
 import { ApiError } from "@/http/errors";
 import { withApi } from "@/http/handler";
 import { jsonOk } from "@/http/responses";
-import { DurablePaperRunProjection } from "@/paper/paperRunProjection";
+import { PaperInputResolutionAuthority } from "@/paper/paperInputResolutionAuthority";
+import { DurablePaperWorkbenchProjection } from "@/paper/paperWorkbenchProjection";
 import { RiskPaperAuthority } from "@/paper/riskPaperAuthority";
 
 export const dynamic = "force-dynamic";
@@ -31,8 +32,14 @@ const getHandler = withApi(async (request, { requestId }) => {
   if (!RUN_ID_PATTERN.test(runId)) throw ApiError.notFound("Paper run not found.");
 
   const database = getDatabase();
-  const authority = new RiskPaperAuthority(database, marketDataAuthority(database));
-  const projection = new DurablePaperRunProjection(database);
+  const market = marketDataAuthority(database);
+  const inputs = new PaperInputResolutionAuthority(database, market);
+  const inputRecovery = inputs.recover();
+  if (inputRecovery.corruptRecords.length > 0) {
+    throw ApiError.replayDetected("Paper input recovery found corrupt evidence.");
+  }
+  const authority = new RiskPaperAuthority(database, market);
+  const projection = new DurablePaperWorkbenchProjection(database);
   if (!projection.getRun(runId)) throw ApiError.notFound("Paper run not found.");
   const recovery = authority.recover();
   if (recovery.corruptRecords.length > 0 || !recovery.reconciliationOk) {
@@ -49,7 +56,7 @@ const getHandler = withApi(async (request, { requestId }) => {
     {
       schemaVersion: 1,
       authority: "sqlite-risk-paper-authority",
-      recovery,
+      recovery: { inputs: inputRecovery, paper: recovery },
       run: { ...run, operatorState },
       safety,
     },

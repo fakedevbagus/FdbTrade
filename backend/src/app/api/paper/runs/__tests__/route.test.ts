@@ -263,7 +263,30 @@ describe("R1.7 operator-confirmed paper API", () => {
     const list = await getPaperRuns(getRequest());
     expect(list.status).toBe(200);
     expect((await list.json()) as object).toMatchObject({
-      data: { runs: [{ runId: firstBody.data.run.runId, operatorState: "succeeded" }] },
+      data: {
+        activeCandidate: {
+          signal: { signalId: fixture.resolution.signalId, instrument: "EURUSD", timeframe: "1h" },
+          lifecycleState: "identified",
+          resolution: {
+            resolutionId: fixture.resolution.resolutionId,
+            executionDataset: { datasetId: fixture.resolution.executionDataset.datasetId },
+            conversion: { method: "identity", sourceDatasetId: fixture.resolution.executionDataset.datasetId },
+            costs: { providerObservation: false, source: "registered-baseline-assumption-no-provider-observation" },
+          },
+        },
+        riskState: { state: "green" },
+        runs: [{
+          runId: firstBody.data.run.runId,
+          operatorState: "succeeded",
+          inputResolutionId: fixture.resolution.resolutionId,
+          requestedQuantityUnits: 10_000,
+          fills: [{ side: "entry" }, { side: "exit" }],
+          positionEvents: [{ status: "open" }, { status: "closed" }],
+          reconciliation: { ok: true },
+          outcome: { interpretation: { paperOnly: true } },
+        }],
+        safety: { projectionOnly: true },
+      },
     });
     const detail = await getPaperRunDetail(
       getRequest(`/api/paper/runs/${firstBody.data.run.runId}`),
@@ -271,7 +294,16 @@ describe("R1.7 operator-confirmed paper API", () => {
     );
     expect(detail.status).toBe(200);
     expect((await detail.json()) as object).toMatchObject({
-      data: { run: { runId: firstBody.data.run.runId, operatorState: "succeeded" } },
+      data: {
+        run: {
+          runId: firstBody.data.run.runId,
+          operatorState: "succeeded",
+          inputResolutionId: fixture.resolution.resolutionId,
+          fills: [{ side: "entry" }, { side: "exit" }],
+          reconciliation: { ok: true },
+        },
+        safety: { projectionOnly: true },
+      },
     });
 
     const divergent = await postPaperRun(postRequest({

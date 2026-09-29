@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "workUnit": "R1.8",
+  "status": "complete",
+  "recordedOn": "2026-09-29",
+  "repository": {
+    "branch": "rebuild/r0-preserve-current-state",
+    "baselineCommit": "32e0cfc68115b94b7a982963d98eb80ab399913e"
+  },
+  "authority": {
+    "metadataEngine": "SQLite via Node 24 node:sqlite",
+    "migrationCount": 12,
+    "workbenchRoute": "/paper/workbench",
+    "postRoute": "/api/paper/runs",
+    "listRoute": "/api/paper/runs",
+    "detailRoute": "/api/paper/runs/{runId}",
+    "authenticationRequired": true,
+    "projectionOnly": true,
+    "explicitConfirmationLiteral": "confirm-paper-run",
+    "browserPersistenceAuthoritative": false,
+    "baselineCostsAreProviderObservations": false
+  },
+  "behavior": {
+    "privateWorkbench": "pass",
+    "loadingAndEmptyStates": "pass",
+    "activeCandidateProjection": "pass",
+    "verifiedR16Assumptions": "pass",
+    "nonProviderCostLabel": "pass",
+    "explicitConfirmation": "pass",
+    "noPostOnRenderOrRefresh": "pass",
+    "strictPostPayload": "pass",
+    "doubleSubmitIdempotency": "pass",
+    "killAndRedProminence": "pass",
+    "rejectedWithoutFills": "pass",
+    "blockedFailedAndSuccessStates": "pass",
+    "durableGetAfterRefresh": "pass",
+    "backendUnavailable": "pass",
+    "malformedUnknownFailClosed": "pass",
+    "paperOutcomeAndLedgerProjection": "pass"
+  },
+  "sourceSha256": {
+    "backend/src/paper/paperWorkbenchProjection.ts": "f54994e67409a126a56376e611b7223e38eddc3f9f37929d1222c13c041d2abe",
+    "backend/src/app/api/paper/runs/route.ts": "2c68abad351693006763b3aa6c0fccddfd4b4d4cc76e4d34953748e03a7e3c5c",
+    "backend/src/app/api/paper/runs/[runId]/route.ts": "ec63cd48731c49a62d2a2864326ff0ecb6d987f57628d10d86d6ddeb3c9da85f",
+    "backend/src/app/api/paper/runs/__tests__/route.test.ts": "fa621c346e87eef45fba572bb9b8fcc53b30bae826b1fb4cf6b523b0d3361bbf",
+    "frontend/src/lib/paper-workbench.ts": "c4db2a8130e8d36a7b2cd8be6df6c44b9d39c8ef57cd07ec940ef4ea3ef26555",
+    "frontend/src/components/paper/PaperConfirmationForm.tsx": "6aa169e5902f3cb285f893a76ac3075b5498380448e2472a37c7123e86c22eb7",
+    "frontend/src/app/(app)/paper/workbench/page.tsx": "b89c654d56e83e89936d329a61957003f1c20d15556689770adfc5458cd1ff4c",
+    "frontend/src/app/api/paper/runs/route.ts": "98a6ade5ddaf71b0b2859516c3154df5f6ed7719c5c23fc2efa232ecdf9ba45c",
+    "frontend/src/lib/__tests__/paper-workbench.test.tsx": "8f757395745ffec75d7bfbd399faef64e5882ade0c0213b1b5a2639c937f6fe0",
+    "tests/test_r18_paper_outcome_workbench_contracts.py": "0188d6d7ca5e9ed0aa77ab7d369d159e7150fcb52e2c3d58dfad3fcb3be9a1ef"
+  },
+  "preservedSourceSha256": {
+    "backend/src/paper/riskPaperAuthority.ts": "b64b8116c4bdd666d0c542aa106e1a3a47982c42f124d230a94639e1bb818687",
+    "backend/src/paper/paperInputResolutionAuthority.ts": "4a4b1a92d64d5119f54f684934ad9088fe9d67e252fe4620d6f2094fd7159154",
+    "backend/src/signals/signalAuthority.ts": "21ef13b39bbc4649c9f7b42fc91402c3e36694ef6879e225b0c83cf8fb7d8154",
+    "backend/src/app/api/backtest/runs/route.ts": "af8d52bfb271609856628fef56bdc93c6bf738d89078748489d0a7f3e4d90022"
+  },
+  "interpretation": {
+    "paperOnly": true,
+    "browserIsAuthority": false,
+    "browserRecalculatesAuthority": false,
+    "providerObservationAvailable": false,
+    "signalConfidenceCalibrated": false,
+    "modelPromotionEligible": false
+  },
+  "finalGate": {
+    "command": "make toolchain-gate",
+    "reportPath": "artifacts/toolchain/gate.json",
+    "status": "pass",
+    "summary": {
+      "total": 15,
+      "pass": 15,
+      "fail": 0,
+      "timeout": 0,
+      "environmentBlocked": 0,
+      "skipped": 0,
+      "planned": 0
+    },
+    "firstActionableFailure": null
+  },
+  "preservation": {
+    "migrationCount": 12,
+    "m48FileCount": 10,
+    "m48Bytes": 55941,
+    "m48AggregateManifestDigest": "f7dc5aacade5078cf934be760651c2e59d9e340c7a096a25629006d8f8555fe6",
+    "m48HashVerification": "pass",
+    "m48RuntimeAuthority": false
+  },
+  "safety": {
+    "liveExecutionEnabled": false,
+    "demoExecutionEnabled": false,
+    "providerOrderTransportEnabled": false,
+    "externalProviderNetworkCallsEnabled": false,
+    "credentialedProviderSelected": false,
+    "schedulerAuthorityAdded": false,
+    "automaticPaperExecutionAdded": false,
+    "publicUnauthenticatedPaperRouteAdded": false,
+    "browserAuthorityAdded": false,
+    "riskRequirementWeakened": false,
+    "signalRuleChanged": false,
+    "modelPromotionAuthorityAdded": false,
+    "legacyBacktestRewired": false,
+    "m48RuntimeAuthority": false
+  },
+  "nextWorkUnit": "R1.9 \u2014 Legacy Surface Retirement (not authorized)"
+}

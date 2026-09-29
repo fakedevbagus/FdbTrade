@@ -43,6 +43,7 @@ const rawSiteConfig = {
     { label: "Operations", href: "/operations" },
     { label: "Signal workbench", href: "/signals/workbench" },
     { label: "Research workbench", href: "/research/workbench" },
+    { label: "Paper workbench", href: "/paper/workbench" },
     { label: "Historical datasets", href: "/research/datasets" },
     { label: "Risk controls", href: "/admin/controls" },
     { label: "Health", href: "/admin/health" },

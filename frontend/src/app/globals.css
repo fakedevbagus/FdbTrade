@@ -559,3 +559,22 @@ a:focus-visible {
 .fdb-chart__marker--short {
   fill: var(--fdb-danger);
 }
+
+/* R1.8 paper-only safety emphasis ----------------------------------------- */
+.fdb-paper-only,
+.fdb-risk-critical {
+  border: 2px solid var(--fdb-danger);
+  border-radius: 0.75rem;
+  padding: var(--fdb-space-3);
+  background: color-mix(in srgb, var(--fdb-danger) 12%, var(--fdb-surface));
+}
+.fdb-risk-critical { margin-bottom: var(--fdb-space-4); }
+.fdb-risk-critical h2 { color: var(--fdb-danger); }
+.fdb-workbench-form input[type="number"] {
+  font: inherit;
+  padding: var(--fdb-space-2);
+  border: 1px solid var(--fdb-border);
+  border-radius: 0.5rem;
+  background: var(--fdb-surface);
+  color: var(--fdb-fg);
+}

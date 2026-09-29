@@ -16,7 +16,7 @@ const BFF_API_URL = process.env.FDB_BFF_URL ?? "http://127.0.0.1:3100";
 
 /** Paths that require an authenticated session (protected app area). */
 const PROTECTED_PREFIXES = [
-  "/dashboard", "/scanner", "/signals", "/alerts", "/research", "/admin", "/operations",
+  "/dashboard", "/scanner", "/signals", "/alerts", "/research", "/paper", "/admin", "/operations",
 ];
 
 async function hasValidSession(request: NextRequest): Promise<boolean> {
@@ -69,6 +69,7 @@ export const config = {
     "/signals/:path*",
     "/alerts/:path*",
     "/research/:path*",
+    "/paper/:path*",
     "/admin/:path*",
     "/operations/:path*",
   ],
