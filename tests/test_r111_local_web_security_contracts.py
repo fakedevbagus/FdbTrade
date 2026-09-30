@@ -18,7 +18,7 @@ class R111LocalWebSecurityContracts(unittest.TestCase):
   combined="\n".join((ROOT/p).read_text() for p in ("backend/src/security/localWebSecurity.ts","backend/src/auth/loginThrottle.ts"))
   for x in ("OAuth","provider credential","fetch(","M48"):self.assertNotIn(x,combined)
  def test_progression_migrations_and_m48(self):
-  nxt=(ROOT/"docs/rebuild/NEXT.md").read_text();self.assertIn("Current completed unit: **R1.15",nxt);self.assertIn("Next planned unit: **R1.16",nxt);self.assertIn("not authorized",nxt)
+  nxt=(ROOT/"docs/rebuild/NEXT.md").read_text();self.assertIn("Current completed unit: **R1.16",nxt);self.assertIn("Next planned unit: **R1.17",nxt);self.assertIn("not authorized",nxt)
   migrations=[p for p in sorted((ROOT/"backend/db/sqlite-migrations").glob("*.sql")) if re.fullmatch(r"\d{4}_[a-z0-9_]+\.sql",p.name)];self.assertEqual(len(migrations),12)
   preservation=json.loads((ROOT/"artifacts/rebuild/r0.1/preservation.json").read_text())
   for item in preservation["quarantinedWork"]["files"]:

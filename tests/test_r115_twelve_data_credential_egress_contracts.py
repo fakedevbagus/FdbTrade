@@ -37,8 +37,8 @@ class R115TwelveDataBoundaryContracts(unittest.TestCase):
         self.assertTrue(all(value is False for value in authority["safety"].values()))
         self.assertEqual(authority["finalGate"]["summary"]["pass"], 15)
         nxt = (ROOT / "docs/rebuild/NEXT.md").read_text()
-        self.assertIn("Current completed unit: **R1.15", nxt)
-        self.assertIn("Next planned unit: **R1.16", nxt)
+        self.assertIn("Current completed unit: **R1.16", nxt)
+        self.assertIn("Next planned unit: **R1.17", nxt)
         self.assertIn("not authorized", nxt)
 
     def test_preservation(self):

@@ -46,8 +46,8 @@ class R114ProviderSelectionDossierContracts(unittest.TestCase):
         self.assertIn("No credential was created", checkpoint)
         self.assertIn("no provider API was called", checkpoint)
         nxt = (ROOT / "docs/rebuild/NEXT.md").read_text()
-        self.assertIn("Current completed unit: **R1.15", nxt)
-        self.assertIn("Next planned unit: **R1.16", nxt)
+        self.assertIn("Current completed unit: **R1.16", nxt)
+        self.assertIn("Next planned unit: **R1.17", nxt)
         self.assertIn("Selected provider: **Twelve Data**", nxt)
 
     def test_preservation(self):

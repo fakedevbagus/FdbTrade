@@ -157,11 +157,11 @@ class R14TemporalValidationAuthorityContracts(unittest.TestCase):
 
     def test_next_stops_at_r15_and_requires_fresh_authorization(self):
         text = NEXT.read_text(encoding="utf-8")
-        self.assertIn("Current completed unit: **R1.15", text)
-        self.assertIn("Next planned unit: **R1.16", text)
+        self.assertIn("Current completed unit: **R1.16", text)
+        self.assertIn("Next planned unit: **R1.17", text)
         self.assertIn("Authorization state: **not authorized**", text)
-        self.assertIn("Otorisasi implementasi HANYA R1.16", text)
-        self.assertIn("Do not infer R1.17", text)
+        self.assertIn("Otorisasi implementasi HANYA R1.17", text)
+        self.assertIn("Do not infer R1.18", text)
 
 
 if __name__ == "__main__":

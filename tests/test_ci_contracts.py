@@ -100,6 +100,7 @@ KNOWN_ADRS = {
     59: "offline-private-beta-gate",
     60: "provider-selection-dossier",
     61: "twelve-data-credential-egress-boundary",
+    62: "twelve-data-credentialed-read-only-shadow",
 }
 
 

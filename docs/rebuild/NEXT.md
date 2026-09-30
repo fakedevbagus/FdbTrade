@@ -1,39 +1,42 @@
 # FdbTrade Rebuild — Next Work Unit
 
-Current completed unit: **R1.15 — Twelve Data Credential and Egress Boundary**
+Current completed unit: **R1.16 — Twelve Data Credentialed Read-Only Shadow**
 
 Canonical roadmap: `docs/roadmap/FDBTRADE_R1_BLUEPRINT_PROMPT_PACK.md`
 
 Selected provider: **Twelve Data**
 
-Next planned unit: **R1.16 — Credentialed Read-Only Shadow**
+Next planned unit: **R1.17 — Authoritative Provider Ingestion**
 
 Authorization state: **not authorized**
 
-R1.15 is the current stop boundary.
+R1.16 is the current stop boundary.
 
 ## Copy-ready next-chat prompt
 
 ```text
-Otorisasi implementasi HANYA R1.16 — Credentialed Read-Only Shadow untuk
+Otorisasi implementasi HANYA R1.17 — Authoritative Provider Ingestion untuk
 provider Twelve Data sesuai
 docs/roadmap/FDBTRADE_R1_BLUEPRINT_PROMPT_PACK.md, satu commit atomik, lalu
 berhenti.
 
-Revalidate the R1.15 commit, exact read-only egress boundary, hermetic tests,
-complete gate, twelve migrations and M48 preservation. Do not perform a real
-credentialed smoke test unless separately requested by the operator.
+Connect accepted read-only provider candles to the existing R0.6 ingestion job
+and immutable artifact publication path. Require exact scope, closed bars,
+provenance/licensing, quality/freshness, bounded pagination/retry and
+idempotent recovery. Provider failure must not fall back to fixture or publish
+partial authority. Revalidate the R1.16 commit, complete gate, twelve
+migrations and M48 preservation first.
 ```
 
 ## Resume checks
 
-1. Verify the R1.15 atomic commit and clean branch.
-2. Verify secret permissions, exact request allowlist, DNS/IP defense,
-   timeout/retry/rate budget and audit redaction.
-3. Verify no provider call or R0.6 publication was added.
+1. Verify the R1.16 atomic commit and clean branch.
+2. Verify the R1.15 credential/egress boundary and R1.16 comparison remain
+   exact, fail-closed and non-authoritative.
+3. Verify no provider call was recorded during R1.16.
 4. Verify complete gate, twelve migrations and M48 preservation.
 
 ## Stop rule
 
-Do not start R1.16 without explicit authorization. Do not infer R1.17 or any
-later unit from completion of R1.15.
+Do not start R1.17 without explicit authorization. Do not infer R1.18 or any
+later unit from completion of R1.16.
