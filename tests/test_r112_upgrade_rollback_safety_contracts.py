@@ -25,7 +25,7 @@ class R112UpgradeRollbackSafety(unittest.TestCase):
 class R112AuthorityContracts(unittest.TestCase):
  def test_policy_progression_preservation_and_gate(self):
   source=(ROOT/"scripts/operational-data.mjs").read_text();self.assertIn("upgradePreflight",source);self.assertIn("upgradeDrill",source);self.assertIn("restore-publication",source);self.assertIn("verified_restore_or_compensating_migration_never_reset",source);self.assertNotIn("git reset",source.lower())
-  nxt=(ROOT/"docs/rebuild/NEXT.md").read_text();self.assertIn("Current completed unit: **R1.16",nxt);self.assertIn("Next planned unit: **R1.17",nxt);self.assertIn("not authorized",nxt)
+  nxt=(ROOT/"docs/rebuild/NEXT.md").read_text();self.assertIn("Current completed unit: **R1.17",nxt);self.assertIn("Next planned unit: **R1.18",nxt);self.assertIn("not authorized",nxt)
   migrations=[p for p in sorted((ROOT/"backend/db/sqlite-migrations").glob("*.sql")) if re.fullmatch(r"\d{4}_[a-z0-9_]+\.sql",p.name)];self.assertEqual(len(migrations),12)
   preservation=json.loads((ROOT/"artifacts/rebuild/r0.1/preservation.json").read_text())
   for item in preservation["quarantinedWork"]["files"]:

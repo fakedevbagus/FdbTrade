@@ -55,8 +55,8 @@ class R113OfflinePrivateBetaGate(unittest.TestCase):
         self.assertIn("Honest limitations", guide)
         self.assertIn("Incident recovery", guide)
         nxt = (ROOT / "docs/rebuild/NEXT.md").read_text()
-        self.assertIn("Current completed unit: **R1.16", nxt)
-        self.assertIn("Next planned unit: **R1.17", nxt)
+        self.assertIn("Current completed unit: **R1.17", nxt)
+        self.assertIn("Next planned unit: **R1.18", nxt)
         self.assertIn("not authorized", nxt)
         migrations = [
             path for path in sorted((ROOT / "backend/db/sqlite-migrations").glob("*.sql"))

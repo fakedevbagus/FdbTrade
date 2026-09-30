@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "workUnit": "R1.17",
+  "status": "complete",
+  "recordedOn": "2026-09-30",
+  "repository": {
+    "branch": "rebuild/r0-preserve-current-state",
+    "baselineCommit": "c007ef4d631a9164e648cc98432ea18b7cef29a0"
+  },
+  "provider": {
+    "name": "Twelve Data",
+    "providerId": "twelve-data",
+    "realCredentialCreated": false,
+    "realProviderCallPerformed": false
+  },
+  "ingestion": {
+    "durableJobAuthority": "market_data_ingestion_jobs",
+    "publicationAuthority": "R0.6 MarketDataAuthority.publish",
+    "sourceMode": "historical",
+    "maximumPageBars": 1000,
+    "maximumPages": 5,
+    "maximumBars": 5000,
+    "partialPublication": false,
+    "fixtureFallback": false,
+    "closedBarsRequired": true,
+    "completeSessionCoverageRequired": true,
+    "freshEvidenceRequired": true,
+    "verifiedOfficialLicenseEvidenceRequired": true
+  },
+  "verification": {
+    "focusedTests": {
+      "files": 2,
+      "tests": 11,
+      "status": "pass"
+    },
+    "networkTests": "hermetic injected executors only",
+    "typecheck": "pass"
+  },
+  "finalGate": {
+    "command": "CI=true make toolchain-gate",
+    "reportPath": "artifacts/toolchain/gate.json",
+    "status": "pass",
+    "summary": {
+      "total": 15,
+      "pass": 15,
+      "fail": 0,
+      "timeout": 0,
+      "environmentBlocked": 0,
+      "skipped": 0,
+      "planned": 0
+    },
+    "firstActionableFailure": null
+  },
+  "preservation": {
+    "migrationCount": 12,
+    "m48FileCount": 10,
+    "m48Bytes": 55941,
+    "m48HashVerification": "pass",
+    "m48FilesAdopted": 0,
+    "m48RuntimeAuthority": false
+  },
+  "safety": {
+    "providerApiCalled": false,
+    "schedulerAdded": false,
+    "apiOrUiTriggerAdded": false,
+    "automaticSignalEvaluationAdded": false,
+    "automaticResearchAdded": false,
+    "automaticPaperRunAdded": false,
+    "orderSurfaceAdded": false,
+    "migrationAdded": false,
+    "m48Promoted": false
+  },
+  "nextWorkUnit": "R1.18 — Scheduled Analysis and Alerts (not authorized)"
+}

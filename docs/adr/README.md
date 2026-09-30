@@ -123,3 +123,4 @@ not used.
 | [ADR-0060](ADR-0060-provider-selection-dossier.md) | Provider selection dossier | Accepted |
 | [ADR-0061](ADR-0061-twelve-data-credential-egress-boundary.md) | Twelve Data credential and egress boundary | Accepted |
 | [ADR-0062](ADR-0062-twelve-data-credentialed-read-only-shadow.md) | Twelve Data credentialed read-only shadow | Accepted |
+| [ADR-0063](ADR-0063-twelve-data-authoritative-provider-ingestion.md) | Twelve Data authoritative provider ingestion | Accepted |

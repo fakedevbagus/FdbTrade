@@ -77,6 +77,9 @@ export interface TwelveDataQuery {
   readonly pair: Pair;
   readonly interval: Interval;
   readonly outputsize: number;
+  /** Optional provider range, both required together; UTC bar-open instants. */
+  readonly startDateUtc?: string;
+  readonly endDateUtc?: string;
 }
 
 function fingerprint(secret: string): string {
@@ -156,16 +159,33 @@ export function buildTwelveDataRequest(query: TwelveDataQuery, apiKey: string): 
       !Number.isSafeInteger(query.outputsize) || query.outputsize < 1 || query.outputsize > 5_000) {
     throw new Error("request_denied");
   }
+  const hasStart = query.startDateUtc !== undefined;
+  const hasEnd = query.endDateUtc !== undefined;
+  if (hasStart !== hasEnd) throw new Error("request_denied");
+  const utcInstant = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.000Z$/u;
+  if (hasStart && hasEnd && (
+    !utcInstant.test(query.startDateUtc as string) ||
+    !utcInstant.test(query.endDateUtc as string) ||
+    Date.parse(query.startDateUtc as string) > Date.parse(query.endDateUtc as string)
+  )) throw new Error("request_denied");
   const url = new URL(TWELVE_DATA_PATH, TWELVE_DATA_ORIGIN);
-  url.search = new URLSearchParams({
+  const parameters: Record<string, string> = {
     symbol: query.pair,
     interval: query.interval,
     outputsize: String(query.outputsize),
     format: "JSON",
     timezone: "UTC",
-  }).toString();
+  };
+  if (hasStart && hasEnd) {
+    parameters.start_date = (query.startDateUtc as string).replace("T", " ").replace(".000Z", "");
+    parameters.end_date = (query.endDateUtc as string).replace("T", " ").replace(".000Z", "");
+  }
+  url.search = new URLSearchParams(parameters).toString();
+  const allowedKeys = hasStart
+    ? "end_date,format,interval,outputsize,start_date,symbol,timezone"
+    : "format,interval,outputsize,symbol,timezone";
   if (url.origin !== TWELVE_DATA_ORIGIN || url.pathname !== TWELVE_DATA_PATH ||
-      [...url.searchParams.keys()].sort().join(",") !== "format,interval,outputsize,symbol,timezone") {
+      [...url.searchParams.keys()].sort().join(",") !== allowedKeys) {
     throw new Error("request_denied");
   }
   return Object.freeze({
@@ -198,7 +218,9 @@ export async function executeTwelveDataRead(options: {
   readonly budget: TwelveDataBudget;
   readonly expectedUid?: number | null;
 }): Promise<BoundaryResult> {
-  const queryKeys = Object.freeze(["format", "interval", "outputsize", "symbol", "timezone"]);
+  const queryKeys = Object.freeze(options.query.startDateUtc === undefined
+    ? ["format", "interval", "outputsize", "symbol", "timezone"]
+    : ["end_date", "format", "interval", "outputsize", "start_date", "symbol", "timezone"]);
   const audit = (result: BoundaryResult, credentialFingerprint?: string) => options.ports.audit(Object.freeze({
     event: "twelve_data_read", outcome: result.ok ? "passed" : "failed",
     code: result.ok ? "ok" : result.code, attempts: result.attempts,

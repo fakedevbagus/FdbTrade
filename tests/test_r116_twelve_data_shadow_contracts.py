@@ -8,6 +8,7 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SHADOW = ROOT / "backend/src/data/providers/twelveDataShadow.ts"
 CLI = ROOT / "scripts/twelve_data_shadow.mjs"
+HTTPS = ROOT / "backend/src/data/providers/twelveDataHttps.ts"
 BEHAVIOR = ROOT / "backend/src/data/providers/__tests__/twelveDataShadow.test.ts"
 
 
@@ -29,11 +30,13 @@ class R116TwelveDataShadowContracts(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, source)
         cli = CLI.read_text(encoding="utf-8")
-        self.assertIn('method: "GET"', cli)
-        self.assertIn("rejectUnauthorized: true", cli)
-        self.assertIn("servername: url.hostname", cli)
+        transport = HTTPS.read_text(encoding="utf-8")
+        self.assertIn('method: "GET"', transport)
+        self.assertIn("rejectUnauthorized: true", transport)
+        self.assertIn("servername: url.hostname", transport)
+        self.assertIn("createPinnedTwelveDataTransport", cli)
         for forbidden in ('method: "POST"', 'method: "PUT"', 'method: "PATCH"', "setInterval(", "cron("):
-            self.assertNotIn(forbidden, cli)
+            self.assertNotIn(forbidden, cli + transport)
 
     def test_behavior_docs_progression_and_gate(self):
         behavior = BEHAVIOR.read_text(encoding="utf-8")
@@ -54,8 +57,8 @@ class R116TwelveDataShadowContracts(unittest.TestCase):
         self.assertTrue(all(value is False for value in evidence["authority"].values()))
         self.assertEqual(evidence["finalGate"]["summary"]["pass"], 15)
         nxt = (ROOT / "docs/rebuild/NEXT.md").read_text(encoding="utf-8")
-        self.assertIn("Current completed unit: **R1.16", nxt)
-        self.assertIn("Next planned unit: **R1.17", nxt)
+        self.assertIn("Current completed unit: **R1.17", nxt)
+        self.assertIn("Next planned unit: **R1.18", nxt)
         self.assertIn("not authorized", nxt)
 
     def test_migrations_and_m48_remain_exact(self):

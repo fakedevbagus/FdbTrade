@@ -101,6 +101,7 @@ KNOWN_ADRS = {
     60: "provider-selection-dossier",
     61: "twelve-data-credential-egress-boundary",
     62: "twelve-data-credentialed-read-only-shadow",
+    63: "twelve-data-authoritative-provider-ingestion",
 }
 
 

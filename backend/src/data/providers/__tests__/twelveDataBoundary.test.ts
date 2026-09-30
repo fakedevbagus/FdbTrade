@@ -83,6 +83,19 @@ describe("Twelve Data R1.15 credential boundary", () => {
     expect(url.search).not.toContain("dummy-key");
     expect(request.headers.Authorization).toBe("apikey dummy-key");
     expect(() => buildTwelveDataRequest({ pair: "EUR/USD", interval: "15min", outputsize: 5001 }, "x")).toThrow("request_denied");
+    const ranged = buildTwelveDataRequest({
+      pair: "EUR/USD", interval: "1h", outputsize: 24,
+      startDateUtc: "2026-09-29T00:00:00.000Z",
+      endDateUtc: "2026-09-29T23:00:00.000Z",
+    }, "dummy-key");
+    expect([...new URL(ranged.url).searchParams.keys()].sort()).toEqual([
+      "end_date", "format", "interval", "outputsize", "start_date", "symbol", "timezone",
+    ]);
+    expect(ranged.url).not.toContain("dummy-key");
+    expect(() => buildTwelveDataRequest({
+      pair: "EUR/USD", interval: "1h", outputsize: 24,
+      startDateUtc: "2026-09-29T00:00:00.000Z",
+    }, "dummy-key")).toThrow("request_denied");
   });
 
   it("rejects private, loopback, link-local, multicast and empty DNS results", () => {
