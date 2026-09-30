@@ -80,7 +80,7 @@ class R10BlueprintPromptPackContracts(unittest.TestCase):
         unit = match.group(1)
         following = f"R1.{int(match.group(2)) + 1}"
         self.assertIn("Authorization state: **not authorized**", text)
-        self.assertIn(f"Otorisasi implementasi HANYA {unit}", text)
+        self.assertRegex(text, rf"Otorisasi (?:implementasi|audit) HANYA {re.escape(unit)}")
         self.assertIn(f"Do not infer {following}", text)
 
     def test_m48_preservation_bytes_still_match(self):

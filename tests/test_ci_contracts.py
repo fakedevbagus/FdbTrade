@@ -97,6 +97,7 @@ KNOWN_ADRS = {
     56: "durable-operational-health",
     57: "local-web-security-hardening",
     58: "upgrade-and-rollback-safety",
+    59: "offline-private-beta-gate",
 }
 
 

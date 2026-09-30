@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "workUnit": "R1.13",
+  "status": "complete",
+  "recordedOn": "2026-09-30",
+  "repository": {
+    "branch": "rebuild/r0-preserve-current-state",
+    "baselineCommit": "1aa9aacf8104a93ddf0da32a48e0b6cd9bc07f3b"
+  },
+  "authority": {
+    "drill": "scripts/private-beta-gate.py",
+    "stepCount": 12,
+    "steps": [
+      "bootstrap",
+      "login",
+      "csv-import",
+      "signal-workbench",
+      "research-validation",
+      "paper-input-resolution",
+      "operator-confirmed-paper",
+      "outcome",
+      "health",
+      "shutdown-restart",
+      "backup",
+      "restore-reopen"
+    ],
+    "soakCycles": 3,
+    "migrationCount": 12,
+    "durableEvidence": "sqlite-rows-immutable-artifacts-and-verified-recovery"
+  },
+  "behavior": {
+    "completeDrill": "pass",
+    "allSteps": "pass",
+    "boundedSoak": "pass",
+    "sqliteIntegrity": "pass",
+    "foreignKeys": "pass",
+    "exactMigrationLedger": "pass",
+    "shutdownRestart": "pass",
+    "verifiedBackup": "pass",
+    "restoreReopen": "pass"
+  },
+  "sourceSha256": {
+    "scripts/private-beta-gate.py": "dd2c2324bd775f78e20f374401c01a6af6b7e5fac26944a0402327709d20277c",
+    "Makefile": "e465120a9bb68febbb3e205c49a4eea60c8eb416181927f05f932593b6aee23e",
+    "tests/test_r113_offline_private_beta_gate_contracts.py": "b97f6348b73d0ef6bbed6e00cab223ff46c5a6b66c325abe79d008d24635bc85"
+  },
+  "finalGate": {
+    "command": "make toolchain-gate",
+    "reportPath": "artifacts/toolchain/gate.json",
+    "status": "pass",
+    "summary": {
+      "total": 15,
+      "pass": 15,
+      "fail": 0,
+      "timeout": 0,
+      "environmentBlocked": 0,
+      "skipped": 0,
+      "planned": 0
+    },
+    "firstActionableFailure": null
+  },
+  "preservation": {
+    "migrationCount": 12,
+    "m48FileCount": 10,
+    "m48Bytes": 55941,
+    "m48HashVerification": "pass",
+    "m48RuntimeAuthority": false
+  },
+  "safety": {
+    "externalNetworkUsed": false,
+    "credentialsUsed": false,
+    "providerSelected": false,
+    "liveExecutionEnabled": false,
+    "automaticPaperEnabled": false,
+    "remoteAccessEnabled": false,
+    "demoOrLiveModeEnabled": false,
+    "productFeatureAdded": false,
+    "migrationAdded": false,
+    "m48RuntimeAuthority": false
+  },
+  "limitations": [
+    "authority-level drill; no browser automation",
+    "two-row fixture is not market-performance evidence",
+    "single local operator and loopback-only deployment",
+    "backup covers SQLite plus registered market-data and research-backtest artifacts"
+  ],
+  "nextWorkUnit": "R1.14 — Provider Selection Dossier (not authorized)"
+}
