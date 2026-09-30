@@ -121,3 +121,4 @@ not used.
 | [ADR-0058](ADR-0058-upgrade-and-rollback-safety.md) | Upgrade and rollback safety | Accepted |
 | [ADR-0059](ADR-0059-offline-private-beta-gate.md) | Offline private beta gate | Accepted |
 | [ADR-0060](ADR-0060-provider-selection-dossier.md) | Provider selection dossier | Accepted |
+| [ADR-0061](ADR-0061-twelve-data-credential-egress-boundary.md) | Twelve Data credential and egress boundary | Accepted |

@@ -99,6 +99,7 @@ KNOWN_ADRS = {
     58: "upgrade-and-rollback-safety",
     59: "offline-private-beta-gate",
     60: "provider-selection-dossier",
+    61: "twelve-data-credential-egress-boundary",
 }
 
 

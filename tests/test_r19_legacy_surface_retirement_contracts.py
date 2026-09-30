@@ -18,7 +18,7 @@ class R19LegacySurfaceRetirementContracts(unittest.TestCase):
   for rel in ("backend/src/app/api/historical/preview/route.ts","backend/src/app/api/historical/datasets/route.ts"):
    t=(ROOT/rel).read_text();self.assertIn("APPROVED_MARKET_INSTRUMENTS",t);self.assertIn("APPROVED_MARKET_TIMEFRAMES",t);self.assertNotIn('z.enum(["5m"',t)
  def test_progression_migrations_and_m48(self):
-  nxt=(ROOT/"docs/rebuild/NEXT.md").read_text();self.assertIn("Current completed unit: **R1.14",nxt);self.assertIn("Next planned unit: **R1.15",nxt);self.assertIn("not authorized",nxt)
+  nxt=(ROOT/"docs/rebuild/NEXT.md").read_text();self.assertIn("Current completed unit: **R1.15",nxt);self.assertIn("Next planned unit: **R1.16",nxt);self.assertIn("not authorized",nxt)
   migrations=[p for p in sorted((ROOT/"backend/db/sqlite-migrations").glob("*.sql")) if re.fullmatch(r"\d{4}_[a-z0-9_]+\.sql",p.name)];self.assertEqual(len(migrations),12)
   preservation=json.loads((ROOT/"artifacts/rebuild/r0.1/preservation.json").read_text())
   for item in preservation["quarantinedWork"]["files"]:
