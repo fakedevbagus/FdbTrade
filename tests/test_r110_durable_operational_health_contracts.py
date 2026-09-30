@@ -13,7 +13,7 @@ class R110DurableOperationalHealthContracts(unittest.TestCase):
  def test_ui_propagates_durable_metrics(self):
   t=PAGE.read_text();self.assertIn("Durable SQLite",t);self.assertIn("artifact verification",t);self.assertIn("disk budget",t);self.assertIn("durable failures/audit",t)
  def test_progression_preservation_and_gate(self):
-  nxt=(ROOT/"docs/rebuild/NEXT.md").read_text();self.assertIn("Current completed unit: **R1.11",nxt);self.assertIn("Next planned unit: **R1.12",nxt);self.assertIn("not authorized",nxt)
+  nxt=(ROOT/"docs/rebuild/NEXT.md").read_text();self.assertIn("Current completed unit: **R1.12",nxt);self.assertIn("Next planned unit: **R1.13",nxt);self.assertIn("not authorized",nxt)
   migrations=[p for p in sorted((ROOT/"backend/db/sqlite-migrations").glob("*.sql")) if re.fullmatch(r"\d{4}_[a-z0-9_]+\.sql",p.name)];self.assertEqual(len(migrations),12)
   p=json.loads((ROOT/"artifacts/rebuild/r0.1/preservation.json").read_text())
   for x in p["quarantinedWork"]["files"]:

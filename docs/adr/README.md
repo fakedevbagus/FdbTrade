@@ -118,3 +118,4 @@ not used.
 | [ADR-0055](ADR-0055-legacy-surface-retirement.md) | Legacy surface retirement | Accepted |
 | [ADR-0056](ADR-0056-durable-operational-health.md) | Durable operational health | Accepted |
 | [ADR-0057](ADR-0057-local-web-security-hardening.md) | Local web security authority | Accepted |
+| [ADR-0058](ADR-0058-upgrade-and-rollback-safety.md) | Upgrade and rollback safety | Accepted |

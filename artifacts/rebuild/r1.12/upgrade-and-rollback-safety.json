@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "workUnit": "R1.12",
+  "status": "complete",
+  "recordedOn": "2026-09-30",
+  "repository": {
+    "branch": "rebuild/r0-preserve-current-state",
+    "baselineCommit": "6257189ae0db6641ba7053f121e91a530b9cb3d4"
+  },
+  "authority": {
+    "preflight": [
+      "application-version",
+      "exact-migration-ledger",
+      "sqlite-integrity",
+      "foreign-keys",
+      "artifact-sha256-and-bytes",
+      "free-disk-budget"
+    ],
+    "minimumFreeBytes": 536870912,
+    "backupAuthority": "R0.11 verified backup",
+    "upgradeTarget": "temporary restored root",
+    "manifestCompatibility": [
+      "schemaVersion=1/workUnit=R0.10",
+      "schemaVersion=2/workUnit=R0.11"
+    ],
+    "unknownFutureManifest": "rejected",
+    "rollbackPolicy": "verified_restore_or_compensating_migration_never_reset",
+    "migrationCount": 12
+  },
+  "behavior": {
+    "preflight": "pass",
+    "backupVerified": "pass",
+    "failureBeforePublicationInjected": "pass",
+    "partialTargetAbsent": "pass",
+    "temporaryRestore": "pass",
+    "migrationRunnerInvoked": "pass",
+    "authoritiesReopened": "pass",
+    "nonemptyTargetPreserved": "pass",
+    "futureManifestRejected": "pass",
+    "restartReopen": "pass"
+  },
+  "sourceSha256": {
+    "scripts/operational-data.mjs": "3330d040fe727ec98815c85dd5ea3b4d314e269e2eb45ea4d4cb6d07a13c2e74",
+    "Makefile": "dd73fd5d17f9df43f8f7f181f63301e68d1e1c0b86c8a5b9f032c22fc44eaf92",
+    "tests/test_r112_upgrade_rollback_safety_contracts.py": "f33af7211dee34a4d0219a6a21d0960ad05711ee276baf7d9b1a1d935736faa3"
+  },
+  "finalGate": {
+    "command": "make toolchain-gate",
+    "reportPath": "artifacts/toolchain/gate.json",
+    "status": "pass",
+    "summary": {
+      "total": 15,
+      "pass": 15,
+      "fail": 0,
+      "timeout": 0,
+      "environmentBlocked": 0,
+      "skipped": 0,
+      "planned": 0
+    },
+    "firstActionableFailure": null
+  },
+  "preservation": {
+    "migrationCount": 12,
+    "m48FileCount": 10,
+    "m48Bytes": 55941,
+    "m48HashVerification": "pass",
+    "m48RuntimeAuthority": false
+  },
+  "safety": {
+    "autoUpdaterAdded": false,
+    "externalDistributionAdded": false,
+    "dockerOrCloudDeploymentAdded": false,
+    "providerWorkAdded": false,
+    "featureBehaviorChanged": false,
+    "externalNetworkCallsAdded": false,
+    "liveExecutionEnabled": false,
+    "databaseResetRollbackAllowed": false,
+    "migrationAdded": false,
+    "m48RuntimeAuthority": false
+  },
+  "nextWorkUnit": "R1.13 \u2014 Offline Private Beta Gate (not authorized)"
+}

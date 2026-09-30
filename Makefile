@@ -1,7 +1,7 @@
 # FdbTrade root task runner (M44-extended)
 # Deterministic entry points. All internal timestamps are UTC; no secrets in output.
 
-.PHONY: help install lint typecheck test build start check toolchain-gate db-up db-down db-migrate db-rollback db-status db-provision backup deployment-drill bootstrap preflight operational-packaging-check private-beta-check dashboard-check security-check phase2-check handoff-check format-check runtime-check operational-persistence-check integration-replay-check historical-research-check seven-majors-check
+.PHONY: help install lint typecheck test build start check toolchain-gate db-up db-down db-migrate db-rollback db-status db-provision backup deployment-drill upgrade-preflight upgrade-drill bootstrap preflight operational-packaging-check private-beta-check dashboard-check security-check phase2-check handoff-check format-check runtime-check operational-persistence-check integration-replay-check historical-research-check seven-majors-check
 
 TOOLCHAIN := python3 scripts/rebuild_toolchain.py
 TOOLCHAIN_REPORT_DIR := artifacts/toolchain
@@ -26,6 +26,8 @@ help:
 	@echo "  make db-provision Provision/rotate the private local user"
 	@echo "  make backup BACKUP_ROOT=/absolute/path  Verified SQLite/artifact backup"
 	@echo "  make deployment-drill  Hermetic backup/restore/reopen drill"
+	@echo "  make upgrade-preflight Verify version/schema/artifacts/disk before upgrade"
+	@echo "  make upgrade-drill     Backup/restore/migrate/failure/reopen safety drill"
 	@echo "  make bootstrap   Reproducible bootstrap (M44): preflight + init"
 	@echo "  make preflight   Dependency preflight (M44)"
 	@echo "  make operational-packaging-check (M44)"
@@ -93,6 +95,12 @@ backup:
 
 deployment-drill:
 	bash scripts/deploy-staging.sh
+
+upgrade-preflight:
+	node scripts/operational-data.mjs upgrade-preflight
+
+upgrade-drill:
+	node scripts/operational-data.mjs upgrade-drill
 
 # M44 — Reproducible bootstrap and beta onboarding
 

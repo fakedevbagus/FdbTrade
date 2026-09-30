@@ -18,6 +18,7 @@ import {
   rmSync,
   rmdirSync,
   statSync,
+  statfsSync,
   writeFileSync,
 } from "node:fs";
 import os from "node:os";
@@ -28,6 +29,7 @@ import {
   computeChecksum,
   openDatabase,
   planUpMigrations,
+  REPO_ROOT,
   resolveDataRoot,
   runMigrate,
   SQLITE_FILE_NAME,
@@ -631,6 +633,100 @@ function restoreBackup(backupDirectory, targetRoot) {
   }
 }
 
+
+function upgradePreflight(dataRoot) {
+  assertRealDirectory(dataRoot, "upgrade data root");
+  const packageDocument = JSON.parse(readFileSync(path.join(REPO_ROOT, "package.json"), "utf8"));
+  if (typeof packageDocument.version !== "string" || packageDocument.version.length === 0) {
+    fail("application version is unavailable");
+  }
+  const database = openDatabase({
+    databasePath: path.join(dataRoot, SQLITE_FILE_NAME),
+    readOnly: true,
+    mustExist: true,
+  });
+  let migrations;
+  let artifacts;
+  try {
+    migrations = databaseChecks(database);
+    artifacts = referencedArtifacts(database, dataRoot);
+  } finally {
+    database.close();
+  }
+  const disk = statfsSync(dataRoot);
+  const freeBytes = Number(disk.bavail) * Number(disk.bsize);
+  const minimumFreeBytes = 512 * 1024 * 1024;
+  if (!Number.isSafeInteger(freeBytes) || freeBytes < minimumFreeBytes) {
+    fail("upgrade disk budget is below 512 MiB");
+  }
+  return {
+    status: "passed",
+    applicationVersion: packageDocument.version,
+    migrationCount: migrations.length,
+    artifactCount: artifacts.length,
+    freeBytes,
+    minimumFreeBytes,
+    manifestCompatibility: {
+      accepted: ["schemaVersion=1/workUnit=R0.10", "schemaVersion=2/workUnit=R0.11"],
+      unknownOrFuture: "rejected",
+    },
+    rollbackPolicy: "verified_restore_or_compensating_migration_never_reset",
+  };
+}
+
+async function upgradeDrill(dataRoot) {
+  const preflight = upgradePreflight(dataRoot);
+  const drillRoot = mkdtempSync(path.join(os.tmpdir(), "fdbtrade-r112-upgrade-"));
+  try {
+    const backupRoot = path.join(drillRoot, "backups");
+    const failedTarget = path.join(drillRoot, "failed-publication");
+    const restoredRoot = path.join(drillRoot, "restored-upgrade");
+    const backup = await createBackup(dataRoot, backupRoot);
+    const manifest = verifyBackup(backup.backupDirectory);
+
+    const priorFault = process.env.FDB_OPERATIONAL_FAULT_STAGE;
+    process.env.FDB_OPERATIONAL_FAULT_STAGE = "restore-publication";
+    let isolatedFailure = false;
+    try {
+      restoreBackup(backup.backupDirectory, failedTarget);
+    } catch (error) {
+      if (!String(error).includes("injected operational fault: restore-publication")) throw error;
+      isolatedFailure = !existsSync(failedTarget);
+    } finally {
+      if (priorFault === undefined) delete process.env.FDB_OPERATIONAL_FAULT_STAGE;
+      else process.env.FDB_OPERATIONAL_FAULT_STAGE = priorFault;
+    }
+    if (!isolatedFailure) fail("failed upgrade publication exposed a target");
+
+    restoreBackup(backup.backupDirectory, restoredRoot);
+    const restoredDatabasePath = path.join(restoredRoot, SQLITE_FILE_NAME);
+    const migrationResult = runMigrate({ databasePath: restoredDatabasePath, log: () => {} });
+    const reopened = openDatabase({ databasePath: restoredDatabasePath, readOnly: true, mustExist: true });
+    let artifacts;
+    try {
+      databaseChecks(reopened);
+      artifacts = referencedArtifacts(reopened, restoredRoot);
+    } finally {
+      reopened.close();
+    }
+    return {
+      status: "passed",
+      preflight,
+      backupId: manifest.backupId,
+      backupDigest: manifest.backupDigest,
+      restoredMigrationCount: manifest.database.migrations.length,
+      migrationResult,
+      restoredArtifactCount: artifacts.length,
+      failureIsolation: "passed",
+      restartReopen: "passed",
+      rollbackPolicy: "verified_restore_or_compensating_migration_never_reset",
+      externalNetworkUsed: false,
+    };
+  } finally {
+    rmSync(drillRoot, { recursive: true, force: true });
+  }
+}
+
 async function deploymentDrill(dataRoot) {
   const drillRoot = mkdtempSync(path.join(os.tmpdir(), "fdbtrade-r011-drill-"));
   try {
@@ -687,6 +783,16 @@ async function main() {
     console.log(JSON.stringify(await deploymentDrill(dataRoot)));
     return;
   }
+  if (command === "upgrade-preflight") {
+    const dataRoot = options["data-root"] ? absolute(options["data-root"], "--data-root") : resolveDataRoot();
+    console.log(JSON.stringify(upgradePreflight(dataRoot)));
+    return;
+  }
+  if (command === "upgrade-drill") {
+    const dataRoot = options["data-root"] ? absolute(options["data-root"], "--data-root") : resolveDataRoot();
+    console.log(JSON.stringify(await upgradeDrill(dataRoot)));
+    return;
+  }
   if (command === "init-drill-fixture") {
     const dataRoot = absolute(options["data-root"], "--data-root");
     ensureRealDirectory(dataRoot);
@@ -694,7 +800,7 @@ async function main() {
     console.log(JSON.stringify({ status: "initialized", dataRoot }));
     return;
   }
-  fail("usage: operational-data.mjs backup|restore|drill [options]");
+  fail("usage: operational-data.mjs backup|restore|drill|upgrade-preflight|upgrade-drill [options]");
 }
 
 main().catch((error) => {

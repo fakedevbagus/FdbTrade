@@ -96,6 +96,7 @@ KNOWN_ADRS = {
     55: "legacy-surface-retirement",
     56: "durable-operational-health",
     57: "local-web-security-hardening",
+    58: "upgrade-and-rollback-safety",
 }
 
 
