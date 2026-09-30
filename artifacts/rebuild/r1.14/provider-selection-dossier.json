@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "workUnit": "R1.14",
+  "status": "complete-decision-pending",
+  "recordedOn": "2026-09-30",
+  "repository": {
+    "branch": "rebuild/r0-preserve-current-state",
+    "baselineCommit": "0544c81140a365e8e19aa98e6e1e9f1b8d987c03"
+  },
+  "scope": {
+    "pairs": ["EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD"],
+    "intervals": ["15m", "1h", "4h"],
+    "mode": "read-only decision unit"
+  },
+  "weights": {
+    "coverage": 15,
+    "candleSemantics": 10,
+    "historyPagination": 10,
+    "freshnessRevisions": 15,
+    "licenseExportability": 10,
+    "costLimitsUptime": 10,
+    "authenticationSafety": 10,
+    "sdkIndependence": 10,
+    "testability": 10
+  },
+  "candidates": [
+    {
+      "name": "Twelve Data Basic",
+      "score": 83,
+      "disposition": "shortlist",
+      "intendedRole": "bounded self-service current and historical API",
+      "unresolved": ["seven-pair Basic entitlement", "candle source and revisions", "Basic uptime"]
+    },
+    {
+      "name": "OANDA v20 candles",
+      "score": 78,
+      "disposition": "shortlist",
+      "intendedRole": "account-owned current and historical candles",
+      "unresolved": ["regional eligibility", "read-only token scope", "license and revision policy"]
+    },
+    {
+      "name": "Dukascopy Historical Data Export",
+      "score": 78,
+      "disposition": "shortlist-historical-only",
+      "intendedRole": "historical backfill and offline fixtures",
+      "unresolved": ["automation permission", "stable API contract", "freshness and revisions"]
+    },
+    {
+      "name": "HistData",
+      "score": 62,
+      "disposition": "reject-primary",
+      "reason": "M1/tick aggregation, manual access and unresolved terms/freshness"
+    },
+    {
+      "name": "Alpha Vantage FX_INTRADAY",
+      "score": 58,
+      "disposition": "reject",
+      "reason": "premium intraday FX and no native 4h interval"
+    }
+  ],
+  "shortlist": ["Twelve Data Basic", "OANDA v20 candles", "Dukascopy Historical Data Export"],
+  "selectedProvider": null,
+  "decisionRule": "operator must authorize exactly one named provider or defer",
+  "sourcePolicy": {
+    "facts": "provider-controlled pages cited in dossier",
+    "inferences": "explicitly labeled",
+    "unknowns": "explicitly labeled and fail closed"
+  },
+  "sources": [
+    "https://developer.oanda.com/rest-live-v20/instrument-ep",
+    "https://developer.oanda.com/rest-live-v20/instrument-df",
+    "https://developer.oanda.com/rest-live-v20/authentication",
+    "https://twelvedata.com/docs/llms/market-data/time-series.md",
+    "https://twelvedata.com/pricing",
+    "https://www.dukascopy.com/swiss/english/marketwatch/historical",
+    "https://www.dukascopy.com/swiss/english/legal-pages/terms-of-use/",
+    "https://www.histdata.com/download-free-forex-historical-data",
+    "https://www.alphavantage.co/documentation"
+  ],
+  "finalGate": {
+    "command": "CI=true make toolchain-gate",
+    "reportPath": "artifacts/toolchain/gate.json",
+    "status": "pass",
+    "summary": {
+      "total": 15,
+      "pass": 15,
+      "fail": 0,
+      "timeout": 0,
+      "environmentBlocked": 0,
+      "skipped": 0,
+      "planned": 0
+    },
+    "firstActionableFailure": null
+  },
+  "preservation": {
+    "migrationCount": 12,
+    "m48FileCount": 10,
+    "m48Bytes": 55941,
+    "m48HashVerification": "pass",
+    "m48RuntimeAuthority": false
+  },
+  "safety": {
+    "credentialsCreated": false,
+    "providerApiCalled": false,
+    "externalNetworkAddedToProduct": false,
+    "providerSelectedForUser": false,
+    "productionBehaviorModified": false,
+    "migrationAdded": false,
+    "m48RuntimeAuthority": false
+  },
+  "nextWorkUnit": "R1.15 — Credential and Egress Boundary (blocked pending one named provider)"
+}

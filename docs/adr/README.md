@@ -120,3 +120,4 @@ not used.
 | [ADR-0057](ADR-0057-local-web-security-hardening.md) | Local web security authority | Accepted |
 | [ADR-0058](ADR-0058-upgrade-and-rollback-safety.md) | Upgrade and rollback safety | Accepted |
 | [ADR-0059](ADR-0059-offline-private-beta-gate.md) | Offline private beta gate | Accepted |
+| [ADR-0060](ADR-0060-provider-selection-dossier.md) | Provider selection dossier | Accepted |

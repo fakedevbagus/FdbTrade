@@ -98,6 +98,7 @@ KNOWN_ADRS = {
     57: "local-web-security-hardening",
     58: "upgrade-and-rollback-safety",
     59: "offline-private-beta-gate",
+    60: "provider-selection-dossier",
 }
 
 

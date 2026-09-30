@@ -136,10 +136,10 @@ class R17OperatorConfirmedPaperApiContracts(unittest.TestCase):
             self.assertIn("Otorisasi implementasi HANYA R1.8", text)
             self.assertIn("Do not infer R1.9", text)
         else:
-            self.assertIn("Current completed unit: **R1.13", text)
-            self.assertIn("Next planned unit: **R1.14", text)
-            self.assertIn("Otorisasi audit HANYA R1.14", text)
-            self.assertIn("Do not infer R1.15", text)
+            self.assertIn("Current completed unit: **R1.14", text)
+            self.assertIn("Next planned unit: **R1.15", text)
+            self.assertIn("Otorisasi implementasi HANYA R1.15", text)
+            self.assertIn("Do not infer R1.16", text)
         self.assertIn("Authorization state: **not authorized**", text)
 
 
