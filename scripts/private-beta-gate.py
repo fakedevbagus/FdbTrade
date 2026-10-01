@@ -49,7 +49,7 @@ def healthy(db: sqlite3.Connection) -> dict:
     integrity = one(db, "PRAGMA integrity_check")[0]
     foreign_keys = db.execute("PRAGMA foreign_key_check").fetchall()
     migrations = one(db, "SELECT COUNT(*) FROM schema_migrations")[0]
-    if integrity != "ok" or foreign_keys or migrations != 12:
+    if integrity != "ok" or foreign_keys or migrations != 13:
         raise AssertionError("health authority failed")
     return {"sqliteIntegrity": integrity, "foreignKeyViolations": 0, "migrationCount": migrations}
 

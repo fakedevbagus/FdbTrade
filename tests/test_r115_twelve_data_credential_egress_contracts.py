@@ -37,8 +37,8 @@ class R115TwelveDataBoundaryContracts(unittest.TestCase):
         self.assertTrue(all(value is False for value in authority["safety"].values()))
         self.assertEqual(authority["finalGate"]["summary"]["pass"], 15)
         nxt = (ROOT / "docs/rebuild/NEXT.md").read_text()
-        self.assertIn("Current completed unit: **R1.17", nxt)
-        self.assertIn("Next planned unit: **R1.18", nxt)
+        self.assertIn("Current completed unit: **R1.18", nxt)
+        self.assertIn("Next planned unit: **R1.19", nxt)
         self.assertIn("not authorized", nxt)
 
     def test_preservation(self):
@@ -46,7 +46,7 @@ class R115TwelveDataBoundaryContracts(unittest.TestCase):
             path for path in sorted((ROOT / "backend/db/sqlite-migrations").glob("*.sql"))
             if re.fullmatch(r"\d{4}_[a-z0-9_]+\.sql", path.name)
         ]
-        self.assertEqual(len(migrations), 12)
+        self.assertEqual(len(migrations), 13)
         preservation = json.loads((ROOT / "artifacts/rebuild/r0.1/preservation.json").read_text())
         for item in preservation["quarantinedWork"]["files"]:
             data = (ROOT / item["path"]).read_bytes()

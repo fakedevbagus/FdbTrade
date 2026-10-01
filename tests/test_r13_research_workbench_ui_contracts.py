@@ -104,6 +104,7 @@ class R13ResearchWorkbenchUiContracts(unittest.TestCase):
             "0010_temporal_validation_authority",
             "0011_robustness_selection_bias_authority",
             "0012_paper_input_resolution",
+            "0013_scheduled_analysis_alerts",
         ])
 
     def test_m48_preservation_and_safety_remain_locked(self):
@@ -128,11 +129,11 @@ class R13ResearchWorkbenchUiContracts(unittest.TestCase):
 
     def test_r13_handoff_was_consumed_only_by_authorized_r14(self):
         text = NEXT.read_text(encoding="utf-8")
-        self.assertIn("Current completed unit: **R1.17", text)
-        self.assertIn("Next planned unit: **R1.18", text)
+        self.assertIn("Current completed unit: **R1.18", text)
+        self.assertIn("Next planned unit: **R1.19", text)
         self.assertIn("Authorization state: **not authorized**", text)
-        self.assertIn("Otorisasi implementasi HANYA R1.18", text)
-        self.assertIn("Do not infer R1.19", text)
+        self.assertIn("Otorisasi audit HANYA R1.19", text)
+        self.assertIn("Do not infer R1.20", text)
 
 
 if __name__ == "__main__":

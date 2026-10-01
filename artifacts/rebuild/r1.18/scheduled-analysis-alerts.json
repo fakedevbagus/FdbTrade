@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "workUnit": "R1.18",
+  "status": "complete_awaiting_operator_local_validation",
+  "recordedOn": "2026-10-01",
+  "repository": {
+    "branch": "work/r1.18-scheduled-analysis-alerts",
+    "baselineCommit": "98b59fc95aca51cf6218504e035fbeeb19d2d219"
+  },
+  "scheduler": {
+    "defaultEnabled": false,
+    "singleProcessLockPreserved": true,
+    "leasesAndCheckpointsPreserved": true,
+    "boundedBacklog": 42,
+    "workItemsPerCycle": 1,
+    "marketSessionAware": true,
+    "gracefulDrainPreserved": true
+  },
+  "pipeline": {
+    "provider": "Twelve Data",
+    "ingestionAuthority": "R1.17/R0.6",
+    "analysisAuthority": "R0.7",
+    "alertAuthority": "SQLite alert_events",
+    "pairs": 7,
+    "timeframes": ["15m", "1h", "4h"],
+    "fixtureFallback": false
+  },
+  "verification": {
+    "focusedTests": { "tests": 10, "status": "pass" },
+    "regressionTests": { "tests": 70, "status": "pass" },
+    "backendTypecheck": "pass",
+    "finalGate": {
+      "command": "CI=true make toolchain-gate",
+      "status": "pass",
+      "summary": {
+        "total": 15,
+        "pass": 15,
+        "fail": 0,
+        "timeout": 0,
+        "environmentBlocked": 0,
+        "skipped": 0,
+        "planned": 0
+      },
+      "firstActionableFailure": null
+    }
+  },
+  "preservation": {
+    "migrationCount": 13,
+    "m48FileCount": 10,
+    "m48Bytes": 55941,
+    "m48RuntimeAuthority": false
+  },
+  "safety": {
+    "automaticPaperRunAdded": false,
+    "paperTableMutationAdded": false,
+    "orderAuthorityAdded": false,
+    "providerOrderTransportAdded": false,
+    "modelPromotionAdded": false,
+    "demoOrLiveExecutionAdded": false,
+    "m48Promoted": false
+  },
+  "nextWorkUnit": "R1.19 — Macro Source Selection Dossier (not authorized)"
+}

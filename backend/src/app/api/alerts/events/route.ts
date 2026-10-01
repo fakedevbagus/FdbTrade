@@ -11,13 +11,17 @@ import { requireSession } from "@/auth/guard";
 import { withApi } from "@/http/handler";
 import { ApiError } from "@/http/errors";
 import { jsonOk } from "@/http/responses";
-import { alertCenter } from "@/signals/alerts";
+import { getDatabase } from "@/db/client";
+import { DurableAlertCenter } from "@/signals/alerts";
 
 export const dynamic = "force-dynamic";
 
 export const GET = withApi(async (request, { requestId }) => {
   await requireSession(request);
-  return jsonOk({ events: alertCenter.listEvents() }, { requestId });
+  return jsonOk(
+    { events: new DurableAlertCenter(getDatabase()).listEvents() },
+    { requestId },
+  );
 });
 
 const methodNotAllowedHandler = withApi(async () => {
