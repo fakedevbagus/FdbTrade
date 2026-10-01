@@ -10,9 +10,9 @@ class R112UpgradeRollbackSafety(unittest.TestCase):
  def tearDown(self): self.temp.cleanup()
  def test_preflight_upgrade_failure_isolation_restore_migrate_and_restart(self):
   result=run("node",str(CLI),"upgrade-preflight","--data-root",str(self.source));self.assertEqual(result.returncode,0,result.stdout+result.stderr)
-  pre=json.loads(result.stdout.strip().splitlines()[-1]);self.assertEqual(pre["status"],"passed");self.assertEqual(pre["migrationCount"],12);self.assertGreaterEqual(pre["freeBytes"],pre["minimumFreeBytes"]);self.assertEqual(pre["manifestCompatibility"]["unknownOrFuture"],"rejected")
+  pre=json.loads(result.stdout.strip().splitlines()[-1]);self.assertEqual(pre["status"],"passed");self.assertEqual(pre["migrationCount"],13);self.assertGreaterEqual(pre["freeBytes"],pre["minimumFreeBytes"]);self.assertEqual(pre["manifestCompatibility"]["unknownOrFuture"],"rejected")
   drill=run("node",str(CLI),"upgrade-drill","--data-root",str(self.source));self.assertEqual(drill.returncode,0,drill.stdout+drill.stderr)
-  body=json.loads(drill.stdout.strip().splitlines()[-1]);self.assertEqual(body["status"],"passed");self.assertEqual(body["failureIsolation"],"passed");self.assertEqual(body["restartReopen"],"passed");self.assertEqual(body["migrationResult"],{"applied":0,"skipped":12});self.assertFalse(body["externalNetworkUsed"]);self.assertEqual(body["rollbackPolicy"],"verified_restore_or_compensating_migration_never_reset")
+  body=json.loads(drill.stdout.strip().splitlines()[-1]);self.assertEqual(body["status"],"passed");self.assertEqual(body["failureIsolation"],"passed");self.assertEqual(body["restartReopen"],"passed");self.assertEqual(body["migrationResult"],{"applied":0,"skipped":13});self.assertFalse(body["externalNetworkUsed"]);self.assertEqual(body["rollbackPolicy"],"verified_restore_or_compensating_migration_never_reset")
   with sqlite3.connect(self.source/"fdbtrade.sqlite3") as db:
    self.assertEqual(db.execute("PRAGMA integrity_check").fetchone()[0],"ok");self.assertIn("backup_created",[r[0] for r in db.execute("SELECT event_type FROM operational_events")])
  def test_nonempty_target_and_future_manifest_are_rejected_without_overwrite(self):
@@ -25,8 +25,8 @@ class R112UpgradeRollbackSafety(unittest.TestCase):
 class R112AuthorityContracts(unittest.TestCase):
  def test_policy_progression_preservation_and_gate(self):
   source=(ROOT/"scripts/operational-data.mjs").read_text();self.assertIn("upgradePreflight",source);self.assertIn("upgradeDrill",source);self.assertIn("restore-publication",source);self.assertIn("verified_restore_or_compensating_migration_never_reset",source);self.assertNotIn("git reset",source.lower())
-  nxt=(ROOT/"docs/rebuild/NEXT.md").read_text();self.assertIn("Current completed unit: **R1.17",nxt);self.assertIn("Next planned unit: **R1.18",nxt);self.assertIn("not authorized",nxt)
-  migrations=[p for p in sorted((ROOT/"backend/db/sqlite-migrations").glob("*.sql")) if re.fullmatch(r"\d{4}_[a-z0-9_]+\.sql",p.name)];self.assertEqual(len(migrations),12)
+  nxt=(ROOT/"docs/rebuild/NEXT.md").read_text();self.assertIn("Current completed unit: **R1.18",nxt);self.assertIn("Next planned unit: **R1.19",nxt);self.assertIn("not authorized",nxt)
+  migrations=[p for p in sorted((ROOT/"backend/db/sqlite-migrations").glob("*.sql")) if re.fullmatch(r"\d{4}_[a-z0-9_]+\.sql",p.name)];self.assertEqual(len(migrations),13)
   preservation=json.loads((ROOT/"artifacts/rebuild/r0.1/preservation.json").read_text())
   for item in preservation["quarantinedWork"]["files"]:
    data=(ROOT/item["path"]).read_bytes();self.assertEqual(len(data),item["bytes"]);self.assertEqual(hashlib.sha256(data).hexdigest(),item["sha256"])

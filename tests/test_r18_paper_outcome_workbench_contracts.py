@@ -85,13 +85,13 @@ class R18PaperOutcomeWorkbenchContracts(unittest.TestCase):
 
     def test_migrations_remain_twelve_and_r19_is_not_authorized(self):
         ordered = [p for p in sorted(MIGRATIONS.glob("*.sql")) if re.fullmatch(r"\d{4}_[a-z0-9_]+\.sql", p.name)]
-        self.assertEqual(len(ordered), 12)
-        self.assertEqual(ordered[-1].name, "0012_paper_input_resolution.sql")
+        self.assertEqual(len(ordered), 13)
+        self.assertEqual(ordered[-1].name, "0013_scheduled_analysis_alerts.sql")
         text = NEXT.read_text()
-        self.assertIn("Current completed unit: **R1.17", text)
-        self.assertIn("Next planned unit: **R1.18", text)
+        self.assertIn("Current completed unit: **R1.18", text)
+        self.assertIn("Next planned unit: **R1.19", text)
         self.assertIn("Authorization state: **not authorized**", text)
-        self.assertIn("Do not start R1.18", text)
+        self.assertIn("Do not start R1.19", text)
 
     def test_authority_hashes_gate_and_safety_are_locked(self):
         authority = json.loads(AUTHORITY.read_text())

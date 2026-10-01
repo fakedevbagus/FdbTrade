@@ -21,6 +21,7 @@
  * caller-supplied); the same events + prefs yield the same outcomes.
  */
 import { createHash } from "node:crypto";
+import type { DatabaseSync } from "node:sqlite";
 
 import { z } from "zod";
 
@@ -218,3 +219,118 @@ export class AlertCenter {
 
 /** Process-wide alert center (single-user product; no-op provider). */
 export const alertCenter = new AlertCenter();
+
+/**
+ * SQLite-backed R1.18 alert authority. Event identity is immutable and
+ * idempotent by (decisionId,eventClass); only delivery status may advance.
+ */
+export class DurableAlertCenter {
+  private readonly delivery: AlertDelivery;
+
+  constructor(
+    private readonly database: DatabaseSync,
+    options: { delivery?: AlertDelivery } = {},
+  ) {
+    this.delivery = options.delivery ?? noopAlertDelivery;
+  }
+
+  getPreferences(): AlertPreferences {
+    const row = this.database.prepare(
+      "SELECT preferences_json FROM alert_preferences WHERE singleton_id = 1",
+    ).get() as { preferences_json?: unknown } | undefined;
+    return row
+      ? alertPreferencesSchema.parse(JSON.parse(String(row.preferences_json)))
+      : alertPreferencesSchema.parse(DEFAULT_ALERT_PREFERENCES);
+  }
+
+  setPreferences(raw: unknown, updatedAtUtc = new Date().toISOString()): AlertPreferences {
+    const preferences = alertPreferencesSchema.parse(raw);
+    this.database.prepare(`
+      INSERT INTO alert_preferences (singleton_id, preferences_json, updated_at_utc)
+      VALUES (1, ?, ?)
+      ON CONFLICT(singleton_id) DO UPDATE SET
+        preferences_json = excluded.preferences_json,
+        updated_at_utc = excluded.updated_at_utc
+    `).run(JSON.stringify(preferences), updatedAtUtc);
+    return preferences;
+  }
+
+  listEvents(): AlertEvent[] {
+    return (this.database.prepare(`
+      SELECT event_id, decision_id, event_class, recorded_at_utc,
+             status, attempts, last_error
+      FROM alert_events ORDER BY recorded_at_utc, event_id
+    `).all() as Array<Record<string, unknown>>).map((row) => ({
+      eventId: String(row.event_id),
+      decisionId: String(row.decision_id),
+      eventClass: alertEventClassSchema.parse(row.event_class),
+      recordedAtUtc: String(row.recorded_at_utc),
+      status: alertDeliveryStatusSchema.parse(row.status),
+      attempts: Number(row.attempts),
+      lastError: row.last_error === null ? null : String(row.last_error),
+    }));
+  }
+
+  async dispatch(options: {
+    decisionId: string;
+    eventClass: AlertEventClass;
+    recordedAtUtc: string;
+    message: string;
+    createdBy?: "scheduler" | "operator";
+  }): Promise<DispatchOutcome> {
+    const eventId = alertEventIdFor(options.decisionId, options.eventClass);
+    const existing = this.database.prepare(
+      "SELECT event_id FROM alert_events WHERE event_id = ?",
+    ).get(eventId);
+    if (existing) {
+      const event = this.listEvents().find((candidate) => candidate.eventId === eventId);
+      if (!event) return { ok: false, reason: "durable alert event could not be reopened" };
+      return { ok: true, event, idempotent: true, skipped: event.status === "skipped" };
+    }
+
+    const preferences = this.getPreferences();
+    const enabled = preferences.enabled && preferences.classes[options.eventClass] === true;
+    const initialStatus: AlertDeliveryStatus = enabled ? "pending" : "skipped";
+    this.database.prepare(`
+      INSERT INTO alert_events (
+        event_id, decision_id, event_class, recorded_at_utc, status,
+        attempts, last_error, message, created_by
+      ) VALUES (?, ?, ?, ?, ?, 0, NULL, ?, ?)
+    `).run(
+      eventId,
+      options.decisionId,
+      options.eventClass,
+      options.recordedAtUtc,
+      initialStatus,
+      options.message,
+      options.createdBy ?? "scheduler",
+    );
+    if (!enabled) {
+      const event = this.listEvents().find((candidate) => candidate.eventId === eventId);
+      if (!event) return { ok: false, reason: "durable skipped alert could not be reopened" };
+      return { ok: true, event, idempotent: false, skipped: true };
+    }
+
+    let status: AlertDeliveryStatus = "delivered";
+    let lastError: string | null = null;
+    try {
+      const event = this.listEvents().find((candidate) => candidate.eventId === eventId);
+      if (!event) throw new Error("durable pending alert could not be reopened");
+      const result = await this.delivery.deliver(event, options.message);
+      if (!result.ok) {
+        status = "failed";
+        lastError = result.reason;
+      }
+    } catch (error) {
+      status = "failed";
+      lastError = error instanceof Error ? error.message : "unknown delivery failure";
+    }
+    this.database.prepare(`
+      UPDATE alert_events SET status = ?, attempts = attempts + 1, last_error = ?
+      WHERE event_id = ? AND status = 'pending'
+    `).run(status, lastError, eventId);
+    const event = this.listEvents().find((candidate) => candidate.eventId === eventId);
+    if (!event) return { ok: false, reason: "durable alert event could not be reopened" };
+    return { ok: true, event, idempotent: false, skipped: false };
+  }
+}

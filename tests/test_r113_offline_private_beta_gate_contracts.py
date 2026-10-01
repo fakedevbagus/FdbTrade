@@ -37,7 +37,7 @@ class R113OfflinePrivateBetaGate(unittest.TestCase):
             self.assertEqual(len(report["soak"]["cycles"]), 3)
             self.assertTrue(all(value is False for value in report["safety"].values()))
             restored = report["steps"][-1]["evidence"]
-            self.assertEqual(restored["migrationCount"], 12)
+            self.assertEqual(restored["migrationCount"], 13)
             self.assertEqual(restored["foreignKeyViolations"], 0)
             self.assertEqual(restored["restoredArtifacts"], 2)
 
@@ -55,14 +55,14 @@ class R113OfflinePrivateBetaGate(unittest.TestCase):
         self.assertIn("Honest limitations", guide)
         self.assertIn("Incident recovery", guide)
         nxt = (ROOT / "docs/rebuild/NEXT.md").read_text()
-        self.assertIn("Current completed unit: **R1.17", nxt)
-        self.assertIn("Next planned unit: **R1.18", nxt)
+        self.assertIn("Current completed unit: **R1.18", nxt)
+        self.assertIn("Next planned unit: **R1.19", nxt)
         self.assertIn("not authorized", nxt)
         migrations = [
             path for path in sorted((ROOT / "backend/db/sqlite-migrations").glob("*.sql"))
             if re.fullmatch(r"\d{4}_[a-z0-9_]+\.sql", path.name)
         ]
-        self.assertEqual(len(migrations), 12)
+        self.assertEqual(len(migrations), 13)
         preservation = json.loads((ROOT / "artifacts/rebuild/r0.1/preservation.json").read_text())
         for item in preservation["quarantinedWork"]["files"]:
             data = (ROOT / item["path"]).read_bytes()

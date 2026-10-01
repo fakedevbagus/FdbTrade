@@ -91,8 +91,8 @@ class R17OperatorConfirmedPaperApiContracts(unittest.TestCase):
             if match:
                 migrations.append(f"{match.group(1)}_{match.group(2)}")
                 self.assertTrue(MIGRATIONS.joinpath(f"{path.stem}.down.sql").is_file())
-        self.assertEqual(len(migrations), 12)
-        self.assertEqual(migrations[-1], "0012_paper_input_resolution")
+        self.assertEqual(len(migrations), 13)
+        self.assertEqual(migrations[-1], "0013_scheduled_analysis_alerts")
 
     def test_recorded_source_hashes_and_predecessors_match(self):
         authority = json.loads(AUTHORITY.read_text(encoding="utf-8"))
@@ -136,10 +136,10 @@ class R17OperatorConfirmedPaperApiContracts(unittest.TestCase):
             self.assertIn("Otorisasi implementasi HANYA R1.8", text)
             self.assertIn("Do not infer R1.9", text)
         else:
-            self.assertIn("Current completed unit: **R1.17", text)
-            self.assertIn("Next planned unit: **R1.18", text)
-            self.assertIn("Otorisasi implementasi HANYA R1.18", text)
-            self.assertIn("Do not infer R1.19", text)
+            self.assertIn("Current completed unit: **R1.18", text)
+            self.assertIn("Next planned unit: **R1.19", text)
+            self.assertIn("Otorisasi audit HANYA R1.19", text)
+            self.assertIn("Do not infer R1.20", text)
         self.assertIn("Authorization state: **not authorized**", text)
 
 

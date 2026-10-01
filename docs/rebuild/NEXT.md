@@ -1,41 +1,42 @@
 # FdbTrade Rebuild — Next Work Unit
 
-Current completed unit: **R1.17 — Twelve Data Authoritative Provider Ingestion**
+Current completed unit: **R1.18 — Scheduled Analysis and Alerts**
 
 Canonical roadmap: `docs/roadmap/FDBTRADE_R1_BLUEPRINT_PROMPT_PACK.md`
 
 Selected provider: **Twelve Data**
 
-Next planned unit: **R1.18 — Scheduled Analysis and Alerts**
+Next planned unit: **R1.19 — Macro Source Selection Dossier**
 
 Authorization state: **not authorized**
 
-R1.17 is the current stop boundary.
+R1.18 is the current stop boundary.
 
 ## Copy-ready next-chat prompt
 
 ```text
-Otorisasi implementasi HANYA R1.18 — Scheduled Analysis and Alerts sesuai
+Otorisasi audit HANYA R1.19 — Macro Source Selection Dossier sesuai
 docs/roadmap/FDBTRADE_R1_BLUEPRINT_PROMPT_PACK.md, satu commit atomik, lalu
 berhenti.
 
-Schedule authoritative provider ingestion, R0.7 evaluation and durable in-app
-alert creation while preserving single-process lock, leases, checkpoints,
-dedupe, bounded backlog, market-session behavior, graceful drain and restart
-recovery. Keep the scheduler opt-in and off by default. It must have no R0.9
-paper-run call, order authority, model promotion or provider-order transport.
-Revalidate R1.17, the complete gate, twelve migrations and M48 preservation.
+Define measurable calendar-data requirements and compare credible sources for
+scheduled FX-relevant events: licensing, revisions, timezone semantics,
+country/currency mapping, impact, actual/forecast/previous, history, rate
+limits, cost, exportability and reliability. Separate sourced facts, inference
+and unknown. Do not create credentials, call APIs, select a source, ingest
+data, add sentiment/news scraping or alter signals/risk. Produce a shortlist
+and a copy-ready prompt requiring one exact source authorization.
 ```
 
 ## Resume checks
 
-1. Verify the R1.17 atomic commit and clean branch.
-2. Verify R1.17 only publishes complete, closed, fresh, licensed and
-   session-complete provider batches through R0.6.
-3. Verify no real provider call was recorded during R1.17.
-4. Verify complete gate, twelve migrations and M48 preservation.
+1. Verify the R1.18 atomic commit and clean branch.
+2. Verify scheduler default OFF and its only work path is R1.17/R0.6 -> R0.7
+   -> durable in-app alert.
+3. Verify zero paper-table mutations and no order/promotion transport.
+4. Verify complete gate, thirteen migrations and M48 preservation.
 
 ## Stop rule
 
-Do not start R1.18 without explicit authorization. Do not infer R1.19 or any
-later unit from completion of R1.17.
+Do not start R1.19 without explicit authorization. Do not infer R1.20 or any
+later unit from completion of R1.18.

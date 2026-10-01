@@ -30,7 +30,16 @@ import { InMemoryCycleLeaseStore } from "./lease";
 import { InMemoryLockTable, type ProcessLock } from "./lock";
 import type { DatabaseSync } from "node:sqlite";
 import { getDatabase } from "../db/client";
+import { resolveDataRoot } from "../db/sqlite.mjs";
 import { SqliteProcessLock, SqliteRuntimeStore } from "./sqlite";
+import path from "node:path";
+import { MarketDataAuthority } from "../data/marketAuthority";
+import { AuthoritativeTwelveDataIngestion } from "../data/providers/twelveDataAuthoritativeIngestion";
+import { TwelveDataBudget, type AuditEvent } from "../data/providers/twelveDataBoundary";
+import { createPinnedTwelveDataTransport } from "../data/providers/twelveDataHttps";
+import { SignalIntelligenceAuthority } from "../signals/signalAuthority";
+import { DurableAlertCenter } from "../signals/alerts";
+import { ScheduledAnalysisPipeline } from "./scheduledAnalysis";
 import {
   Scheduler,
   CYCLE_STAGES,
@@ -113,6 +122,8 @@ export function buildRuntimeScheduler(options: {
   databaseId?: string;
   owner?: string;
   database?: DatabaseSync;
+  handlers?: ConstructorParameters<typeof Scheduler>[0]["handlers"];
+  pressureReader?: ConstructorParameters<typeof Scheduler>[0]["pressureReader"];
 }): { scheduler: Scheduler; observation: RuntimeObservation; log: BoundedRuntimeLog } {
   const clock = options.clock ?? { nowMs: () => Date.now() };
   const log = new BoundedRuntimeLog(1_000);
@@ -138,7 +149,8 @@ export function buildRuntimeScheduler(options: {
     completions: durableStore ?? new CompletionLedger(),
     leases: durableStore ?? new InMemoryCycleLeaseStore(),
     log,
-    handlers: createObservationHandlers(observation),
+    handlers: options.handlers ?? createObservationHandlers(observation),
+    pressureReader: options.pressureReader,
     owner,
     databaseId,
   });
@@ -236,12 +248,57 @@ export function startRuntimeScheduler(
   }
   const intervalMs = parseIntervalMs(env.FDB_RUNTIME_INTERVAL_MS);
   const databaseId = env.FDB_RUNTIME_DATABASE_ID ?? "fdbtrade-runtime";
-  const { scheduler } = buildRuntimeScheduler({
+  const database = getDatabase();
+  const dataRoot = resolveDataRoot(env);
+  const marketData = new MarketDataAuthority(
+    database,
+    path.join(dataRoot, "artifacts", "market-data"),
+  );
+  const ingestion = new AuthoritativeTwelveDataIngestion(database, marketData);
+  const signals = new SignalIntelligenceAuthority(database, marketData);
+  const alerts = new DurableAlertCenter(database);
+  const transport = createPinnedTwelveDataTransport();
+  let runtimeLog: BoundedRuntimeLog | undefined;
+  const nowMs = () => Date.now();
+  const pipeline = new ScheduledAnalysisPipeline({
+    database,
+    marketData,
+    ingestion,
+    signals,
+    alerts,
+    nowMs,
+    provider: {
+      configDir: path.join(dataRoot, "config"),
+      budget: new TwelveDataBudget(nowMs()),
+      ports: {
+        resolve: transport.resolve,
+        send: transport.send,
+        sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+        nowMs,
+        audit: (event: AuditEvent) => runtimeLog?.append({
+          atMs: nowMs(),
+          correlationId: "twelve-data",
+          cycleId: null,
+          level: event.outcome === "passed" ? "info" : "warn",
+          event: "twelve_data_read",
+          detail: `code=${event.code} attempts=${event.attempts}`,
+        }),
+      },
+    },
+  });
+  const built = buildRuntimeScheduler({
     intervalMs,
     databaseId,
     owner: `fdbtrade-api:${process.pid}`,
-    database: getDatabase(),
+    database,
+    handlers: pipeline.handlers(),
+    pressureReader: () => ({
+      queueBacklog: pipeline.backlog(),
+      queueSoftLimit: 42,
+    }),
   });
+  runtimeLog = built.log;
+  const { scheduler } = built;
   let driver: RuntimeDriver | null = null;
   const ready = scheduler.start().then((result) => {
     if (!result.started) {
